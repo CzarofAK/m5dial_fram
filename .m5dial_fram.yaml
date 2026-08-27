@@ -1,5 +1,5 @@
 # =====================================================================
-#  m5dial_fram.yaml — header for every M5 Dial in the FRAM
+#  .m5dial_fram.yaml — header for every M5 Dial in the FRAM
 #  FRAM M5Dial Cockpit
 #
 #  Applies to EVERY dial in the FRAM. Contains everything that's wired
@@ -9,6 +9,11 @@
 #  The device name, the home page, and the page list therefore do NOT
 #  live here, but in the _cockpit file. Otherwise a second dial in the
 #  FRAM couldn't share this header.
+#
+#  Dot-prefixed like .basics.yaml, for the same reason: this file has
+#  no `esphome.name:` of its own, but the ESPHome dashboard still
+#  offered it as a flashable device when it sat here undotted -- a
+#  leading dot keeps it out of that listing.
 #
 #  Assumes basics.yaml (already in the ESPHome directory and NOT
 #  included from here). From there come wifi, api, ota, logger,

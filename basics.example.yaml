@@ -1,7 +1,7 @@
 # =====================================================================
 #  basics.example.yaml — template for .basics.yaml
 #
-#  m5dial_fram.yaml assumes a `.basics.yaml` already sits in the
+#  .m5dial_fram.yaml assumes a `.basics.yaml` already sits in the
 #  ESPHome directory (design_rules.md §12) and does NOT include it
 #  itself. m5dial_fram_cockpit.yaml pulls it in as the `basics:`
 #  package.
@@ -57,7 +57,7 @@ time:
   - platform: homeassistant
     id: homeassistant_time
 
-# Referenced by the day/night triple-click handler in m5dial_fram.yaml.
+# Referenced by the day/night triple-click handler in .m5dial_fram.yaml.
 button:
   - platform: restart
     name: "Restart"

@@ -7,10 +7,14 @@ checklist for merging a page into a device file.
 
 ## Prerequisite: `.basics.yaml`
 
-`m5dial_fram.yaml` (the header shared by every M5 Dial in the FRAM)
+`.m5dial_fram.yaml` (the header shared by every M5 Dial in the FRAM)
 assumes a `.basics.yaml` already sits next to the device file in the
 ESPHome directory — it is **not** included from this repo, since it's
 shared by every ESPHome device in the install, not just the M5 Dials.
+
+Both are dot-prefixed on purpose: neither has an `esphome.name:` of
+its own, but the ESPHome dashboard still lists an undotted file here
+as a flashable device — the leading dot keeps it out of that listing.
 
 It needs to provide: `wifi`, `ota`, `api`, `web_server`, `logger`, the
 `homeassistant_time` time source, and a `restart_button`.

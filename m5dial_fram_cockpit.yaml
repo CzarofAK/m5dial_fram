@@ -22,7 +22,7 @@
 
 substitutions:
   name: "m5dial-fram-cockpit"
-  friendly_name: "m5dial-fram-cockpit"
+  friendly_name: "m5dial_fram_cockpit"
 
   # Page that double-click and long press jump back to. Must be the
   # LVGL page id (design.md §10: page_<name>), not the short page
@@ -35,7 +35,7 @@ esphome:
 
 packages:
   basics: !include .basics.yaml
-  header: !include m5dial_fram.yaml
+  header: !include .m5dial_fram.yaml
 
   p0: !include m5dial_pages/page_clock.yaml
   p1: !include m5dial_pages/page_power_1.yaml
