@@ -4,23 +4,6 @@ As of: 2026-08-21. Applies to all pages of the cockpit dashboard.
 If a page deviates from this document, either the page is wrong or this
 document is outdated — either way it must be corrected, not ignored.
 
-> **Addendum 2026-08-21 (1), from building page 4 (Water).** New or
-> changed: §3 two-value layout and two additional substitutions, §4
-> double ring and the resulting smaller inner radius, §5 `montserrat_24`,
-> §6 water thresholds, status-line precedence, color of the secondary
-> ring, §8 second ring.
-
-> **Addendum 2026-08-21 (2), from building page 3 (Gas) and revising
-> page 1.** New or changed: §3 **all grid values** — the stack sat too
-> high, the gap was at the bottom; §3 column labeling names the ring,
-> not the mounting position; §6 gas thresholds and a precedence rule for
-> two equal-ranked supplies; §8 corner radius of the button on
-> double-ring pages.
->
-> **Resolved:** pages 2 and 4 no longer carry their own `substitutions:`
-> block at all — every page now inherits the grid from `m5dial_fram.yaml`
-> (§2), so there's nothing left to bring up to date.
-
 ---
 
 ## 1. Target device
@@ -618,3 +601,37 @@ reusable by any dial in the project, not just this one.
   same `y_main` but appear to be at different heights, because the
   percent sign reaches further up. Only decide whether this is a
   problem once actually paging through on the real device.
+
+---
+
+## 15. Page catalog
+
+The full planned roster, in navigation order (§10 — the encoder
+addresses pages by this index, so the order is deliberate, not
+alphabetical). "Implemented" means a `page_<id>.yaml` exists in
+`m5dial_pages/`; everything else is planned only — no file, no
+entity_ids, no layout decided yet.
+
+| # | id | Content | Status |
+|---|---|---|---|
+| 0 | `clock` | Clock + outdoor temperature and date/weekday | implemented |
+| 1 | `power_1` | Battery: SOC, park mode, starter voltage | implemented |
+| 2 | `power_2` | Grid power: MultiPlus mode / current limit | implemented |
+| 3 | `gas` | Two gas bottles (double ring, §4) | implemented |
+| 4 | `water` | Fresh / grey water (double ring, §4) | implemented |
+| 5 | `levelling` | Spirit level — sensor is **external** hardware, not on the dial | planned |
+| 6 | `climate` | Climate control (not available yet) + Truma Combi heating side, including fan mode | planned |
+| 7 | `boiler` | Mode, actual temperature | planned |
+| 8 | `fans` | HVAC / fan board | planned |
+| 9 | `lights_outside` | Entrance light, awning light (dimmable) | planned |
+| 10 | `entrance` | Step, door lock | planned |
+| 11 | `ipixel` | On/off and status only | planned |
+| reserved | `lights_inside` | — | reserved, not designed yet |
+
+Not pages — shown as an overlay on top of whatever page is current,
+per the `s_ignition` comment in `m5dial_fram.yaml`:
+
+| id | Content |
+|---|---|
+| `OV1` | Pre-flight check overlay |
+| `OV2` | Cat litter box overlay |
