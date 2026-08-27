@@ -22,11 +22,12 @@
 
 substitutions:
   name: "m5dial-fram-cockpit"
-  friendly_name: "FRAM Cockpit"
+  friendly_name: "m5dial-fram-cockpit"
 
-  # Page that double-click and long press jump back to.
-  # Must be one of the pages included below.
-  home_page: "clock"
+  # Page that double-click and long press jump back to. Must be the
+  # LVGL page id (design.md §10: page_<name>), not the short page
+  # name -- lvgl.page.show: ${home_page} in the header needs the id.
+  home_page: "page_clock"
 
 esphome:
   name: ${name}
