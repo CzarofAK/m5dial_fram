@@ -73,7 +73,7 @@ script:
           data_template:
             option: "{{ opt }}"
           variables:
-            opt: |-
+            opt: !lambda |-
               // ON -> CHG -> INV -> OFF -> ON
               std::string m = id(s_strom2_mode).state;
               if (m == "ON")  return std::string("charger_only");
@@ -90,7 +90,7 @@ script:
           data_template:
             value: "{{ val }}"
           variables:
-            val: |-
+            val: !lambda |-
               // next value up, snapping to the list in case HA
               // returns an in-between value (e.g. 10.5)
               static const float t[] = {4.0f, 6.0f, 8.0f, 10.0f, 13.0f, 16.0f};
@@ -305,7 +305,7 @@ lvgl:
             max_value: 100
             adjustable: false
             arc_width: 10
-            arc_color: 0x3C4043
+            arc_color: 0x1A1C1E
             indicator:
               arc_width: 10
               arc_color: 0x555555
