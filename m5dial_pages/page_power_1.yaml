@@ -1,8 +1,6 @@
 # =====================================================================
-#  m5dial/power_1.yaml — page: Power / Battery
-#  FRAM M5Dial Cockpit · page package (block B + C + D)
-#
-#  Data sources come from sources/power_1.sim.yaml resp. power_1.ha.yaml.
+#  m5dial_pages/page_power_1.yaml — page: Power / Battery
+#  FRAM M5Dial Cockpit · page package
 #
 #  Slots (design.md §3):
 #    y_main   72%              montserrat_40

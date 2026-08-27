@@ -17,10 +17,9 @@ document is outdated — either way it must be corrected, not ignored.
 > two equal-ranked supplies; §8 corner radius of the button on
 > double-ring pages.
 >
-> **Pages 2 and 4 are still on the old grid.** They will be brought up
-> to date at the first merge, where the substitutions block only occurs
-> once anyway. Until then they sit a few pixels higher than pages 1 and
-> 3 in the simulator.
+> **Resolved:** pages 2 and 4 no longer carry their own `substitutions:`
+> block at all — every page now inherits the grid from `m5dial_fram.yaml`
+> (§2), so there's nothing left to bring up to date.
 
 ---
 
@@ -42,31 +41,24 @@ doesn't exist. The simulator shows a square and lies at the corners.
 
 ## 2. File structure
 
-| | | | |
-| --- | --- | --- | --- |
-| m5dial_fram.yaml | | | contains all the Locations specific data |
-| | m5dial_fram_cockpit.yaml | | contains all Device specific data |
-| | m5dial_fram | | this folder contains all pages available to the Location |
-| | | page_n.yaml | this is the page file itself |
+| File / folder | Contains |
+|---|---|
+| `m5dial_fram.yaml` | everything shared by every M5 Dial in the FRAM (Location-specific: hardware header, palette grid, day/night) |
+| `m5dial_fram_cockpit.yaml` | one specific dial (Device-specific: name, home page, which pages in which order) |
+| `m5dial_pages/` | all pages, one file each, reusable across every dial in the project |
+| `m5dial_pages/page_<name>.yaml` | one page, ready to `!include` as-is — no separate simulator variant, no merge step |
 
-Eine Datei pro Seite, benannt `page_n.yaml`. Jede Datei ist für
-sich nicht lauffähig.
+One file per page, named `page_<name>.yaml`, `<name>` matching §10's
+page names (`clock`, `gas`, `power_1`, `power_2`, `water`). Each file
+directly contains its data sources (`sensor:` / `text_sensor:` on
+`platform: homeassistant`), its bindings, and its widgets — this is
+what actually runs on the device, not an intermediate form.
 
 > No spaces in file names. `esphome config strom 2.yaml` passes two
 > file names and fails twice.
 
-Each file is split into four blocks, in this order:
-
-| Block | Content | when merging |
-|---|---|---|
-| **A** Scaffold | `esphome:`, `host:`, `display: sdl`, `touchscreen: sdl`, sim globals | **dropped**, replaced by the hardware file |
-| **B** Data sources | `sensor:` / `text_sensor:` with `platform: template` | **swapped** for `platform: homeassistant` |
-| **C** Bindings | `on_value` triggers or drawing scripts | carried over **1:1** |
-| **D** Widgets | `lvgl: pages: - id: page_xxx` | carried over **1:1**, as one page |
-
-The point of the separation: blocks C and D are the actual value and
-must not need to be touched when transferring. Everything that differs
-between simulator and device lives in A and B.
+There's deliberately no maintained simulator build alongside this —
+see §11.
 
 ---
 
@@ -519,7 +511,6 @@ e.g. `s_power_1_soc`, `page_power_2`, `draw_water`.
 | `btn_` | button |
 | `s_` | sensor / text sensor (data source) |
 | `draw_` | a page's drawing script |
-| `g_sim_` | global, simulation **only** |
 
 For two equal-ranked values, a suffix distinguishes the columns, using
 the same abbreviation as in the label:
@@ -535,18 +526,30 @@ addresses via the index. Only change the order deliberately.
 
 ## 11. Simulation
 
-* Data sources as `platform: template` with `update_interval`.
+There's no maintained simulator build. Reflashing the device is fast
+enough to be the normal way to check a change — a separate simulator
+variant per page just gave the sim and the device copies of the same
+logic to drift apart by hand, which is exactly what caused most of the
+bugs this document's addenda are about.
+
+Simulation is still worth doing **occasionally, by hand**, when
+changing something that's awkward to judge by reflashing repeatedly
+(a new layout, a new status-line rule, a color threshold). To do that:
+temporarily swap that one page's `platform: homeassistant` sensors for
+`platform: template` ones that sweep values, on a throwaway local copy
+— don't commit a sim variant back into `m5dial_pages/`. Worth keeping
+in mind while doing that:
+
 * Values **sweep the whole range**, so all color thresholds become
   visible without waiting (SOC ramps in steps of 4 from 100 to 0, the
   MP state cycles including `fault`).
-* Two values on one page run with **different**
-  `update_interval`s, otherwise the same combinations always occur and
-  you never see the status-line precedence. This also applies to
-  values that only appear together in one row (voltage and current):
-  with the same interval and the same list length, the pair repeats.
-* Buttons only change a `g_sim_` global. The device variant
-  (`homeassistant.service`) sits **commented out directly below it**.
-* No `api:` block — otherwise the invalidity check kicks in.
+* Two values on one page run with **different** `update_interval`s,
+  otherwise the same combinations always occur and you never see the
+  status-line precedence. This also applies to values that only appear
+  together in one row (voltage and current): with the same interval
+  and the same list length, the pair repeats.
+* No `api:` block — otherwise the invalidity check (§7) kicks in and
+  every value shows `---`.
 
 On the device, the dial is always only a display and a set of buttons.
 The source of truth lives in Home Assistant and Node-RED respectively;
@@ -556,34 +559,25 @@ no state is held locally.
 
 ## 12. Structure
 
-The yaml is split into several blocks to achieve better modularity and
-increase reusability. The structure consists of an m5dial-fram.yaml,
-which holds all FRAM-specific (Fram = the name of the motorhome)
-values. Below that sits the m5dial-fram-cockpit.yaml, which holds the
-values specific to this particular m5dial, such as the page order etc.
-The last layer is formed by the "m5dial_pages" folder in the esphome
-directory. All pages are stored there and can be reused by every
-m5dial in the respective project.
+The three-layer split in §2 exists for modularity and reuse: FRAM
+(motorhome) is one location that could have more than one M5 Dial, so
+whatever is shared by all of them — the hardware header, the palette,
+the grid, day/night — belongs in `m5dial_fram.yaml`, one device (this
+dial specifically: its name, its home page, its page order) belongs in
+`m5dial_fram_cockpit.yaml`, and pages belong in `m5dial_pages/`,
+reusable by any dial in the project, not just this one.
 
 ---
 
-## 13. Merge checklist
+## 13. Before flashing
 
-1. Discard block A of every page file, insert the hardware file.
-2. Adopt `substitutions:` **once**, values must be identical.
-   On the first merge, check the pages that are still on an older
-   grid — they'll change visually as a result.
-3. Block B: `platform: template` → `platform: homeassistant`, fill in
-   `entity_id`. Keep the sensor IDs.
-4. Button `on_click`: swap the sim lambda for the commented-out
-   `homeassistant.service` call.
-5. Insert blocks C and D unchanged, D in the order of the page indices.
-6. Remove `g_sim_` globals.
-7. Combine all `on_boot` calls of the drawing scripts into **one**
-   `on_boot` block.
-8. Check that no ID occurs twice and no display points to a deleted
-   ID — that's the most common source of error.
-9. Run `esphome config` against the merged file **before** flashing.
+1. Adding or reordering a page: update the `packages:` list in
+   `m5dial_fram_cockpit.yaml` — that order **is** the page order (§10).
+2. Check that no ID occurs twice and no display points to a deleted
+   ID — that's the most common source of error, and ESPHome catches
+   it as a hard error rather than a silent runtime bug.
+3. Run `esphome config` against `m5dial_fram_cockpit.yaml` **before**
+   flashing.
 
 ---
 
