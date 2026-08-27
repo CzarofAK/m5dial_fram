@@ -1,0 +1,484 @@
+# =====================================================================
+#  sim_04_wasser.yaml — page 4: Water (Fresh / Grey)
+#  FRAM M5Dial Cockpit · simulator version (SDL2)
+#
+#      esphome run sim_04_wasser.yaml
+#
+#  Layout: two concentric rings (Victron GUIv2 style)
+#    outer 224 x 224, arc_width 10  -> r 102..112  fresh water
+#    inner 200 x 200, arc_width 10  -> r  90..100  grey water
+#    both 135 -> 45, gap at the bottom for the footer, 2 px black between
+#
+#  Usable inner radius therefore 90 px instead of 102 px.
+#  Available text width (r = 90):
+#    y 48 -> 152 px   y 56 -> 141 px   y 64 -> 127 px
+#  Footer in the gap unchanged (r = 118): y 90 -> 152 px
+#
+#  Structure per DESIGN.md §2:
+#    A Scaffold / B Data sources / C Bindings / D Widgets
+# =====================================================================
+
+substitutions:
+  y_main:   "-36"
+  y_line2:  "6"
+  y_row:    "44"
+  y_footer: "-32"
+  # New, for pages with two equal-ranked values (Gas, Water):
+  y_cap:    "-58"     # label row above the main value
+  x_col:    "40"      # column offset from the center
+
+# =====================================================================
+# BLOCK A — Scaffold (simulator only)
+# =====================================================================
+
+esphome:
+  name: sim-04-wasser
+  on_boot:
+    priority: -100
+    then:
+      - script.execute: draw_water
+
+host:
+
+logger:
+  level: INFO
+
+# No api: block — otherwise the invalidity check kicks in (DESIGN.md §11)
+
+display:
+  - platform: sdl
+    id: sim_display
+    auto_clear_enabled: false
+    dimensions:
+      width: 240
+      height: 240
+    update_interval: 16ms
+
+touchscreen:
+  - platform: sdl
+    id: sim_touch
+    display: sim_display
+
+globals:
+  # Simulation only: holds the pump state, which HA otherwise holds.
+  - id: g_sim_pump
+    type: bool
+    restore_value: false
+    initial_value: "false"
+
+
+# =====================================================================
+# BLOCK B — Data sources
+#   Device: platform: template  ->  platform: homeassistant + entity_id
+# =====================================================================
+
+sensor:
+  - platform: template
+    id: s_water_fresh          # fresh water, %
+    update_interval: 800ms
+    lambda: |-
+      static float v = 100.0f;
+      v -= 4.0f;
+      if (v < 0.0f) v = 100.0f;
+      return v;
+    on_value:
+      - script.execute: draw_water
+    # Device:
+    # - platform: homeassistant
+    #   id: s_water_fresh
+    #   entity_id: sensor.frischwasser_prozent
+    #   on_value:
+    #     - script.execute: draw_water
+
+  - platform: template
+    id: s_water_grey           # grey water, %
+    update_interval: 1100ms
+    lambda: |-
+      static float v = 0.0f;
+      v += 5.0f;
+      if (v > 100.0f) v = 0.0f;
+      return v;
+    on_value:
+      - script.execute: draw_water
+    # Device:
+    # - platform: homeassistant
+    #   id: s_water_grey
+    #   entity_id: sensor.grauwasser_prozent
+    #   on_value:
+    #     - script.execute: draw_water
+
+binary_sensor:
+  - platform: template
+    id: s_water_pump           # water pump on/off
+    lambda: "return id(g_sim_pump);"
+    on_state:
+      - script.execute: draw_water
+    # Device:
+    # - platform: homeassistant
+    #   id: s_water_pump
+    #   entity_id: switch.wasserpumpe
+    #   on_state:
+    #     - script.execute: draw_water
+
+
+# =====================================================================
+# BLOCK C — Bindings (one drawing script per page, DESIGN.md §9)
+#
+#   Vehicle-fixed tank sizes: fresh 180 L, grey 90 L
+#   Thresholds: fresh  warning < 25 %, alarm < 10 %
+#               grey   warning >= 80 %, alarm >= 95 %
+#
+#   The FRISCH / GRAU (FRESH / GREY) label each carries the color of its
+#   ring — that's the mapping between number and ring. Which tank is
+#   meant is still spelled out as a word regardless (DESIGN.md §6).
+# =====================================================================
+
+script:
+  - id: draw_water
+    mode: restart
+    then:
+
+      # ---- Outer ring: fresh water -----------------------------------
+      - lvgl.arc.update:
+          id: arc_water_fresh
+          value: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return 0.0;
+            #endif
+            if (!id(s_water_fresh).has_state()) return 0.0;
+            return id(s_water_fresh).state;
+          indicator:
+            arc_color: !lambda |-
+              #ifdef USE_API
+              if (!api_is_connected()) return lv_color_hex(0x555555);
+              #endif
+              if (!id(s_water_fresh).has_state()) return lv_color_hex(0x555555);
+              float v = id(s_water_fresh).state;
+              if (v < 10.0f) return lv_color_hex(0xE74C3C);
+              if (v < 25.0f) return lv_color_hex(0xF39C12);
+              return lv_color_hex(0x4A9EFF);
+
+      # ---- Inner ring: grey water --------------------------------------
+      - lvgl.arc.update:
+          id: arc_water_grey
+          value: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return 0.0;
+            #endif
+            if (!id(s_water_grey).has_state()) return 0.0;
+            return id(s_water_grey).state;
+          indicator:
+            arc_color: !lambda |-
+              #ifdef USE_API
+              if (!api_is_connected()) return lv_color_hex(0x555555);
+              #endif
+              if (!id(s_water_grey).has_state()) return lv_color_hex(0x555555);
+              float v = id(s_water_grey).state;
+              if (v >= 95.0f) return lv_color_hex(0xE74C3C);
+              if (v >= 80.0f) return lv_color_hex(0xF39C12);
+              return lv_color_hex(0x9AA0A6);
+
+      # ---- Label row (color = ring color) ------------------------------
+      - lvgl.label.update:
+          id: lbl_water_cap_f
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_water_fresh).has_state()) return lv_color_hex(0x555555);
+            float v = id(s_water_fresh).state;
+            if (v < 10.0f) return lv_color_hex(0xE74C3C);
+            if (v < 25.0f) return lv_color_hex(0xF39C12);
+            return lv_color_hex(0x4A9EFF);
+
+      - lvgl.label.update:
+          id: lbl_water_cap_g
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_water_grey).has_state()) return lv_color_hex(0x555555);
+            float v = id(s_water_grey).state;
+            if (v >= 95.0f) return lv_color_hex(0xE74C3C);
+            if (v >= 80.0f) return lv_color_hex(0xF39C12);
+            return lv_color_hex(0x9AA0A6);
+
+      # ---- Main row: both fill levels in % -----------------------------
+      - lvgl.label.update:
+          id: lbl_water_pct_f
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("---%");
+            #endif
+            if (!id(s_water_fresh).has_state()) return std::string("---%");
+            return str_sprintf("%.0f%%", id(s_water_fresh).state);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_water_fresh).has_state()) return lv_color_hex(0x555555);
+            float v = id(s_water_fresh).state;
+            if (v < 10.0f) return lv_color_hex(0xE74C3C);
+            if (v < 25.0f) return lv_color_hex(0xF39C12);
+            return lv_color_hex(0xFFFFFF);
+
+      - lvgl.label.update:
+          id: lbl_water_pct_g
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("---%");
+            #endif
+            if (!id(s_water_grey).has_state()) return std::string("---%");
+            return str_sprintf("%.0f%%", id(s_water_grey).state);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_water_grey).has_state()) return lv_color_hex(0x555555);
+            float v = id(s_water_grey).state;
+            if (v >= 95.0f) return lv_color_hex(0xE74C3C);
+            if (v >= 80.0f) return lv_color_hex(0xF39C12);
+            return lv_color_hex(0xFFFFFF);
+
+      # ---- Secondary row: both fill levels in liters --------------------
+      - lvgl.label.update:
+          id: lbl_water_l_f
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("--- L");
+            #endif
+            if (!id(s_water_fresh).has_state()) return std::string("--- L");
+            return str_sprintf("%.0f L", id(s_water_fresh).state * 1.80f);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_water_fresh).has_state()) return lv_color_hex(0x555555);
+            return lv_color_hex(0xBDC1C6);
+
+      - lvgl.label.update:
+          id: lbl_water_l_g
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("--- L");
+            #endif
+            if (!id(s_water_grey).has_state()) return std::string("--- L");
+            return str_sprintf("%.0f L", id(s_water_grey).state * 0.90f);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_water_grey).has_state()) return lv_color_hex(0x555555);
+            return lv_color_hex(0xBDC1C6);
+
+      # ---- Footer: status line, empty in normal operation ---------------
+      - lvgl.label.update:
+          id: lbl_water_status
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("KEINE VERBINDUNG");
+            #endif
+            if (!id(s_water_fresh).has_state() || !id(s_water_grey).has_state())
+              return std::string("KEIN WERT");
+            float f = id(s_water_fresh).state;
+            float g = id(s_water_grey).state;
+            // Order: alarm first, then warning; on equal rank, grey water
+            // before fresh water (overflow is damage, an empty fresh tank
+            // is only an inconvenience).
+            if (g >= 95.0f) return std::string("ABWASSER VOLL");
+            if (f < 10.0f)  return std::string("FRISCHWASSER LEER");
+            if (g >= 80.0f) return std::string("ABWASSER VOLL");
+            if (f < 25.0f)  return std::string("FRISCHWASSER KNAPP");
+            return std::string("");
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_water_fresh).has_state() || !id(s_water_grey).has_state())
+              return lv_color_hex(0x555555);
+            float f = id(s_water_fresh).state;
+            float g = id(s_water_grey).state;
+            if (f < 10.0f || g >= 95.0f) return lv_color_hex(0xE74C3C);
+            return lv_color_hex(0xF39C12);
+
+      # ---- Button: water pump -------------------------------------------
+      - lvgl.label.update:
+          id: lbl_water_pump
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("PUMPE ---");
+            #endif
+            if (!id(s_water_pump).has_state()) return std::string("PUMPE ---");
+            return std::string(id(s_water_pump).state ? "PUMPE EIN" : "PUMPE AUS");
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_water_pump).has_state()) return lv_color_hex(0x555555);
+            return lv_color_hex(0xE8EAED);
+
+      - lvgl.widget.update:
+          id: btn_water_pump
+          bg_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x202124);
+            #endif
+            if (!id(s_water_pump).has_state()) return lv_color_hex(0x202124);
+            return lv_color_hex(id(s_water_pump).state ? 0x14324F : 0x202124);
+          border_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x3C4043);
+            #endif
+            if (!id(s_water_pump).has_state()) return lv_color_hex(0x3C4043);
+            return lv_color_hex(id(s_water_pump).state ? 0x4A9EFF : 0x3C4043);
+
+
+# =====================================================================
+# BLOCK D — Widgets
+# =====================================================================
+
+lvgl:
+  default_font: montserrat_16
+  bottom_layer:
+    bg_color: 0x000000
+    bg_opa: COVER
+
+  pages:
+    - id: page_water
+      bg_color: 0x000000
+      bg_opa: COVER
+      widgets:
+
+        # --- Outer ring: fresh water
+        - arc:
+            id: arc_water_fresh
+            align: CENTER
+            width: 224
+            height: 224
+            start_angle: 135
+            end_angle: 45
+            min_value: 0
+            max_value: 100
+            value: 0
+            adjustable: false
+            arc_width: 10
+            arc_color: 0x1A1C1E
+            indicator:
+              arc_width: 10
+              arc_color: 0x4A9EFF
+            knob:
+              bg_opa: TRANSP
+
+        # --- Inner ring: grey water
+        - arc:
+            id: arc_water_grey
+            align: CENTER
+            width: 200
+            height: 200
+            start_angle: 135
+            end_angle: 45
+            min_value: 0
+            max_value: 100
+            value: 0
+            adjustable: false
+            arc_width: 10
+            arc_color: 0x1A1C1E
+            indicator:
+              arc_width: 10
+              arc_color: 0x9AA0A6
+            knob:
+              bg_opa: TRANSP
+
+        # --- Label row
+        - label:
+            id: lbl_water_cap_f
+            align: CENTER
+            x: -${x_col}
+            y: ${y_cap}
+            text: "FRISCH"
+            text_font: montserrat_12
+            text_color: 0x555555
+
+        - label:
+            id: lbl_water_cap_g
+            align: CENTER
+            x: ${x_col}
+            y: ${y_cap}
+            text: "GRAU"
+            text_font: montserrat_12
+            text_color: 0x555555
+
+        # --- Main row (two equal-ranked values -> montserrat_24)
+        - label:
+            id: lbl_water_pct_f
+            align: CENTER
+            x: -${x_col}
+            y: ${y_main}
+            text: "---%"
+            text_font: montserrat_24
+            text_color: 0x555555
+
+        - label:
+            id: lbl_water_pct_g
+            align: CENTER
+            x: ${x_col}
+            y: ${y_main}
+            text: "---%"
+            text_font: montserrat_24
+            text_color: 0x555555
+
+        # --- Secondary row
+        - label:
+            id: lbl_water_l_f
+            align: CENTER
+            x: -${x_col}
+            y: ${y_line2}
+            text: "--- L"
+            text_font: montserrat_16
+            text_color: 0x555555
+
+        - label:
+            id: lbl_water_l_g
+            align: CENTER
+            x: ${x_col}
+            y: ${y_line2}
+            text: "--- L"
+            text_font: montserrat_16
+            text_color: 0x555555
+
+        # --- Button row (one button)
+        - button:
+            id: btn_water_pump
+            align: CENTER
+            y: ${y_row}
+            width: 104
+            height: 30
+            radius: 15
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  id: lbl_water_pump
+                  align: CENTER
+                  text: "PUMPE ---"
+                  text_font: montserrat_16
+                  text_color: 0x555555
+            on_click:
+              # Simulator: just flips the g_sim_ global, the
+              # template binary_sensor triggers the redraw.
+              - lambda: "id(g_sim_pump) = !id(g_sim_pump);"
+              # Device:
+              # - homeassistant.service:
+              #     service: switch.toggle
+              #     data:
+              #       entity_id: switch.wasserpumpe
+
+        # --- Footer in the arc gap
+        - label:
+            id: lbl_water_status
+            align: BOTTOM_MID
+            y: ${y_footer}
+            text: ""
+            text_font: montserrat_12
+            text_color: 0x555555
