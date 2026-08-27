@@ -1,0 +1,377 @@
+# =====================================================================
+#  m5dial/liquids.yaml — Seite: Wasser (Frisch / Grau)
+#  FRAM M5Dial Cockpit · Seiten-Package (Block B + C + D)
+#
+#
+#  Doppelring (design.md §4):
+#    aussen 224 x 224 -> r 102..112   FRISCH  (der wichtigere Wert)
+#    innen  200 x 200 -> r  90..100   GRAU    (nachrangig, 0x9AA0A6)
+#
+#  Zwei-Wert-Layout, beide Spalten auf x ±${x_col}. Anders als bei Gas
+#  sind die Behälter unterscheidbar, die Beschriftung benennt deshalb
+#  den INHALT und nicht den Ring (design.md §3).
+#
+#  Taster bei y_row 48: untere Ecke auf Radius 81.7, Innenring bei 90 —
+#  passt (design.md §8). Ab y_row 56 würde er schneiden.
+#
+#  Rangfolge der Statuszeile (design.md §6): erst Rang, dann Schaden vor
+#  Unbequemlichkeit. Ein überlaufender Grautank ist Schaden im Fahrzeug,
+#  ein leerer Frischtank nicht.
+# =====================================================================
+
+# ---------------------------------------------------------------------
+#  C  Bindings
+# ---------------------------------------------------------------------
+sensor:
+  - platform: homeassistant
+    id: s_liquids_f
+    entity_id: sensor.fresh_stand
+    on_value:
+      - script.execute: draw_liquids
+  - platform: homeassistant
+    id: s_liquids_g
+    entity_id: sensor.waste_stand
+    on_value:
+      - script.execute: draw_liquids
+
+binary_sensor:
+  # Noch kein echter Pumpenschalter am Fahrzeug — bis dahin ein
+  # input_boolean in HA. Wenn der Schalter kommt: entity_id tauschen
+  # und im act_-Skript den Dienst auf switch.toggle stellen.
+  - platform: homeassistant
+    id: s_liquids_pump
+    entity_id: input_boolean.waterpump
+    on_state:
+      - script.execute: draw_liquids
+
+script:
+  - id: act_liquids_pump
+    then:
+      - homeassistant.service:
+          service: input_boolean.toggle
+          data:
+            entity_id: input_boolean.waterpump
+
+  - id: draw_liquids
+    mode: restart
+    then:
+      # ---- Aussenring: Frischwasser --------------------------------
+      - lvgl.arc.update:
+          id: arc_liquids_f
+          value: !lambda |-
+            if (!id(s_liquids_f).has_state()) return 0.0f;
+            return id(s_liquids_f).state;
+          indicator:
+            arc_color: !lambda |-
+              #ifdef USE_API
+              if (!api_is_connected()) return lv_color_hex(0x555555);
+              #endif
+              if (!id(s_liquids_f).has_state()) return lv_color_hex(0x555555);
+              float v = id(s_liquids_f).state;
+              if (v < 10.0f) return lv_color_hex(0xE74C3C);
+              if (v < 25.0f) return lv_color_hex(0xF39C12);
+              return lv_color_hex(0x4A9EFF);
+
+      # ---- Innenring: Grauwasser -----------------------------------
+      - lvgl.arc.update:
+          id: arc_liquids_g
+          value: !lambda |-
+            if (!id(s_liquids_g).has_state()) return 0.0f;
+            return id(s_liquids_g).state;
+          indicator:
+            arc_color: !lambda |-
+              #ifdef USE_API
+              if (!api_is_connected()) return lv_color_hex(0x555555);
+              #endif
+              if (!id(s_liquids_g).has_state()) return lv_color_hex(0x555555);
+              float v = id(s_liquids_g).state;
+              if (v >= 95.0f) return lv_color_hex(0xE74C3C);
+              if (v >= 80.0f) return lv_color_hex(0xF39C12);
+              return lv_color_hex(0x9AA0A6);
+
+      # ---- Spaltenbeschriftung, trägt die Ringfarbe ----------------
+      - lvgl.label.update:
+          id: lbl_liquids_cap_f
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_liquids_f).has_state()) return lv_color_hex(0x555555);
+            float v = id(s_liquids_f).state;
+            if (v < 10.0f) return lv_color_hex(0xE74C3C);
+            if (v < 25.0f) return lv_color_hex(0xF39C12);
+            return lv_color_hex(0x4A9EFF);
+      - lvgl.label.update:
+          id: lbl_liquids_cap_g
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_liquids_g).has_state()) return lv_color_hex(0x555555);
+            float v = id(s_liquids_g).state;
+            if (v >= 95.0f) return lv_color_hex(0xE74C3C);
+            if (v >= 80.0f) return lv_color_hex(0xF39C12);
+            return lv_color_hex(0x9AA0A6);
+
+      # ---- Prozentwerte --------------------------------------------
+      - lvgl.label.update:
+          id: lbl_liquids_pct_f
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("---%");
+            #endif
+            if (!id(s_liquids_f).has_state()) return std::string("---%");
+            return str_sprintf("%.0f%%", id(s_liquids_f).state);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_liquids_f).has_state()) return lv_color_hex(0x555555);
+            float v = id(s_liquids_f).state;
+            if (v < 10.0f) return lv_color_hex(0xE74C3C);
+            if (v < 25.0f) return lv_color_hex(0xF39C12);
+            return lv_color_hex(0xFFFFFF);
+      - lvgl.label.update:
+          id: lbl_liquids_pct_g
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("---%");
+            #endif
+            if (!id(s_liquids_g).has_state()) return std::string("---%");
+            return str_sprintf("%.0f%%", id(s_liquids_g).state);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_liquids_g).has_state()) return lv_color_hex(0x555555);
+            float v = id(s_liquids_g).state;
+            if (v >= 95.0f) return lv_color_hex(0xE74C3C);
+            if (v >= 80.0f) return lv_color_hex(0xF39C12);
+            return lv_color_hex(0xFFFFFF);
+
+      # ---- Absolutwerte --------------------------------------------
+      # Fahrzeugfeste Konstanten als Literal (design.md §9):
+      # Frisch 180 L, Grau 90 L.
+      - lvgl.label.update:
+          id: lbl_liquids_l_f
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("--- L");
+            #endif
+            if (!id(s_liquids_f).has_state()) return std::string("--- L");
+            return str_sprintf("%.0f L", id(s_liquids_f).state * 1.80f);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_liquids_f).has_state()) return lv_color_hex(0x555555);
+            return lv_color_hex(0xBDC1C6);
+      - lvgl.label.update:
+          id: lbl_liquids_l_g
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("--- L");
+            #endif
+            if (!id(s_liquids_g).has_state()) return std::string("--- L");
+            return str_sprintf("%.0f L", id(s_liquids_g).state * 0.90f);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_liquids_g).has_state()) return lv_color_hex(0x555555);
+            return lv_color_hex(0xBDC1C6);
+
+      # ---- Taster: Wasserpumpe -------------------------------------
+      - lvgl.label.update:
+          id: lbl_liquids_pump
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("PUMPE ---");
+            #endif
+            if (!id(s_liquids_pump).has_state()) return std::string("PUMPE ---");
+            return id(s_liquids_pump).state ? std::string("PUMPE EIN")
+                                    : std::string("PUMPE AUS");
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_liquids_pump).has_state()) return lv_color_hex(0x555555);
+            return id(s_liquids_pump).state ? lv_color_hex(0x4A9EFF)
+                                    : lv_color_hex(0xBDC1C6);
+      - lvgl.widget.update:
+          id: btn_liquids_pump
+          bg_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x202124);
+            #endif
+            if (!id(s_liquids_pump).has_state()) return lv_color_hex(0x202124);
+            return id(s_liquids_pump).state ? lv_color_hex(0x14324F)
+                                    : lv_color_hex(0x202124);
+          border_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x3C4043);
+            #endif
+            if (!id(s_liquids_pump).has_state()) return lv_color_hex(0x3C4043);
+            return id(s_liquids_pump).state ? lv_color_hex(0x4A9EFF)
+                                    : lv_color_hex(0x3C4043);
+
+      # ---- Statuszeile ---------------------------------------------
+      - lvgl.label.update:
+          id: lbl_liquids_status
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("KEINE VERBINDUNG");
+            #endif
+            if (!id(s_liquids_f).has_state() || !id(s_liquids_g).has_state())
+              return std::string("KEIN WERT");
+            float f = id(s_liquids_f).state;
+            float g = id(s_liquids_g).state;
+            if (g >= 95.0f) return std::string("ABWASSER VOLL");
+            if (f < 10.0f)  return std::string("FRISCHWASSER LEER");
+            if (g >= 80.0f) return std::string("ABWASSER HOCH");
+            if (f < 25.0f)  return std::string("FRISCHWASSER KNAPP");
+            return std::string("");
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_liquids_f).has_state() || !id(s_liquids_g).has_state())
+              return lv_color_hex(0x555555);
+            float f = id(s_liquids_f).state;
+            float g = id(s_liquids_g).state;
+            if (g >= 95.0f || f < 10.0f) return lv_color_hex(0xE74C3C);
+            return lv_color_hex(0xF39C12);
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - script.execute: draw_liquids
+
+# ---------------------------------------------------------------------
+#  D  Widgets
+# ---------------------------------------------------------------------
+lvgl:
+  pages:
+    - id: page_liquids
+      # Eine LVGL-Seite ist per Default ein deckend WEISSES Objekt und
+      # liegt ueber dem bottom_layer aus dem Header. Ohne diese zwei
+      # Zeilen steht alles auf weissem Grund (Korrektur zu design.md §8).
+      bg_color: 0x000000
+      bg_opa: COVER
+      widgets:
+        - arc:
+            id: arc_liquids_f
+            align: CENTER
+            width: 224
+            height: 224
+            start_angle: 135
+            end_angle: 45
+            min_value: 0
+            max_value: 100
+            adjustable: false
+            arc_width: 10
+            arc_color: 0x3C4043
+            indicator:
+              arc_width: 10
+              arc_color: 0x555555
+            knob:
+              bg_opa: TRANSP
+
+        - arc:
+            id: arc_liquids_g
+            align: CENTER
+            width: 200
+            height: 200
+            start_angle: 135
+            end_angle: 45
+            min_value: 0
+            max_value: 100
+            adjustable: false
+            arc_width: 10
+            arc_color: 0x3C4043
+            indicator:
+              arc_width: 10
+              arc_color: 0x555555
+            knob:
+              bg_opa: TRANSP
+
+        # ---- Spalte Frischwasser -----------------------------------
+        - label:
+            id: lbl_liquids_cap_f
+            align: CENTER
+            x: -${x_col}
+            y: ${y_cap}
+            text: "FRISCH"
+            text_font: montserrat_12
+            text_color: 0x555555
+        - label:
+            id: lbl_liquids_pct_f
+            align: CENTER
+            x: -${x_col}
+            y: ${y_main}
+            text: "---%"
+            text_font: montserrat_24
+            text_color: 0x555555
+        - label:
+            id: lbl_liquids_l_f
+            align: CENTER
+            x: -${x_col}
+            y: ${y_line2}
+            text: "--- L"
+            text_font: montserrat_16
+            text_color: 0x555555
+
+        # ---- Spalte Grauwasser -------------------------------------
+        - label:
+            id: lbl_liquids_cap_g
+            align: CENTER
+            x: ${x_col}
+            y: ${y_cap}
+            text: "GRAU"
+            text_font: montserrat_12
+            text_color: 0x555555
+        - label:
+            id: lbl_liquids_pct_g
+            align: CENTER
+            x: ${x_col}
+            y: ${y_main}
+            text: "---%"
+            text_font: montserrat_24
+            text_color: 0x555555
+        - label:
+            id: lbl_liquids_l_g
+            align: CENTER
+            x: ${x_col}
+            y: ${y_line2}
+            text: "--- L"
+            text_font: montserrat_16
+            text_color: 0x555555
+
+        - button:
+            id: btn_liquids_pump
+            align: CENTER
+            y: ${y_row}
+            width: 104
+            height: 30
+            radius: 15
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  id: lbl_liquids_pump
+                  align: CENTER
+                  text: "PUMPE ---"
+                  text_font: montserrat_16
+                  text_color: 0x555555
+            on_click:
+              - script.execute: act_liquids_pump
+
+        - label:
+            id: lbl_liquids_status
+            align: BOTTOM_MID
+            y: ${y_footer}
+            text: ""
+            text_font: montserrat_12
+            text_color: 0x555555
