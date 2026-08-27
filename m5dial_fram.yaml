@@ -206,7 +206,14 @@ text_sensor:
 #  Day / Night
 # =====================================================================
 #  design.md §6: day and night differ ONLY in backlight brightness,
-#  never in the color scheme.
+#  never in the color scheme -- except the clock page, a deliberate,
+#  documented exception (design.md §6). This script is therefore the
+#  one place in the header that reaches into a specific page's widget
+#  (clock_face, from page_clock.yaml). That's only safe because every
+#  cockpit currently includes the same page set (m5dial_fram_cockpit.yaml's
+#  own comment: "otherwise the same packages") -- if a future dial ever
+#  drops the clock page, this call needs to come out too, or the build
+#  breaks on the missing id.
 globals:
   - id: g_daynight
     type: int
@@ -230,6 +237,7 @@ script:
           auto call = id(lgt_backlight).turn_on();
           call.set_brightness(night ? 0.25f : 1.0f);
           call.perform();
+          id(clock_face).set_night_mode(night);
 
 # =====================================================================
 #  LVGL frame
