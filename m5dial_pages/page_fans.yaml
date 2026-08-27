@@ -1,20 +1,21 @@
 # =====================================================================
-#  m5dial_pages/page_fans.yaml — page: Fans (HVAC / fan board)
+#  m5dial_pages/page_fans.yaml — page: Fans (Fanboard + HVAC)
 #  FRAM M5Dial Cockpit · page package
 #
-#  PLACEHOLDER ENTITIES — no spec given beyond "HVAC / Fanboard"
-#  (design.md §15). Guessed shape: one variable-speed fan (or a fan
-#  board reporting an aggregate speed), 0-100%, plus on/off. If the
-#  real thing is actually several independent fans, several fixed
-#  speed steps, or something else entirely, this whole page needs
-#  rethinking, not just the entity_ids.
+#  Double ring (design.md §4), same geometry as page_gas.yaml:
+#    outer 224 x 224   FANBOARD -- real, number.fan_speed_control
+#    inner 200 x 200   HVAC     -- PLACEHOLDER. Sprinter's built-in
+#                                  HVAC fan; no entity yet, the PCB
+#                                  for it doesn't exist yet either.
+#                                  Swap the entity_id once it does.
 #
-#  Slots (design.md §3):
-#    y_main   72%              montserrat_40 — fan speed
-#    y_row    one button       FAN on/off
-#
-#  No thresholds/colors on the arc: unlike a battery or a tank, there's
-#  no "bad" fan speed — value shown in neutral blue throughout.
+#  Interaction: tap a column's SET button to arm it (design.md §14,
+#  g_edit_target in .m5dial_fram.yaml) -- the encoder then adjusts
+#  that value in 5% steps instead of paging, until SET is tapped again
+#  (or double-click/long-press, which also exits to the home page).
+#  Armed is shown by the SET button's border lighting up, and by the
+#  footer hint. Both columns share the mechanism; only FANBOARD does
+#  anything real yet -- HVAC's adjust scripts are stubs (see below).
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -22,90 +23,156 @@
 # ---------------------------------------------------------------------
 sensor:
   - platform: homeassistant
-    id: s_fans_speed
-    entity_id: sensor.PLACEHOLDER_fans_speed
+    id: s_fans_board_speed
+    entity_id: number.fan_speed_control
     on_value:
       - script.execute: draw_fans
 
-binary_sensor:
   - platform: homeassistant
-    id: s_fans_power
-    entity_id: switch.PLACEHOLDER_fans_power
-    on_state:
+    id: s_fans_hvac_speed
+    entity_id: number.PLACEHOLDER_hvac_fan_speed
+    on_value:
       - script.execute: draw_fans
 
 script:
-  - id: act_fans_power
+  - id: act_fans_arm_board
+    then:
+      - globals.set:
+          id: g_edit_target
+          value: !lambda "return (id(g_edit_target) == 1) ? 0 : 1;"
+      - script.execute: draw_fans
+
+  - id: act_fans_arm_hvac
+    then:
+      - globals.set:
+          id: g_edit_target
+          value: !lambda "return (id(g_edit_target) == 2) ? 0 : 2;"
+      - script.execute: draw_fans
+
+  # 5%-step, clamped 0-100. Reads back the last known sensor state
+  # rather than the arc (the arc only reflects what HA confirmed).
+  - id: act_fans_speed_up
     then:
       - homeassistant.service:
-          service: switch.toggle
+          service: number.set_value
           data:
-            entity_id: switch.PLACEHOLDER_fans_power
+            entity_id: number.fan_speed_control
+          data_template:
+            value: "{{ val }}"
+          variables:
+            val: !lambda |-
+              float cur = id(s_fans_board_speed).has_state() ? id(s_fans_board_speed).state : 0.0f;
+              float v = cur + 5.0f;
+              if (v > 100.0f) v = 100.0f;
+              return str_sprintf("%.0f", v);
+
+  - id: act_fans_speed_down
+    then:
+      - homeassistant.service:
+          service: number.set_value
+          data:
+            entity_id: number.fan_speed_control
+          data_template:
+            value: "{{ val }}"
+          variables:
+            val: !lambda |-
+              float cur = id(s_fans_board_speed).has_state() ? id(s_fans_board_speed).state : 0.0f;
+              float v = cur - 5.0f;
+              if (v < 0.0f) v = 0.0f;
+              return str_sprintf("%.0f", v);
+
+  # PLACEHOLDER: no HVAC fan entity yet. Wired up so target 2 already
+  # works end-to-end once one exists -- give this the same
+  # number.set_value shape as act_fans_speed_up/_down above, pointed
+  # at the real entity_id.
+  - id: act_fans_hvac_up
+    then:
+      - logger.log: "HVAC fan adjust: no entity yet"
+
+  - id: act_fans_hvac_down
+    then:
+      - logger.log: "HVAC fan adjust: no entity yet"
 
   - id: draw_fans
     mode: restart
     then:
+      # ---- Outer ring: FANBOARD ---------------------------------------
       - lvgl.arc.update:
-          id: arc_fans
+          id: arc_fans_board
           value: !lambda |-
-            if (!id(s_fans_speed).has_state()) return 0.0f;
-            return id(s_fans_speed).state;
+            if (!id(s_fans_board_speed).has_state()) return 0.0f;
+            return id(s_fans_board_speed).state;
           indicator:
             arc_color: !lambda |-
               #ifdef USE_API
               if (!api_is_connected()) return lv_color_hex(0x555555);
               #endif
-              if (!id(s_fans_speed).has_state()) return lv_color_hex(0x555555);
+              if (!id(s_fans_board_speed).has_state()) return lv_color_hex(0x555555);
               return lv_color_hex(0x4A9EFF);
 
+      # ---- Inner ring: HVAC (placeholder) -----------------------------
+      - lvgl.arc.update:
+          id: arc_fans_hvac
+          value: !lambda |-
+            if (!id(s_fans_hvac_speed).has_state()) return 0.0f;
+            return id(s_fans_hvac_speed).state;
+          indicator:
+            arc_color: !lambda |-
+              #ifdef USE_API
+              if (!api_is_connected()) return lv_color_hex(0x555555);
+              #endif
+              if (!id(s_fans_hvac_speed).has_state()) return lv_color_hex(0x555555);
+              return lv_color_hex(0x9AA0A6);
+
+      # ---- Outer column: FANBOARD --------------------------------------
       - lvgl.label.update:
-          id: lbl_fans_speed
+          id: lbl_fans_pct_board
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("---%");
             #endif
-            if (!id(s_fans_speed).has_state()) return std::string("---%");
-            return str_sprintf("%.0f%%", id(s_fans_speed).state);
+            if (!id(s_fans_board_speed).has_state()) return std::string("---%");
+            return str_sprintf("%.0f%%", id(s_fans_board_speed).state);
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_fans_speed).has_state()) return lv_color_hex(0x555555);
+            if (!id(s_fans_board_speed).has_state()) return lv_color_hex(0x555555);
             return lv_color_hex(0xFFFFFF);
+      - lvgl.widget.update:
+          id: btn_fans_set_board
+          border_color: !lambda |-
+            if (id(g_edit_target) == 1) return lv_color_hex(0x4A9EFF);
+            return lv_color_hex(0x3C4043);
 
-      # ---- Button: power on/off -----------------------------------
+      # ---- Inner column: HVAC (placeholder) -----------------------------
       - lvgl.label.update:
-          id: lbl_fans_power
+          id: lbl_fans_pct_hvac
           text: !lambda |-
             #ifdef USE_API
-            if (!api_is_connected()) return std::string("FAN ---");
+            if (!api_is_connected()) return std::string("---%");
             #endif
-            if (!id(s_fans_power).has_state()) return std::string("FAN ---");
-            return id(s_fans_power).state ? std::string("FAN EIN")
-                                   : std::string("FAN AUS");
+            if (!id(s_fans_hvac_speed).has_state()) return std::string("---%");
+            return str_sprintf("%.0f%%", id(s_fans_hvac_speed).state);
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_fans_power).has_state()) return lv_color_hex(0x555555);
-            return id(s_fans_power).state ? lv_color_hex(0x2ECC71)
-                                   : lv_color_hex(0xBDC1C6);
+            if (!id(s_fans_hvac_speed).has_state()) return lv_color_hex(0x555555);
+            return lv_color_hex(0xBDC1C6);
       - lvgl.widget.update:
-          id: btn_fans_power
-          bg_color: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return lv_color_hex(0x202124);
-            #endif
-            if (!id(s_fans_power).has_state()) return lv_color_hex(0x202124);
-            return id(s_fans_power).state ? lv_color_hex(0x1B5E3A)
-                                   : lv_color_hex(0x202124);
+          id: btn_fans_set_hvac
           border_color: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return lv_color_hex(0x3C4043);
-            #endif
-            if (!id(s_fans_power).has_state()) return lv_color_hex(0x3C4043);
-            return id(s_fans_power).state ? lv_color_hex(0x2ECC71)
-                                   : lv_color_hex(0x3C4043);
+            if (id(g_edit_target) == 2) return lv_color_hex(0x4A9EFF);
+            return lv_color_hex(0x3C4043);
+
+      # ---- Footer: edit-mode hint --------------------------------------
+      - lvgl.label.update:
+          id: lbl_fans_status
+          text: !lambda |-
+            if (id(g_edit_target) == 1 || id(g_edit_target) == 2)
+              return std::string("DREHEN ZUM ÄNDERN");
+            return std::string("");
 
 esphome:
   on_boot:
@@ -123,7 +190,7 @@ lvgl:
       bg_opa: COVER
       widgets:
         - arc:
-            id: arc_fans
+            id: arc_fans_board
             align: CENTER
             width: 224
             height: 224
@@ -136,34 +203,106 @@ lvgl:
             arc_color: 0x1A1C1E
             indicator:
               arc_width: 10
-              arc_color: 0x4A9EFF
+              arc_color: 0x555555
             knob:
               bg_opa: TRANSP
 
-        - label:
-            id: lbl_fans_speed
+        - arc:
+            id: arc_fans_hvac
             align: CENTER
+            width: 200
+            height: 200
+            start_angle: 135
+            end_angle: 45
+            min_value: 0
+            max_value: 100
+            adjustable: false
+            arc_width: 10
+            arc_color: 0x1A1C1E
+            indicator:
+              arc_width: 10
+              arc_color: 0x555555
+            knob:
+              bg_opa: TRANSP
+
+        # ---- Outer column: FANBOARD ---------------------------------
+        - label:
+            id: lbl_fans_cap_board
+            align: CENTER
+            x: -${x_col}
+            y: ${y_cap}
+            text: "FANBOARD"
+            text_font: montserrat_12
+            text_color: 0x555555
+        - label:
+            id: lbl_fans_pct_board
+            align: CENTER
+            x: -${x_col}
             y: ${y_main}
             text: "---%"
-            text_font: montserrat_40
+            text_font: montserrat_24
             text_color: 0x555555
-
         - button:
-            id: btn_fans_power
+            id: btn_fans_set_board
             align: CENTER
+            x: -${x_col}
             y: ${y_row}
-            width: 104
-            height: 30
-            radius: 15
+            width: 68
+            height: 26
+            radius: 13
             bg_color: 0x202124
             border_width: 1
             border_color: 0x3C4043
             widgets:
               - label:
-                  id: lbl_fans_power
                   align: CENTER
-                  text: "FAN ---"
+                  text: "SET"
                   text_font: montserrat_16
-                  text_color: 0x555555
+                  text_color: 0xBDC1C6
             on_click:
-              - script.execute: act_fans_power
+              - script.execute: act_fans_arm_board
+
+        # ---- Inner column: HVAC (placeholder) --------------------------
+        - label:
+            id: lbl_fans_cap_hvac
+            align: CENTER
+            x: ${x_col}
+            y: ${y_cap}
+            text: "HVAC"
+            text_font: montserrat_12
+            text_color: 0x555555
+        - label:
+            id: lbl_fans_pct_hvac
+            align: CENTER
+            x: ${x_col}
+            y: ${y_main}
+            text: "---%"
+            text_font: montserrat_24
+            text_color: 0x555555
+        - button:
+            id: btn_fans_set_hvac
+            align: CENTER
+            x: ${x_col}
+            y: ${y_row}
+            width: 68
+            height: 26
+            radius: 13
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  align: CENTER
+                  text: "SET"
+                  text_font: montserrat_16
+                  text_color: 0xBDC1C6
+            on_click:
+              - script.execute: act_fans_arm_hvac
+
+        - label:
+            id: lbl_fans_status
+            align: BOTTOM_MID
+            y: ${y_footer}
+            text: ""
+            text_font: montserrat_12
+            text_color: 0x4A9EFF

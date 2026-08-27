@@ -1,0 +1,100 @@
+# =====================================================================
+#  m5dial_pages/overlay_litterbox.yaml — overlay: Litterbox (Katzenklo)
+#  FRAM M5Dial Cockpit · overlay package
+#
+#  NOT a page (design.md §15) -- shown on top of whatever page is
+#  current, via LVGL's top_layer rather than the pages: list. Doesn't
+#  take part in page navigation (encoder next/previous, home_page) at
+#  all.
+#
+#  Behavior, as specified:
+#    - Light ON  -> overlay visible, red background. (Light OFF while
+#      the overlay is showing and no fan cycle is running -> hidden
+#      again immediately.)
+#    - Fan turns ON while the overlay is showing -> background flips
+#      to green for 5s, then the overlay hides, regardless of what the
+#      light is doing by then.
+#
+#  PLACEHOLDER: "a cat symbol" was asked for; this uses a plain text
+#  label ("KATZENKLO") instead. No icon font is set up anywhere in
+#  this repo yet -- an actual cat glyph (e.g. mdi:cat) needs a font
+#  asset added to the project, which isn't something to invent here.
+#  Swap the label for an icon once that exists.
+# =====================================================================
+
+# ---------------------------------------------------------------------
+#  C  Bindings
+# ---------------------------------------------------------------------
+binary_sensor:
+  - platform: homeassistant
+    id: s_ov_litterbox_light
+    entity_id: switch.litterbox_light
+    on_state:
+      - script.execute: draw_ov_litterbox
+
+  - platform: homeassistant
+    id: s_ov_litterbox_fan
+    entity_id: switch.litterbox_fan
+    on_press:
+      - script.execute: ov_litterbox_fan_flash
+
+script:
+  - id: draw_ov_litterbox
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: return id(s_ov_litterbox_light).state;
+          then:
+            - lvgl.widget.update:
+                id: ov_litterbox
+                bg_color: 0xE74C3C
+            - lvgl.widget.show: ov_litterbox
+          else:
+            - script.stop: ov_litterbox_fan_flash
+            - lvgl.widget.hide: ov_litterbox
+
+  - id: ov_litterbox_fan_flash
+    mode: restart
+    then:
+      # Only flash-and-dismiss if the overlay is actually up for a
+      # reason -- a fan cycle with the light already off shouldn't
+      # summon it.
+      - if:
+          condition:
+            lambda: return id(s_ov_litterbox_light).state;
+          then:
+            - lvgl.widget.update:
+                id: ov_litterbox
+                bg_color: 0x2ECC71
+            - delay: 5s
+            - lvgl.widget.hide: ov_litterbox
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - script.execute: draw_ov_litterbox
+
+# ---------------------------------------------------------------------
+#  D  Widget
+# ---------------------------------------------------------------------
+lvgl:
+  top_layer:
+    widgets:
+      - obj:
+          id: ov_litterbox
+          align: CENTER
+          width: 240
+          height: 240
+          radius: 0
+          border_width: 0
+          hidden: true
+          bg_color: 0xE74C3C
+          bg_opa: COVER
+          widgets:
+            - label:
+                align: CENTER
+                text: "KATZENKLO"
+                text_font: montserrat_24
+                text_color: 0xFFFFFF

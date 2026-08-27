@@ -2,142 +2,83 @@
 #  m5dial_pages/page_entrance.yaml — page: Entrance (step, door lock)
 #  FRAM M5Dial Cockpit · page package
 #
-#  PLACEHOLDER ENTITIES — step (Trittstufe) and door lock (Türschloss),
-#  design.md §15. Guessed domains: the step as a plain switch
-#  (extend/retract, like the door step on most motorhomes -- no
-#  position feedback assumed, just an on/off relay), the lock as HA's
-#  `lock` domain (lock.PLACEHOLDER_tuerschloss, lock/unlock services,
-#  not toggle -- lock has no toggle service). If the step actually
-#  reports position (a cover) rather than being a simple relay, this
-#  page's step half needs redoing, not just the entity_id.
+#  Real hardware, not the shape originally guessed:
 #
-#  Two-button layout (design.md §3), no arcs -- same shape as
-#  page_lights_outside.yaml.
+#  Step (Trittstufe): no toggleable on/off state exists. The relay
+#  board has two momentary pulse relays, RAUS (extend) and REIN
+#  (retract), each auto-releasing after 4s -- so this is two fire-once
+#  buttons, not one toggle. Status is approximate: the only feedback
+#  is binary_sensor.relay_4ch_step_step_out_engine_on, which reads OFF
+#  both when the step is retracted AND when the ignition is off --
+#  it can't tell those two apart. Shown as-is (AKTIV/RUHE), not
+#  invented into something more precise than the source data.
+#
+#  Lock (Zentralverriegelung, rear doors): no state entity exists at
+#  all -- HA only has ZV status for the FRONT doors, via MercedesME,
+#  which doesn't cover this lock. ZU/AUF are fire-only buttons calling
+#  the relay board's own custom ESPHome services (esphome:
+#  relay_4ch_step_zv_lock / _zv_unlock), same as the Homematic wall
+#  switch does. No status readout is possible, so none is shown.
+#
+#  Four momentary actions, two rows of two buttons (y_row/y_row2) --
+#  outgrows the usual two-button layout (design.md §3).
 # =====================================================================
 
 # ---------------------------------------------------------------------
 #  C  Bindings
 # ---------------------------------------------------------------------
 binary_sensor:
+  # See header note: OFF means "step in" OR "ignition off", not
+  # distinguishable from this sensor alone.
   - platform: homeassistant
-    id: s_entrance_step
-    entity_id: switch.PLACEHOLDER_trittstufe
+    id: s_entrance_step_active
+    entity_id: binary_sensor.relay_4ch_step_step_out_engine_on
     on_state:
       - script.execute: draw_entrance
 
-text_sensor:
-  # Read as text, not binary_sensor: the lock domain's own states are
-  # "locked"/"unlocked", not "on"/"off", and it's not certain
-  # ESPHome's homeassistant binary_sensor platform's on/off synonym
-  # list covers those -- comparing the raw string in the lambda below
-  # is guaranteed correct regardless (same reasoning as the starter
-  # battery text_sensor in page_power_1.yaml).
-  - platform: homeassistant
-    id: s_entrance_lock
-    entity_id: lock.PLACEHOLDER_tuerschloss
-    on_value:
-      - script.execute: draw_entrance
-
 script:
-  - id: act_entrance_step
+  - id: act_entrance_step_out
     then:
       - homeassistant.service:
-          service: switch.toggle
+          service: switch.turn_on
           data:
-            entity_id: switch.PLACEHOLDER_trittstufe
+            entity_id: switch.relay_4ch_step_relay_step_out
+
+  - id: act_entrance_step_in
+    then:
+      - homeassistant.service:
+          service: switch.turn_on
+          data:
+            entity_id: switch.relay_4ch_step_relay_step_in
 
   - id: act_entrance_lock
     then:
-      # lock has no toggle service -- lock/unlock depending on current
-      # state, read at call time.
-      - if:
-          condition:
-            lambda: return id(s_entrance_lock).state == "locked";
-          then:
-            - homeassistant.service:
-                service: lock.unlock
-                data:
-                  entity_id: lock.PLACEHOLDER_tuerschloss
-          else:
-            - homeassistant.service:
-                service: lock.lock
-                data:
-                  entity_id: lock.PLACEHOLDER_tuerschloss
+      - homeassistant.service:
+          service: esphome.relay_4ch_step_zv_lock
+
+  - id: act_entrance_unlock
+    then:
+      - homeassistant.service:
+          service: esphome.relay_4ch_step_zv_unlock
 
   - id: draw_entrance
     mode: restart
     then:
-      # ---- Step -----------------------------------------------------
       - lvgl.label.update:
-          id: lbl_entrance_step
+          id: lbl_entrance_step_state
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("---");
             #endif
-            if (!id(s_entrance_step).has_state()) return std::string("---");
-            return id(s_entrance_step).state ? std::string("EIN") : std::string("AUS");
+            if (!id(s_entrance_step_active).has_state()) return std::string("---");
+            return id(s_entrance_step_active).state ? std::string("AKTIV") : std::string("RUHE");
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_entrance_step).has_state()) return lv_color_hex(0x555555);
-            return id(s_entrance_step).state ? lv_color_hex(0x2ECC71)
-                                       : lv_color_hex(0xBDC1C6);
-      - lvgl.widget.update:
-          id: btn_entrance_step
-          bg_color: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return lv_color_hex(0x202124);
-            #endif
-            if (!id(s_entrance_step).has_state()) return lv_color_hex(0x202124);
-            return id(s_entrance_step).state ? lv_color_hex(0x1B5E3A)
-                                       : lv_color_hex(0x202124);
-          border_color: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return lv_color_hex(0x3C4043);
-            #endif
-            if (!id(s_entrance_step).has_state()) return lv_color_hex(0x3C4043);
-            return id(s_entrance_step).state ? lv_color_hex(0x2ECC71)
-                                       : lv_color_hex(0x3C4043);
-
-      # ---- Lock: locked is the "good", unobtrusive state -------------
-      # (design.md §6 palette has no dedicated "locked" color -- using
-      # secondary-line grey for locked/good, warning orange for
-      # unlocked, since an unlocked door while away is the state that
-      # deserves a look, unlike every other button on this dial where
-      # green means "on/active".)
-      - lvgl.label.update:
-          id: lbl_entrance_lock
-          text: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return std::string("---");
-            #endif
-            if (!id(s_entrance_lock).has_state()) return std::string("---");
-            return id(s_entrance_lock).state == "locked" ? std::string("ZU")
-                                                   : std::string("OFFEN");
-          text_color: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return lv_color_hex(0x555555);
-            #endif
-            if (!id(s_entrance_lock).has_state()) return lv_color_hex(0x555555);
-            return id(s_entrance_lock).state == "locked" ? lv_color_hex(0xBDC1C6)
-                                                   : lv_color_hex(0xF39C12);
-      - lvgl.widget.update:
-          id: btn_entrance_lock
-          bg_color: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return lv_color_hex(0x202124);
-            #endif
-            if (!id(s_entrance_lock).has_state()) return lv_color_hex(0x202124);
-            return id(s_entrance_lock).state == "locked" ? lv_color_hex(0x202124)
-                                                   : lv_color_hex(0x4F3814);
-          border_color: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return lv_color_hex(0x3C4043);
-            #endif
-            if (!id(s_entrance_lock).has_state()) return lv_color_hex(0x3C4043);
-            return id(s_entrance_lock).state == "locked" ? lv_color_hex(0x3C4043)
-                                                   : lv_color_hex(0xF39C12);
+            if (!id(s_entrance_step_active).has_state()) return lv_color_hex(0x555555);
+            return id(s_entrance_step_active).state ? lv_color_hex(0x2ECC71)
+                                               : lv_color_hex(0xBDC1C6);
 
 esphome:
   on_boot:
@@ -155,15 +96,23 @@ lvgl:
       bg_opa: COVER
       widgets:
         - label:
-            id: lbl_entrance_cap_step
+            id: lbl_entrance_cap
             align: CENTER
-            x: -${x_col}
             y: ${y_cap}
             text: "STUFE"
             text_font: montserrat_12
             text_color: 0x555555
+        - label:
+            id: lbl_entrance_step_state
+            align: CENTER
+            y: ${y_main}
+            text: "---"
+            text_font: montserrat_40
+            text_color: 0x555555
+
+        # ---- Row 1: step, momentary -----------------------------------
         - button:
-            id: btn_entrance_step
+            id: btn_entrance_step_out
             align: CENTER
             x: -${x_col}
             y: ${y_row}
@@ -175,24 +124,15 @@ lvgl:
             border_color: 0x3C4043
             widgets:
               - label:
-                  id: lbl_entrance_step
                   align: CENTER
-                  text: "---"
+                  text: "RAUS"
                   text_font: montserrat_16
-                  text_color: 0x555555
+                  text_color: 0xBDC1C6
             on_click:
-              - script.execute: act_entrance_step
+              - script.execute: act_entrance_step_out
 
-        - label:
-            id: lbl_entrance_cap_lock
-            align: CENTER
-            x: ${x_col}
-            y: ${y_cap}
-            text: "SCHLOSS"
-            text_font: montserrat_12
-            text_color: 0x555555
         - button:
-            id: btn_entrance_lock
+            id: btn_entrance_step_in
             align: CENTER
             x: ${x_col}
             y: ${y_row}
@@ -204,10 +144,50 @@ lvgl:
             border_color: 0x3C4043
             widgets:
               - label:
-                  id: lbl_entrance_lock
                   align: CENTER
-                  text: "---"
+                  text: "REIN"
                   text_font: montserrat_16
-                  text_color: 0x555555
+                  text_color: 0xBDC1C6
+            on_click:
+              - script.execute: act_entrance_step_in
+
+        # ---- Row 2: lock, momentary, no status --------------------------
+        - button:
+            id: btn_entrance_lock
+            align: CENTER
+            x: -${x_col}
+            y: ${y_row2}
+            width: 68
+            height: 26
+            radius: 13
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  align: CENTER
+                  text: "ZU"
+                  text_font: montserrat_16
+                  text_color: 0xBDC1C6
             on_click:
               - script.execute: act_entrance_lock
+
+        - button:
+            id: btn_entrance_unlock
+            align: CENTER
+            x: ${x_col}
+            y: ${y_row2}
+            width: 68
+            height: 26
+            radius: 13
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  align: CENTER
+                  text: "AUF"
+                  text_font: montserrat_16
+                  text_color: 0xBDC1C6
+            on_click:
+              - script.execute: act_entrance_unlock

@@ -53,3 +53,8 @@ packages:
   p9: !include m5dial_pages/page_lights_outside.yaml
   p10: !include m5dial_pages/page_entrance.yaml
   p11: !include m5dial_pages/page_ipixel.yaml
+
+  # Overlays (design.md §15): not pages, no p<n> slot, no page order --
+  # they add to LVGL's top_layer instead of pages:, shown over whatever
+  # page is current.
+  ov_litterbox: !include m5dial_pages/overlay_litterbox.yaml

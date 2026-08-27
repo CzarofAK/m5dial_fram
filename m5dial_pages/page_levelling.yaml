@@ -2,11 +2,10 @@
 #  m5dial_pages/page_levelling.yaml — page: Levelling (spirit level)
 #  FRAM M5Dial Cockpit · page package
 #
-#  PLACEHOLDER ENTITIES — the tilt sensor is external hardware (not on
-#  this dial), and no entity_ids were given for it yet. Both
-#  s_levelling_lon/_lat below use made-up entity_ids
-#  (sensor.PLACEHOLDER_levelling_*) that will not resolve against a
-#  real Home Assistant instance. Replace them, then remove this note.
+#  Real entities: an MPU6050 tilt sensor (external hardware, own
+#  ESPHome device "mpu6050"). LÄNGS (front/back) = its Pitch sensor,
+#  QUER (left/right) = its Roll sensor -- matches that device's own
+#  sign convention (pitch: front down = +, roll: right down = +).
 #
 #  No arc: a tilt angle isn't a 0-100% quantity (design.md §8 — the arc
 #  is always a percentage), so this page is label-only, like clock.
@@ -28,12 +27,12 @@
 sensor:
   - platform: homeassistant
     id: s_levelling_lon
-    entity_id: sensor.PLACEHOLDER_levelling_laengs
+    entity_id: sensor.mpu6050_pitch
     on_value:
       - script.execute: draw_levelling
   - platform: homeassistant
     id: s_levelling_lat
-    entity_id: sensor.PLACEHOLDER_levelling_quer
+    entity_id: sensor.mpu6050_roll
     on_value:
       - script.execute: draw_levelling
 
