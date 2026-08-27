@@ -50,6 +50,9 @@ script:
       - lvgl.arc.update:
           id: arc_gas_a
           value: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return 0.0f;
+            #endif
             if (!id(s_gas_a).has_state()) return 0.0f;
             return id(s_gas_a).state;
           indicator:
@@ -67,6 +70,9 @@ script:
       - lvgl.arc.update:
           id: arc_gas_i
           value: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return 0.0f;
+            #endif
             if (!id(s_gas_i).has_state()) return 0.0f;
             return id(s_gas_i).state;
           indicator:
@@ -233,7 +239,7 @@ lvgl:
             max_value: 100
             adjustable: false
             arc_width: 10
-            arc_color: 0x3C4043
+            arc_color: 0x1A1C1E
             indicator:
               arc_width: 10
               arc_color: 0x555555
@@ -251,7 +257,7 @@ lvgl:
             max_value: 100
             adjustable: false
             arc_width: 10
-            arc_color: 0x3C4043
+            arc_color: 0x1A1C1E
             indicator:
               arc_width: 10
               arc_color: 0x555555
