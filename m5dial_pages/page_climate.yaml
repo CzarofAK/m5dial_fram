@@ -83,7 +83,11 @@ script:
           service: select.select_next
           data:
             entity_id: select.fan_mode
-            cycle: true
+            # homeassistant.service's data: values are all strings
+            # (ESPHome templates them, then HA coerces) -- unquoted
+            # `true` parses as a YAML/Python bool, and the validator
+            # rejects that: "Must be string, got <class 'bool'>."
+            cycle: "true"
 
   - id: draw_climate
     mode: restart
