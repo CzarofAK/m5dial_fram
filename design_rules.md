@@ -613,8 +613,14 @@ reusable by any dial in the project, not just this one.
 The full planned roster, in navigation order (§10 — the encoder
 addresses pages by this index, so the order is deliberate, not
 alphabetical). "Implemented" means a `page_<id>.yaml` exists in
-`m5dial_pages/`; everything else is planned only — no file, no
-entity_ids, no layout decided yet.
+`m5dial_pages/` and is wired into `m5dial_fram_cockpit.yaml`'s
+`packages:`. "Draft" additionally means it's wired in, but its
+entity_ids are placeholders (`PLACEHOLDER_*` or otherwise unverified)
+that don't point at anything real yet — it'll compile and show `---`
+everywhere rather than break the build, but check each one's
+entity_ids (and, for `levelling`/`fans`/`lights_outside`/`entrance`/
+`ipixel`, the whole design — there was no spec to build against beyond
+one line each) before relying on it.
 
 | # | id | Content | Status |
 |---|---|---|---|
@@ -623,13 +629,13 @@ entity_ids, no layout decided yet.
 | 2 | `power_2` | Grid power: MultiPlus mode / current limit | implemented |
 | 3 | `gas` | Two gas bottles (double ring, §4) | implemented |
 | 4 | `water` | Fresh / grey water (double ring, §4) | implemented |
-| 5 | `levelling` | Spirit level — sensor is **external** hardware, not on the dial | planned |
-| 6 | `climate` | Climate control (not available yet) + Truma Combi heating side, including fan mode | planned |
-| 7 | `boiler` | Mode, actual temperature | planned |
-| 8 | `fans` | HVAC / fan board | planned |
-| 9 | `lights_outside` | Entrance light, awning light (dimmable) | planned |
-| 10 | `entrance` | Step, door lock | planned |
-| 11 | `ipixel` | On/off and status only | planned |
+| 5 | `levelling` | Spirit level — sensor is **external** hardware, not on the dial | draft |
+| 6 | `climate` | Truma Combi 4 (gas only) room-heating side + fan mode; AC not installed yet | draft |
+| 7 | `boiler` | Truma Combi 4 water-heating side: mode, actual temperature | draft |
+| 8 | `fans` | HVAC / fan board | draft |
+| 9 | `lights_outside` | Entrance light, awning light (dimmable; dial only does on/off, no brightness) | draft |
+| 10 | `entrance` | Step, door lock | draft |
+| 11 | `ipixel` | On/off and status only | draft |
 | reserved | `lights_inside` | — | reserved, not designed yet |
 
 Not pages — shown as an overlay on top of whatever page is current,

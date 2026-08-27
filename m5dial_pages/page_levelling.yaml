@@ -1,0 +1,185 @@
+# =====================================================================
+#  m5dial_pages/page_levelling.yaml — page: Levelling (spirit level)
+#  FRAM M5Dial Cockpit · page package
+#
+#  PLACEHOLDER ENTITIES — the tilt sensor is external hardware (not on
+#  this dial), and no entity_ids were given for it yet. Both
+#  s_levelling_lon/_lat below use made-up entity_ids
+#  (sensor.PLACEHOLDER_levelling_*) that will not resolve against a
+#  real Home Assistant instance. Replace them, then remove this note.
+#
+#  No arc: a tilt angle isn't a 0-100% quantity (design.md §8 — the arc
+#  is always a percentage), so this page is label-only, like clock.
+#  Two-value layout (design.md §3) without arcs: LÄNGS (longitudinal,
+#  front/back) / QUER (lateral, left/right), each just the signed
+#  degree value — there's no separate "absolute" line to show
+#  alongside a percentage here, so y_line2 stays empty.
+#
+#  Thresholds (< 2° ok, 2-4° warning, >= 4° alarm) are a GUESS, not
+#  measured against a real leveling requirement (fridge compressor
+#  tolerance etc.) — confirm and adjust.
+#
+#  No button: reading only, nothing to act on from the dial.
+# =====================================================================
+
+# ---------------------------------------------------------------------
+#  C  Bindings
+# ---------------------------------------------------------------------
+sensor:
+  - platform: homeassistant
+    id: s_levelling_lon
+    entity_id: sensor.PLACEHOLDER_levelling_laengs
+    on_value:
+      - script.execute: draw_levelling
+  - platform: homeassistant
+    id: s_levelling_lat
+    entity_id: sensor.PLACEHOLDER_levelling_quer
+    on_value:
+      - script.execute: draw_levelling
+
+script:
+  - id: draw_levelling
+    mode: restart
+    then:
+      # ---- LÄNGS (front/back tilt) ------------------------------------
+      - lvgl.label.update:
+          id: lbl_levelling_cap_lon
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_levelling_lon).has_state()) return lv_color_hex(0x555555);
+            float v = fabsf(id(s_levelling_lon).state);
+            if (v >= 4.0f) return lv_color_hex(0xE74C3C);
+            if (v >= 2.0f) return lv_color_hex(0xF39C12);
+            return lv_color_hex(0xFFFFFF);
+      - lvgl.label.update:
+          id: lbl_levelling_val_lon
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("---°");
+            #endif
+            if (!id(s_levelling_lon).has_state()) return std::string("---°");
+            return str_sprintf("%+.1f°", id(s_levelling_lon).state);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_levelling_lon).has_state()) return lv_color_hex(0x555555);
+            float v = fabsf(id(s_levelling_lon).state);
+            if (v >= 4.0f) return lv_color_hex(0xE74C3C);
+            if (v >= 2.0f) return lv_color_hex(0xF39C12);
+            return lv_color_hex(0xFFFFFF);
+
+      # ---- QUER (left/right tilt) --------------------------------------
+      - lvgl.label.update:
+          id: lbl_levelling_cap_lat
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_levelling_lat).has_state()) return lv_color_hex(0x555555);
+            float v = fabsf(id(s_levelling_lat).state);
+            if (v >= 4.0f) return lv_color_hex(0xE74C3C);
+            if (v >= 2.0f) return lv_color_hex(0xF39C12);
+            return lv_color_hex(0xFFFFFF);
+      - lvgl.label.update:
+          id: lbl_levelling_val_lat
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("---°");
+            #endif
+            if (!id(s_levelling_lat).has_state()) return std::string("---°");
+            return str_sprintf("%+.1f°", id(s_levelling_lat).state);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_levelling_lat).has_state()) return lv_color_hex(0x555555);
+            float v = fabsf(id(s_levelling_lat).state);
+            if (v >= 4.0f) return lv_color_hex(0xE74C3C);
+            if (v >= 2.0f) return lv_color_hex(0xF39C12);
+            return lv_color_hex(0xFFFFFF);
+
+      # ---- Footer: only when off level -----------------------------
+      - lvgl.label.update:
+          id: lbl_levelling_status
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("KEINE VERBINDUNG");
+            #endif
+            if (!id(s_levelling_lon).has_state() || !id(s_levelling_lat).has_state())
+              return std::string("KEIN WERT");
+            float lon = fabsf(id(s_levelling_lon).state);
+            float lat = fabsf(id(s_levelling_lat).state);
+            if (lon >= 2.0f || lat >= 2.0f) return std::string("NIVELLIERUNG PRÜFEN");
+            return std::string("");
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_levelling_lon).has_state() || !id(s_levelling_lat).has_state())
+              return lv_color_hex(0x555555);
+            float lon = fabsf(id(s_levelling_lon).state);
+            float lat = fabsf(id(s_levelling_lat).state);
+            if (lon >= 4.0f || lat >= 4.0f) return lv_color_hex(0xE74C3C);
+            return lv_color_hex(0xF39C12);
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - script.execute: draw_levelling
+
+# ---------------------------------------------------------------------
+#  D  Widgets
+# ---------------------------------------------------------------------
+lvgl:
+  pages:
+    - id: page_levelling
+      bg_color: 0x000000
+      bg_opa: COVER
+      widgets:
+        # ---- LÄNGS column -------------------------------------------
+        - label:
+            id: lbl_levelling_cap_lon
+            align: CENTER
+            x: -${x_col}
+            y: ${y_cap}
+            text: "LÄNGS"
+            text_font: montserrat_12
+            text_color: 0x555555
+        - label:
+            id: lbl_levelling_val_lon
+            align: CENTER
+            x: -${x_col}
+            y: ${y_main}
+            text: "---°"
+            text_font: montserrat_24
+            text_color: 0x555555
+
+        # ---- QUER column --------------------------------------------
+        - label:
+            id: lbl_levelling_cap_lat
+            align: CENTER
+            x: ${x_col}
+            y: ${y_cap}
+            text: "QUER"
+            text_font: montserrat_12
+            text_color: 0x555555
+        - label:
+            id: lbl_levelling_val_lat
+            align: CENTER
+            x: ${x_col}
+            y: ${y_main}
+            text: "---°"
+            text_font: montserrat_24
+            text_color: 0x555555
+
+        - label:
+            id: lbl_levelling_status
+            align: BOTTOM_MID
+            y: ${y_footer}
+            text: ""
+            text_font: montserrat_12
+            text_color: 0x555555

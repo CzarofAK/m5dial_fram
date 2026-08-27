@@ -1,0 +1,269 @@
+# =====================================================================
+#  m5dial_pages/page_climate.yaml — page: Climate (room heating)
+#  FRAM M5Dial Cockpit · page package
+#
+#  AC/aircon isn't installed yet (design.md §15), so this page is the
+#  room-heating side of the Truma Combi 4 (gas only, no electric
+#  element) — a separate ESP32 running the `truma_inetbox` external
+#  component (github://havanti/esphome-truma), talking LIN to the
+#  Truma CP Plus panel. entity_ids below are the HA-side slugs implied
+#  by that device's sensor/switch/select names ("Current Room
+#  Temperature" etc.) — VERIFY against the real entity registry, HA's
+#  actual slug can differ if there's a name collision on that device.
+#
+#  Slots (design.md §3):
+#    y_main   21°C              montserrat_40 — current room temp
+#    y_line2  SOLL 22°C           montserrat_16 — target temperature
+#    y_row    two buttons       HEIZUNG on/off | FAN mode
+#    y_footer status line       montserrat_12 — heater error
+#
+#  Fan mode button: the Truma's HEATER_FAN_MODE_COMBI select's option
+#  list isn't documented anywhere I could check from here, so instead
+#  of a hand-written cycle (like power_2's MultiPlus mode, where the
+#  four options are known) this uses select.select_next — a generic
+#  HA service that advances any select entity to its next option
+#  without the caller needing to know what the options are.
+# =====================================================================
+
+# ---------------------------------------------------------------------
+#  C  Bindings
+# ---------------------------------------------------------------------
+sensor:
+  - platform: homeassistant
+    id: s_climate_room_temp
+    entity_id: sensor.current_room_temperature
+    on_value:
+      - script.execute: draw_climate
+  # Target Room Temperature Status is the read-only twin of
+  # number.target_room_temperature (the Truma yaml renamed it to avoid
+  # a duplicate-name clash) -- both are numeric.
+  - platform: homeassistant
+    id: s_climate_target
+    entity_id: sensor.target_room_temperature_status
+    on_value:
+      - script.execute: draw_climate
+
+text_sensor:
+  - platform: homeassistant
+    id: s_climate_fan_mode
+    entity_id: select.fan_mode
+    on_value:
+      - script.execute: draw_climate
+
+# NOT shown on this page: Heating Mode / Operating Status. Both sit
+# under the Truma yaml's sensor: (numeric) block, not text_sensor:, so
+# their values are almost certainly raw enum codes, not the "ECO" /
+# "HIGH" / "BOOST" strings the switch actions accept for *writing* --
+# showing them as text would need that code->label mapping confirmed
+# against the truma_inetbox component source first.
+
+binary_sensor:
+  - platform: homeassistant
+    id: s_climate_heater_on
+    entity_id: switch.activate_room_heater
+    on_state:
+      - script.execute: draw_climate
+  - platform: homeassistant
+    id: s_climate_error
+    entity_id: binary_sensor.heater_has_error
+    on_state:
+      - script.execute: draw_climate
+
+script:
+  - id: act_climate_heater
+    then:
+      - homeassistant.service:
+          service: switch.toggle
+          data:
+            entity_id: switch.activate_room_heater
+
+  - id: act_climate_fan
+    then:
+      - homeassistant.service:
+          service: select.select_next
+          data:
+            entity_id: select.fan_mode
+            cycle: true
+
+  - id: draw_climate
+    mode: restart
+    then:
+      # ---- Main value: current room temperature -----------------------
+      - lvgl.label.update:
+          id: lbl_climate_temp
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("---°C");
+            #endif
+            if (!id(s_climate_room_temp).has_state()) return std::string("---°C");
+            return str_sprintf("%.0f°C", id(s_climate_room_temp).state);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_climate_room_temp).has_state()) return lv_color_hex(0x555555);
+            if (id(s_climate_error).state) return lv_color_hex(0xE74C3C);
+            return lv_color_hex(0xFFFFFF);
+
+      # ---- Secondary line: target temperature --------------------------
+      - lvgl.label.update:
+          id: lbl_climate_target
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("SOLL ---°C");
+            #endif
+            if (!id(s_climate_target).has_state()) return std::string("SOLL ---°C");
+            return str_sprintf("SOLL %.0f°C", id(s_climate_target).state);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_climate_target).has_state()) return lv_color_hex(0x555555);
+            return lv_color_hex(0xBDC1C6);
+
+      # ---- Left button: heater on/off --------------------------------
+      - lvgl.label.update:
+          id: lbl_climate_heater
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("HEIZ ---");
+            #endif
+            if (!id(s_climate_heater_on).has_state()) return std::string("HEIZ ---");
+            return id(s_climate_heater_on).state ? std::string("HEIZ EIN")
+                                          : std::string("HEIZ AUS");
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_climate_heater_on).has_state()) return lv_color_hex(0x555555);
+            return id(s_climate_heater_on).state ? lv_color_hex(0x2ECC71)
+                                          : lv_color_hex(0xBDC1C6);
+      - lvgl.widget.update:
+          id: btn_climate_heater
+          bg_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x202124);
+            #endif
+            if (!id(s_climate_heater_on).has_state()) return lv_color_hex(0x202124);
+            return id(s_climate_heater_on).state ? lv_color_hex(0x1B5E3A)
+                                          : lv_color_hex(0x202124);
+          border_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x3C4043);
+            #endif
+            if (!id(s_climate_heater_on).has_state()) return lv_color_hex(0x3C4043);
+            return id(s_climate_heater_on).state ? lv_color_hex(0x2ECC71)
+                                          : lv_color_hex(0x3C4043);
+
+      # ---- Right button: fan mode --------------------------------------
+      - lvgl.label.update:
+          id: lbl_climate_fan
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("---");
+            #endif
+            if (!id(s_climate_fan_mode).has_state()) return std::string("---");
+            return id(s_climate_fan_mode).state;
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_climate_fan_mode).has_state()) return lv_color_hex(0x555555);
+            return lv_color_hex(0xBDC1C6);
+
+      # ---- Status line: error only -------------------------------------
+      - lvgl.label.update:
+          id: lbl_climate_status
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("KEINE VERBINDUNG");
+            #endif
+            if (!id(s_climate_error).has_state()) return std::string("");
+            return id(s_climate_error).state ? std::string("HEIZUNG FEHLER")
+                                      : std::string("");
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            return lv_color_hex(0xE74C3C);
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - script.execute: draw_climate
+
+# ---------------------------------------------------------------------
+#  D  Widgets
+# ---------------------------------------------------------------------
+lvgl:
+  pages:
+    - id: page_climate
+      bg_color: 0x000000
+      bg_opa: COVER
+      widgets:
+        - label:
+            id: lbl_climate_temp
+            align: CENTER
+            y: ${y_main}
+            text: "---°C"
+            text_font: montserrat_40
+            text_color: 0x555555
+
+        - label:
+            id: lbl_climate_target
+            align: CENTER
+            y: ${y_line2}
+            text: "SOLL ---°C"
+            text_font: montserrat_16
+            text_color: 0x555555
+
+        - button:
+            id: btn_climate_heater
+            align: CENTER
+            x: -${x_col}
+            y: ${y_row}
+            width: 76
+            height: 30
+            radius: 15
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  id: lbl_climate_heater
+                  align: CENTER
+                  text: "HEIZ ---"
+                  text_font: montserrat_16
+                  text_color: 0x555555
+            on_click:
+              - script.execute: act_climate_heater
+
+        - button:
+            id: btn_climate_fan
+            align: CENTER
+            x: ${x_col}
+            y: ${y_row}
+            width: 76
+            height: 30
+            radius: 15
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  id: lbl_climate_fan
+                  align: CENTER
+                  text: "---"
+                  text_font: montserrat_16
+                  text_color: 0x555555
+            on_click:
+              - script.execute: act_climate_fan
+
+        - label:
+            id: lbl_climate_status
+            align: BOTTOM_MID
+            y: ${y_footer}
+            text: ""
+            text_font: montserrat_12
+            text_color: 0x555555

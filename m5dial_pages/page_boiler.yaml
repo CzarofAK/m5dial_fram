@@ -1,0 +1,204 @@
+# =====================================================================
+#  m5dial_pages/page_boiler.yaml — page: Boiler (water heating)
+#  FRAM M5Dial Cockpit · page package
+#
+#  The water-heating side of the same Truma Combi 4 as page_climate.yaml
+#  — see that file's header for the device/component background.
+#  entity_ids are the same kind of implied HA slug, same caveat: VERIFY.
+#
+#  Slots (design.md §3):
+#    y_main   40°C              montserrat_40 — current water temp
+#    y_line2  SOLL 60°C         montserrat_16 — target temp
+#    y_row    one button        BOILER on/off (design.md §4: "BOILER
+#                                AUS" is 10 characters, wider than any
+#                                existing button label in this repo --
+#                                check it actually fits the 104 px
+#                                button on the real device, not just
+#                                in the simulator)
+#    y_footer status line       montserrat_12 — heater error (shared
+#                                with page_climate.yaml's binary_sensor:
+#                                one physical fault flag for the whole
+#                                Combi, not per water/room side)
+# =====================================================================
+
+# ---------------------------------------------------------------------
+#  C  Bindings
+# ---------------------------------------------------------------------
+sensor:
+  - platform: homeassistant
+    id: s_boiler_temp
+    entity_id: sensor.current_water_temperature
+    on_value:
+      - script.execute: draw_boiler
+  # Read-only twin of number.target_water_temperature, same pattern as
+  # page_climate.yaml's s_climate_target.
+  - platform: homeassistant
+    id: s_boiler_target
+    entity_id: sensor.target_water_temperature_status
+    on_value:
+      - script.execute: draw_boiler
+
+binary_sensor:
+  - platform: homeassistant
+    id: s_boiler_heater_on
+    entity_id: switch.activate_water_heater
+    on_state:
+      - script.execute: draw_boiler
+  - platform: homeassistant
+    id: s_boiler_error
+    entity_id: binary_sensor.heater_has_error
+    on_state:
+      - script.execute: draw_boiler
+
+script:
+  - id: act_boiler_heater
+    then:
+      - homeassistant.service:
+          service: switch.toggle
+          data:
+            entity_id: switch.activate_water_heater
+
+  - id: draw_boiler
+    mode: restart
+    then:
+      # ---- Main value: current water temperature -----------------------
+      - lvgl.label.update:
+          id: lbl_boiler_temp
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("---°C");
+            #endif
+            if (!id(s_boiler_temp).has_state()) return std::string("---°C");
+            return str_sprintf("%.0f°C", id(s_boiler_temp).state);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_boiler_temp).has_state()) return lv_color_hex(0x555555);
+            if (id(s_boiler_error).state) return lv_color_hex(0xE74C3C);
+            return lv_color_hex(0xFFFFFF);
+
+      # ---- Secondary line: target temperature --------------------------
+      - lvgl.label.update:
+          id: lbl_boiler_target
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("SOLL ---°C");
+            #endif
+            if (!id(s_boiler_target).has_state()) return std::string("SOLL ---°C");
+            return str_sprintf("SOLL %.0f°C", id(s_boiler_target).state);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_boiler_target).has_state()) return lv_color_hex(0x555555);
+            return lv_color_hex(0xBDC1C6);
+
+      # ---- Button: boiler on/off -----------------------------------
+      - lvgl.label.update:
+          id: lbl_boiler_heater
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("BOILER ---");
+            #endif
+            if (!id(s_boiler_heater_on).has_state()) return std::string("BOILER ---");
+            return id(s_boiler_heater_on).state ? std::string("BOILER EIN")
+                                         : std::string("BOILER AUS");
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_boiler_heater_on).has_state()) return lv_color_hex(0x555555);
+            return id(s_boiler_heater_on).state ? lv_color_hex(0x2ECC71)
+                                         : lv_color_hex(0xBDC1C6);
+      - lvgl.widget.update:
+          id: btn_boiler_heater
+          bg_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x202124);
+            #endif
+            if (!id(s_boiler_heater_on).has_state()) return lv_color_hex(0x202124);
+            return id(s_boiler_heater_on).state ? lv_color_hex(0x1B5E3A)
+                                         : lv_color_hex(0x202124);
+          border_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x3C4043);
+            #endif
+            if (!id(s_boiler_heater_on).has_state()) return lv_color_hex(0x3C4043);
+            return id(s_boiler_heater_on).state ? lv_color_hex(0x2ECC71)
+                                         : lv_color_hex(0x3C4043);
+
+      # ---- Status line: error only -------------------------------------
+      - lvgl.label.update:
+          id: lbl_boiler_status
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("KEINE VERBINDUNG");
+            #endif
+            if (!id(s_boiler_error).has_state()) return std::string("");
+            return id(s_boiler_error).state ? std::string("HEIZUNG FEHLER")
+                                     : std::string("");
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            return lv_color_hex(0xE74C3C);
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - script.execute: draw_boiler
+
+# ---------------------------------------------------------------------
+#  D  Widgets
+# ---------------------------------------------------------------------
+lvgl:
+  pages:
+    - id: page_boiler
+      bg_color: 0x000000
+      bg_opa: COVER
+      widgets:
+        - label:
+            id: lbl_boiler_temp
+            align: CENTER
+            y: ${y_main}
+            text: "---°C"
+            text_font: montserrat_40
+            text_color: 0x555555
+
+        - label:
+            id: lbl_boiler_target
+            align: CENTER
+            y: ${y_line2}
+            text: "SOLL ---°C"
+            text_font: montserrat_16
+            text_color: 0x555555
+
+        - button:
+            id: btn_boiler_heater
+            align: CENTER
+            y: ${y_row}
+            width: 104
+            height: 30
+            radius: 15
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  id: lbl_boiler_heater
+                  align: CENTER
+                  text: "BOILER ---"
+                  text_font: montserrat_16
+                  text_color: 0x555555
+            on_click:
+              - script.execute: act_boiler_heater
+
+        - label:
+            id: lbl_boiler_status
+            align: BOTTOM_MID
+            y: ${y_footer}
+            text: ""
+            text_font: montserrat_12
+            text_color: 0x555555

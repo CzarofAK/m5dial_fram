@@ -1,0 +1,169 @@
+# =====================================================================
+#  m5dial_pages/page_fans.yaml — page: Fans (HVAC / fan board)
+#  FRAM M5Dial Cockpit · page package
+#
+#  PLACEHOLDER ENTITIES — no spec given beyond "HVAC / Fanboard"
+#  (design.md §15). Guessed shape: one variable-speed fan (or a fan
+#  board reporting an aggregate speed), 0-100%, plus on/off. If the
+#  real thing is actually several independent fans, several fixed
+#  speed steps, or something else entirely, this whole page needs
+#  rethinking, not just the entity_ids.
+#
+#  Slots (design.md §3):
+#    y_main   72%              montserrat_40 — fan speed
+#    y_row    one button       FAN on/off
+#
+#  No thresholds/colors on the arc: unlike a battery or a tank, there's
+#  no "bad" fan speed — value shown in neutral blue throughout.
+# =====================================================================
+
+# ---------------------------------------------------------------------
+#  C  Bindings
+# ---------------------------------------------------------------------
+sensor:
+  - platform: homeassistant
+    id: s_fans_speed
+    entity_id: sensor.PLACEHOLDER_fans_speed
+    on_value:
+      - script.execute: draw_fans
+
+binary_sensor:
+  - platform: homeassistant
+    id: s_fans_power
+    entity_id: switch.PLACEHOLDER_fans_power
+    on_state:
+      - script.execute: draw_fans
+
+script:
+  - id: act_fans_power
+    then:
+      - homeassistant.service:
+          service: switch.toggle
+          data:
+            entity_id: switch.PLACEHOLDER_fans_power
+
+  - id: draw_fans
+    mode: restart
+    then:
+      - lvgl.arc.update:
+          id: arc_fans
+          value: !lambda |-
+            if (!id(s_fans_speed).has_state()) return 0.0f;
+            return id(s_fans_speed).state;
+          indicator:
+            arc_color: !lambda |-
+              #ifdef USE_API
+              if (!api_is_connected()) return lv_color_hex(0x555555);
+              #endif
+              if (!id(s_fans_speed).has_state()) return lv_color_hex(0x555555);
+              return lv_color_hex(0x4A9EFF);
+
+      - lvgl.label.update:
+          id: lbl_fans_speed
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("---%");
+            #endif
+            if (!id(s_fans_speed).has_state()) return std::string("---%");
+            return str_sprintf("%.0f%%", id(s_fans_speed).state);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_fans_speed).has_state()) return lv_color_hex(0x555555);
+            return lv_color_hex(0xFFFFFF);
+
+      # ---- Button: power on/off -----------------------------------
+      - lvgl.label.update:
+          id: lbl_fans_power
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("FAN ---");
+            #endif
+            if (!id(s_fans_power).has_state()) return std::string("FAN ---");
+            return id(s_fans_power).state ? std::string("FAN EIN")
+                                   : std::string("FAN AUS");
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_fans_power).has_state()) return lv_color_hex(0x555555);
+            return id(s_fans_power).state ? lv_color_hex(0x2ECC71)
+                                   : lv_color_hex(0xBDC1C6);
+      - lvgl.widget.update:
+          id: btn_fans_power
+          bg_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x202124);
+            #endif
+            if (!id(s_fans_power).has_state()) return lv_color_hex(0x202124);
+            return id(s_fans_power).state ? lv_color_hex(0x1B5E3A)
+                                   : lv_color_hex(0x202124);
+          border_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x3C4043);
+            #endif
+            if (!id(s_fans_power).has_state()) return lv_color_hex(0x3C4043);
+            return id(s_fans_power).state ? lv_color_hex(0x2ECC71)
+                                   : lv_color_hex(0x3C4043);
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - script.execute: draw_fans
+
+# ---------------------------------------------------------------------
+#  D  Widgets
+# ---------------------------------------------------------------------
+lvgl:
+  pages:
+    - id: page_fans
+      bg_color: 0x000000
+      bg_opa: COVER
+      widgets:
+        - arc:
+            id: arc_fans
+            align: CENTER
+            width: 224
+            height: 224
+            start_angle: 135
+            end_angle: 45
+            min_value: 0
+            max_value: 100
+            adjustable: false
+            arc_width: 10
+            arc_color: 0x1A1C1E
+            indicator:
+              arc_width: 10
+              arc_color: 0x4A9EFF
+            knob:
+              bg_opa: TRANSP
+
+        - label:
+            id: lbl_fans_speed
+            align: CENTER
+            y: ${y_main}
+            text: "---%"
+            text_font: montserrat_40
+            text_color: 0x555555
+
+        - button:
+            id: btn_fans_power
+            align: CENTER
+            y: ${y_row}
+            width: 104
+            height: 30
+            radius: 15
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  id: lbl_fans_power
+                  align: CENTER
+                  text: "FAN ---"
+                  text_font: montserrat_16
+                  text_color: 0x555555
+            on_click:
+              - script.execute: act_fans_power
