@@ -42,12 +42,15 @@ doesn't exist. The simulator shows a square and lies at the corners.
 
 ## 2. File structure
 
-One file per page, named `sim_NN_shortname.yaml`. Each file runs on its
-own in the SDL2 simulator:
+| | | | |
+| --- | --- | --- | --- |
+| m5dial_fram.yaml | | | contains all the Locations specific data |
+| | m5dial_fram_cockpit.yaml | | contains all Device specific data |
+| | m5dial_fram | | this folder contains all pages available to the Location |
+| | | page_n.yaml | this is the page file itself |
 
-```
-esphome run sim_02_netz.yaml
-```
+Eine Datei pro Seite, benannt `page_n.yaml`. Jede Datei ist für
+sich nicht lauffähig.
 
 > No spaces in file names. `esphome config strom 2.yaml` passes two
 > file names and fails twice.
