@@ -1,0 +1,364 @@
+# FRAM M5Dial — Seite 2: Strom-Netz
+# Standalone-Konfiguration fuer den SDL2-Simulator (host-Plattform)
+#
+#   esphome run sim_02_netz.yaml
+#
+#   BLOCK A  Simulator-Gerüst    -> faellt beim Zusammenfuehren weg
+#   BLOCK B  Datenquellen        -> wird gegen homeassistant-Sensoren getauscht
+#   BLOCK C  Bindings            -> wandert 1:1 in die Zieldatei
+#   BLOCK D  Seiten-Widgets      -> wandert 1:1 in die Zieldatei
+#
+# Abweichung zu Seite 1: die Anzeigen haengen von mehreren Werten ab
+# (Eingangsleistung, Strombegrenzung, Modus). Darum zeichnet ein Skript
+# draw_grid die ganze Seite, und jeder Sensor ruft es nur auf.
+#
+# Layout: Hauptwert Eingangsleistung, Nebenzeile MP-Zustand, Tasterreihe
+# Modus | Strombegrenzung. Die Fusszeile (y_footer) bleibt hier frei.
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# LAYOUT-RASTER — auf allen Seiten identisch, damit beim Durchdrehen
+# nichts springt. Diese vier Werte in *jeder* Seitendatei gleich halten.
+#
+#   oben          frei (reserviert)
+#   y_main        Hauptwert, gross
+#   y_line2       Nebenzeile, klein
+#   y_row         Tasterreihe (1 oder 2 Taster)
+#   y_footer      Statuszeile unten, in der Luecke des Bogens
+# ---------------------------------------------------------------------------
+substitutions:
+  y_main: "-36"
+  y_line2: "6"
+  y_row: "44"
+  y_footer: "-32"
+
+# ---------------------------------------------------------------------------
+# SCHRIFTEN — LVGL-intern (montserrat), keine Font-Datei noetig.
+# Verfuegbar sind gerade Groessen von 8 bis 48.
+#
+# Falls spaeter doch eine eigene Groteske: font-Block anlegen und die drei
+# Namen hier ersetzen. Die Nimbus-Variante sass vertikal schief im Taster.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# BLOCK A — Simulator-Gerüst
+# ---------------------------------------------------------------------------
+esphome:
+  name: sim-02-netz
+
+host:
+
+logger:
+  level: INFO
+
+globals:
+  # nur fuer die Simulation: halten Modus und Strombegrenzung lokal
+  - id: g_sim_limit
+    type: float
+    initial_value: "10.0f"
+  - id: g_sim_mode
+    type: int
+    initial_value: "0"      # 0=on 1=charger_only 2=inverter_only 3=off
+
+display:
+  - platform: sdl
+    id: disp
+    auto_clear_enabled: false
+    update_interval: never
+    dimensions:
+      width: 240
+      height: 240
+
+touchscreen:
+  - platform: sdl
+    id: tsc
+    display: disp
+
+# ---------------------------------------------------------------------------
+# BLOCK B — Datenquellen (SIMULATION)
+#
+# Auf dem Geraet:
+#   s_grid_w     -> sensor.multiplus_0_leitung_1_eingangsleistung
+#   s_mp_limit   -> number.multiplus_eingangsstrombegrenzung   # <-- anpassen
+#   s_mp_state   -> sensor.multiplus_zustand
+#   s_mp_mode    -> select.multiplus_modus                     # <-- anpassen
+# IDs bleiben gleich, damit BLOCK C unveraendert uebernommen werden kann.
+# ---------------------------------------------------------------------------
+sensor:
+  - platform: template
+    id: s_grid_w
+    update_interval: 1500ms
+    internal: true
+    lambda: |-
+      static float w = 0.0f;
+      w += 180.0f;
+      if (w > 3800.0f) w = 0.0f;
+      return w;
+    on_value:
+      - script.execute: draw_grid
+
+  - platform: template
+    id: s_mp_limit
+    update_interval: 1s
+    internal: true
+    lambda: |-
+      return id(g_sim_limit);
+    on_value:
+      - script.execute: draw_grid
+
+text_sensor:
+  - platform: template
+    id: s_mp_state
+    update_interval: 5s
+    internal: true
+    lambda: |-
+      static const char *st[] = {"bulk", "absorption", "float",
+                                 "inverting", "fault"};
+      static int i = -1;
+      i = (i + 1) % 5;
+      return std::string(st[i]);
+    on_value:
+      - script.execute: draw_grid
+
+  - platform: template
+    id: s_mp_mode
+    update_interval: 1s
+    internal: true
+    lambda: |-
+      static const char *md[] = {"on", "charger_only", "inverter_only", "off"};
+      return std::string(md[id(g_sim_mode) & 3]);
+    on_value:
+      - script.execute: draw_grid
+
+# ---------------------------------------------------------------------------
+# BLOCK C — Bindings
+# ---------------------------------------------------------------------------
+script:
+  - id: draw_grid
+    mode: restart
+    then:
+      # ---- Auslastung des Landstromanschlusses in % der Begrenzung --------
+      - lvgl.arc.update:
+          id: arc_grid
+          value: !lambda |-
+            if (!id(s_grid_w).has_state() || !id(s_mp_limit).has_state())
+              return 0;
+            float lim = id(s_mp_limit).state;
+            if (lim <= 0.0f) return 0;
+            float pct = (id(s_grid_w).state / 230.0f) / lim * 100.0f;
+            if (pct > 100.0f) pct = 100.0f;
+            if (pct < 0.0f) pct = 0.0f;
+            return (int) pct;
+      - lvgl.arc.update:
+          id: arc_grid
+          indicator:
+            arc_color: !lambda |-
+              #ifdef USE_API
+              if (!api_is_connected()) return lv_color_hex(0x555555);
+              #endif
+              if (!id(s_grid_w).has_state() || !id(s_mp_limit).has_state())
+                return lv_color_hex(0x555555);
+              float lim = id(s_mp_limit).state;
+              if (lim <= 0.0f) return lv_color_hex(0x555555);
+              float pct = (id(s_grid_w).state / 230.0f) / lim * 100.0f;
+              if (pct >= 95.0f) return lv_color_hex(0xE74C3C);
+              if (pct >= 80.0f) return lv_color_hex(0xF39C12);
+              return lv_color_hex(0x4A9EFF);
+
+      # ---- Eingangsleistung ----------------------------------------------
+      - lvgl.label.update:
+          id: lbl_grid_w
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("---");
+            #endif
+            if (!id(s_grid_w).has_state()) return std::string("---");
+            return str_sprintf("%.0f W", id(s_grid_w).state);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_grid_w).has_state()) return lv_color_hex(0x555555);
+            return lv_color_hex(0xFFFFFF);
+
+      # ---- MP-Zustand ------------------------------------------------------
+      - lvgl.label.update:
+          id: lbl_mp_state
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("---");
+            #endif
+            if (!id(s_mp_state).has_state()) return std::string("---");
+            std::string s = id(s_mp_state).state;
+            for (auto &c : s) c = toupper(c);
+            return s;
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_mp_state).has_state()) return lv_color_hex(0x555555);
+            if (id(s_mp_state).state == "fault") return lv_color_hex(0xE74C3C);
+            return lv_color_hex(0xBDC1C6);
+
+      # ---- Strombegrenzung: Button-Beschriftung ---------------------------
+      - lvgl.label.update:
+          id: lbl_mp_limit
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("--- A");
+            #endif
+            if (!id(s_mp_limit).has_state()) return std::string("--- A");
+            return str_sprintf("%.0f A", id(s_mp_limit).state);
+
+      # ---- Modus: Button-Beschriftung und Farbe ---------------------------
+      - lvgl.label.update:
+          id: lbl_mp_mode
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("---");
+            #endif
+            if (!id(s_mp_mode).has_state()) return std::string("---");
+            std::string m = id(s_mp_mode).state;
+            if (m == "on")             return std::string("ON");
+            if (m == "charger_only")   return std::string("CHG");
+            if (m == "inverter_only")  return std::string("INV");
+            if (m == "off")            return std::string("OFF");
+            return std::string("?");
+      - lvgl.widget.update:
+          id: btn_mp_mode
+          bg_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x202124);
+            #endif
+            std::string m = id(s_mp_mode).state;
+            if (m == "on")            return lv_color_hex(0x1B5E3A);
+            if (m == "charger_only")  return lv_color_hex(0x14324F);
+            if (m == "inverter_only") return lv_color_hex(0x4F3814);
+            return lv_color_hex(0x202124);
+          border_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x3C4043);
+            #endif
+            std::string m = id(s_mp_mode).state;
+            if (m == "on")            return lv_color_hex(0x2ECC71);
+            if (m == "charger_only")  return lv_color_hex(0x4A9EFF);
+            if (m == "inverter_only") return lv_color_hex(0xF39C12);
+            return lv_color_hex(0x3C4043);
+
+# ---------------------------------------------------------------------------
+# BLOCK D — Seite 2
+# ---------------------------------------------------------------------------
+lvgl:
+  displays: [disp]
+  touchscreens: [tsc]
+  bg_color: 0x000000
+  default_font: montserrat_16
+
+  pages:
+    - id: page_grid
+      bg_color: 0x000000
+      widgets:
+        - arc:
+            id: arc_grid
+            align: CENTER
+            width: 224
+            height: 224
+            start_angle: 135
+            end_angle: 45
+            min_value: 0
+            max_value: 100
+            value: 0
+            adjustable: false
+            arc_width: 10
+            arc_color: 0x1A1C1E
+            indicator:
+              arc_width: 10
+              arc_color: 0x4A9EFF
+            knob:
+              bg_opa: TRANSP
+
+        # Kein Titel — der obere Slot bleibt frei, wie auf Seite 1.
+
+        - label:
+            id: lbl_grid_w
+            align: CENTER
+            y: ${y_main}
+            text: "---"
+            text_font: montserrat_40
+            text_color: 0xFFFFFF
+
+
+        # Zwei Taster nebeneinander: links Modus, rechts Strombegrenzung
+        - button:
+            id: btn_mp_mode
+            align: CENTER
+            x: -40
+            y: ${y_row}
+            width: 76
+            height: 30
+            radius: 15
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  id: lbl_mp_mode
+                  align: CENTER
+                  text: "---"
+                  text_font: montserrat_16
+                  text_color: 0xE8EAED
+            on_click:
+              # SIM: schaltet ON -> CHG -> INV -> OFF -> ON durch.
+              # GERAET: stattdessen
+              #   - homeassistant.service:
+              #       service: select.select_option
+              #       data:
+              #         entity_id: select.multiplus_modus
+              #       data_template:
+              #         option: !lambda 'return naechster_modus;'
+              - lambda: |-
+                  id(g_sim_mode) = (id(g_sim_mode) + 1) % 4;
+
+        - button:
+            id: btn_mp_limit
+            align: CENTER
+            x: 40
+            y: ${y_row}
+            width: 76
+            height: 30
+            radius: 15
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  id: lbl_mp_limit
+                  align: CENTER
+                  text: "--- A"
+                  text_font: montserrat_16
+                  text_color: 0xE8EAED
+            on_click:
+              # SIM: schaltet 4 -> 6 -> 8 -> 10 -> 13 -> 16 -> 4 A durch.
+              # GERAET: stattdessen
+              #   - homeassistant.service:
+              #       service: number.set_value
+              #       data:
+              #         entity_id: number.multiplus_eingangsstrombegrenzung
+              #       data_template:
+              #         value: !lambda 'return str_sprintf("%.0f", naechster_wert);'
+              - lambda: |-
+                  static const float steps[] = {4, 6, 8, 10, 13, 16};
+                  float v = id(g_sim_limit);
+                  int idx = 0;
+                  for (int i = 0; i < 6; i++)
+                    if (v >= steps[i] - 0.5f) idx = i;
+                  id(g_sim_limit) = steps[(idx + 1) % 6];
+
+        # Nebenzeile, gleicher Slot wie die DC-Werte auf Seite 1
+        - label:
+            id: lbl_mp_state
+            align: CENTER
+            y: ${y_line2}
+            text: "---"
+            text_font: montserrat_16
+            text_color: 0xBDC1C6
