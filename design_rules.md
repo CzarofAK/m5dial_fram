@@ -38,7 +38,11 @@ directly contains its data sources (`sensor:` / `text_sensor:` on
 what actually runs on the device, not an intermediate form.
 
 > No spaces in file names. `esphome config strom 2.yaml` passes two
-> file names and fails twice.
+> file names and fails twice. Multi-word file names use `_`, never `-`
+> (`m5dial_fram_cockpit.yaml`, not `m5dial-fram-cockpit.yaml`) — that's
+> a filename rule only, not a rule for `name:`/`friendly_name:` values,
+> which stay dash-separated since `name:` becomes a hostname and
+> hostnames don't allow underscores.
 
 There's deliberately no maintained simulator build alongside this —
 see §11.
