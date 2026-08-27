@@ -1,0 +1,161 @@
+# =====================================================================
+#  m5dial_pages/page_ipixel.yaml — page: iPixel
+#  FRAM M5Dial Cockpit · page package
+#
+#  PLACEHOLDER ENTITIES — "nur ein/aus und status" (design.md §15):
+#  on/off plus a status readout, nothing else. Guessed as a plain
+#  switch (not a light -- "on/off only" is exactly what switch is for)
+#  plus a text status sensor of unknown content.
+#
+#  Slots (design.md §3):
+#    y_main   AN / AUS          montserrat_40 — power state, big
+#    y_line2  status text       montserrat_16 — whatever the status
+#                                sensor reports
+#    y_row    one button        toggle
+# =====================================================================
+
+# ---------------------------------------------------------------------
+#  C  Bindings
+# ---------------------------------------------------------------------
+binary_sensor:
+  - platform: homeassistant
+    id: s_ipixel_power
+    entity_id: switch.PLACEHOLDER_ipixel
+    on_state:
+      - script.execute: draw_ipixel
+
+text_sensor:
+  - platform: homeassistant
+    id: s_ipixel_status
+    entity_id: sensor.PLACEHOLDER_ipixel_status
+    on_value:
+      - script.execute: draw_ipixel
+
+script:
+  - id: act_ipixel_power
+    then:
+      - homeassistant.service:
+          service: switch.toggle
+          data:
+            entity_id: switch.PLACEHOLDER_ipixel
+
+  - id: draw_ipixel
+    mode: restart
+    then:
+      # ---- Main value: power state --------------------------------
+      - lvgl.label.update:
+          id: lbl_ipixel_power
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("---");
+            #endif
+            if (!id(s_ipixel_power).has_state()) return std::string("---");
+            return id(s_ipixel_power).state ? std::string("AN") : std::string("AUS");
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_ipixel_power).has_state()) return lv_color_hex(0x555555);
+            return id(s_ipixel_power).state ? lv_color_hex(0xFFFFFF)
+                                     : lv_color_hex(0xBDC1C6);
+
+      # ---- Secondary line: status text ------------------------------
+      - lvgl.label.update:
+          id: lbl_ipixel_status
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("---");
+            #endif
+            if (!id(s_ipixel_status).has_state()) return std::string("---");
+            return id(s_ipixel_status).state;
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_ipixel_status).has_state()) return lv_color_hex(0x555555);
+            return lv_color_hex(0xBDC1C6);
+
+      # ---- Button: on/off -------------------------------------------
+      - lvgl.label.update:
+          id: lbl_ipixel_btn
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("PIXEL ---");
+            #endif
+            if (!id(s_ipixel_power).has_state()) return std::string("PIXEL ---");
+            return id(s_ipixel_power).state ? std::string("PIXEL EIN")
+                                     : std::string("PIXEL AUS");
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_ipixel_power).has_state()) return lv_color_hex(0x555555);
+            return id(s_ipixel_power).state ? lv_color_hex(0x2ECC71)
+                                     : lv_color_hex(0xBDC1C6);
+      - lvgl.widget.update:
+          id: btn_ipixel_power
+          bg_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x202124);
+            #endif
+            if (!id(s_ipixel_power).has_state()) return lv_color_hex(0x202124);
+            return id(s_ipixel_power).state ? lv_color_hex(0x1B5E3A)
+                                     : lv_color_hex(0x202124);
+          border_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x3C4043);
+            #endif
+            if (!id(s_ipixel_power).has_state()) return lv_color_hex(0x3C4043);
+            return id(s_ipixel_power).state ? lv_color_hex(0x2ECC71)
+                                     : lv_color_hex(0x3C4043);
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - script.execute: draw_ipixel
+
+# ---------------------------------------------------------------------
+#  D  Widgets
+# ---------------------------------------------------------------------
+lvgl:
+  pages:
+    - id: page_ipixel
+      bg_color: 0x000000
+      bg_opa: COVER
+      widgets:
+        - label:
+            id: lbl_ipixel_power
+            align: CENTER
+            y: ${y_main}
+            text: "---"
+            text_font: montserrat_40
+            text_color: 0x555555
+
+        - label:
+            id: lbl_ipixel_status
+            align: CENTER
+            y: ${y_line2}
+            text: "---"
+            text_font: montserrat_16
+            text_color: 0x555555
+
+        - button:
+            id: btn_ipixel_power
+            align: CENTER
+            y: ${y_row}
+            width: 104
+            height: 30
+            radius: 15
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  id: lbl_ipixel_btn
+                  align: CENTER
+                  text: "PIXEL ---"
+                  text_font: montserrat_16
+                  text_color: 0x555555
+            on_click:
+              - script.execute: act_ipixel_power

@@ -26,7 +26,7 @@ doesn't exist. The simulator shows a square and lies at the corners.
 
 | File / folder | Contains |
 |---|---|
-| `m5dial_fram.yaml` | everything shared by every M5 Dial in the FRAM (Location-specific: hardware header, palette grid, day/night) |
+| `.m5dial_fram.yaml` | everything shared by every M5 Dial in the FRAM (Location-specific: hardware header, palette grid, day/night) |
 | `m5dial_fram_cockpit.yaml` | one specific dial (Device-specific: name, home page, which pages in which order) |
 | `m5dial_pages/` | all pages, one file each, reusable across every dial in the project |
 | `m5dial_pages/page_<name>.yaml` | one page, ready to `!include` as-is — no separate simulator variant, no merge step |
@@ -40,9 +40,15 @@ what actually runs on the device, not an intermediate form.
 > No spaces in file names. `esphome config strom 2.yaml` passes two
 > file names and fails twice. Multi-word file names use `_`, never `-`
 > (`m5dial_fram_cockpit.yaml`, not `m5dial-fram-cockpit.yaml`) — that's
-> a filename rule only, not a rule for `name:`/`friendly_name:` values,
-> which stay dash-separated since `name:` becomes a hostname and
-> hostnames don't allow underscores.
+> a filename rule only, not a rule for `name:`/`friendly_name:` values.
+> `name:` becomes a hostname and stays dash-separated, since hostnames
+> don't allow underscores. `friendly_name:` has no such constraint — an
+> underscore there is a cosmetic choice, not an error.
+>
+> A file with no `esphome.name:` of its own — shared by every dial,
+> like `.m5dial_fram.yaml` and `.basics.yaml` — gets a leading dot.
+> Without it the ESPHome dashboard still lists it as a flashable device
+> even though it isn't one.
 
 There's deliberately no maintained simulator build alongside this —
 see §11.
@@ -558,7 +564,7 @@ no state is held locally.
 The three-layer split in §2 exists for modularity and reuse: FRAM
 (motorhome) is one location that could have more than one M5 Dial, so
 whatever is shared by all of them — the hardware header, the palette,
-the grid, day/night — belongs in `m5dial_fram.yaml`, one device (this
+the grid, day/night — belongs in `.m5dial_fram.yaml`, one device (this
 dial specifically: its name, its home page, its page order) belongs in
 `m5dial_fram_cockpit.yaml`, and pages belong in `m5dial_pages/`,
 reusable by any dial in the project, not just this one.
@@ -613,8 +619,14 @@ reusable by any dial in the project, not just this one.
 The full planned roster, in navigation order (§10 — the encoder
 addresses pages by this index, so the order is deliberate, not
 alphabetical). "Implemented" means a `page_<id>.yaml` exists in
-`m5dial_pages/`; everything else is planned only — no file, no
-entity_ids, no layout decided yet.
+`m5dial_pages/` and is wired into `m5dial_fram_cockpit.yaml`'s
+`packages:`. "Draft" additionally means it's wired in, but its
+entity_ids are placeholders (`PLACEHOLDER_*` or otherwise unverified)
+that don't point at anything real yet — it'll compile and show `---`
+everywhere rather than break the build, but check each one's
+entity_ids (and, for `levelling`/`fans`/`lights_outside`/`entrance`/
+`ipixel`, the whole design — there was no spec to build against beyond
+one line each) before relying on it.
 
 | # | id | Content | Status |
 |---|---|---|---|
@@ -623,17 +635,17 @@ entity_ids, no layout decided yet.
 | 2 | `power_2` | Grid power: MultiPlus mode / current limit | implemented |
 | 3 | `gas` | Two gas bottles (double ring, §4) | implemented |
 | 4 | `water` | Fresh / grey water (double ring, §4) | implemented |
-| 5 | `levelling` | Spirit level — sensor is **external** hardware, not on the dial | planned |
-| 6 | `climate` | Climate control (not available yet) + Truma Combi heating side, including fan mode | planned |
-| 7 | `boiler` | Mode, actual temperature | planned |
-| 8 | `fans` | HVAC / fan board | planned |
-| 9 | `lights_outside` | Entrance light, awning light (dimmable) | planned |
-| 10 | `entrance` | Step, door lock | planned |
-| 11 | `ipixel` | On/off and status only | planned |
+| 5 | `levelling` | Spirit level — sensor is **external** hardware, not on the dial | draft |
+| 6 | `climate` | Truma Combi 4 (gas only) room-heating side + fan mode; AC not installed yet | draft |
+| 7 | `boiler` | Truma Combi 4 water-heating side: mode, actual temperature | draft |
+| 8 | `fans` | HVAC / fan board | draft |
+| 9 | `lights_outside` | Entrance light, awning light (dimmable; dial only does on/off, no brightness) | draft |
+| 10 | `entrance` | Step, door lock | draft |
+| 11 | `ipixel` | On/off and status only | draft |
 | reserved | `lights_inside` | — | reserved, not designed yet |
 
 Not pages — shown as an overlay on top of whatever page is current,
-per the `s_ignition` comment in `m5dial_fram.yaml`:
+per the `s_ignition` comment in `.m5dial_fram.yaml`:
 
 | id | Content |
 |---|---|

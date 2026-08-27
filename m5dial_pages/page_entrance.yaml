@@ -1,0 +1,213 @@
+# =====================================================================
+#  m5dial_pages/page_entrance.yaml — page: Entrance (step, door lock)
+#  FRAM M5Dial Cockpit · page package
+#
+#  PLACEHOLDER ENTITIES — step (Trittstufe) and door lock (Türschloss),
+#  design.md §15. Guessed domains: the step as a plain switch
+#  (extend/retract, like the door step on most motorhomes -- no
+#  position feedback assumed, just an on/off relay), the lock as HA's
+#  `lock` domain (lock.PLACEHOLDER_tuerschloss, lock/unlock services,
+#  not toggle -- lock has no toggle service). If the step actually
+#  reports position (a cover) rather than being a simple relay, this
+#  page's step half needs redoing, not just the entity_id.
+#
+#  Two-button layout (design.md §3), no arcs -- same shape as
+#  page_lights_outside.yaml.
+# =====================================================================
+
+# ---------------------------------------------------------------------
+#  C  Bindings
+# ---------------------------------------------------------------------
+binary_sensor:
+  - platform: homeassistant
+    id: s_entrance_step
+    entity_id: switch.PLACEHOLDER_trittstufe
+    on_state:
+      - script.execute: draw_entrance
+
+text_sensor:
+  # Read as text, not binary_sensor: the lock domain's own states are
+  # "locked"/"unlocked", not "on"/"off", and it's not certain
+  # ESPHome's homeassistant binary_sensor platform's on/off synonym
+  # list covers those -- comparing the raw string in the lambda below
+  # is guaranteed correct regardless (same reasoning as the starter
+  # battery text_sensor in page_power_1.yaml).
+  - platform: homeassistant
+    id: s_entrance_lock
+    entity_id: lock.PLACEHOLDER_tuerschloss
+    on_value:
+      - script.execute: draw_entrance
+
+script:
+  - id: act_entrance_step
+    then:
+      - homeassistant.service:
+          service: switch.toggle
+          data:
+            entity_id: switch.PLACEHOLDER_trittstufe
+
+  - id: act_entrance_lock
+    then:
+      # lock has no toggle service -- lock/unlock depending on current
+      # state, read at call time.
+      - if:
+          condition:
+            lambda: return id(s_entrance_lock).state == "locked";
+          then:
+            - homeassistant.service:
+                service: lock.unlock
+                data:
+                  entity_id: lock.PLACEHOLDER_tuerschloss
+          else:
+            - homeassistant.service:
+                service: lock.lock
+                data:
+                  entity_id: lock.PLACEHOLDER_tuerschloss
+
+  - id: draw_entrance
+    mode: restart
+    then:
+      # ---- Step -----------------------------------------------------
+      - lvgl.label.update:
+          id: lbl_entrance_step
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("---");
+            #endif
+            if (!id(s_entrance_step).has_state()) return std::string("---");
+            return id(s_entrance_step).state ? std::string("EIN") : std::string("AUS");
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_entrance_step).has_state()) return lv_color_hex(0x555555);
+            return id(s_entrance_step).state ? lv_color_hex(0x2ECC71)
+                                       : lv_color_hex(0xBDC1C6);
+      - lvgl.widget.update:
+          id: btn_entrance_step
+          bg_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x202124);
+            #endif
+            if (!id(s_entrance_step).has_state()) return lv_color_hex(0x202124);
+            return id(s_entrance_step).state ? lv_color_hex(0x1B5E3A)
+                                       : lv_color_hex(0x202124);
+          border_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x3C4043);
+            #endif
+            if (!id(s_entrance_step).has_state()) return lv_color_hex(0x3C4043);
+            return id(s_entrance_step).state ? lv_color_hex(0x2ECC71)
+                                       : lv_color_hex(0x3C4043);
+
+      # ---- Lock: locked is the "good", unobtrusive state -------------
+      # (design.md §6 palette has no dedicated "locked" color -- using
+      # secondary-line grey for locked/good, warning orange for
+      # unlocked, since an unlocked door while away is the state that
+      # deserves a look, unlike every other button on this dial where
+      # green means "on/active".)
+      - lvgl.label.update:
+          id: lbl_entrance_lock
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("---");
+            #endif
+            if (!id(s_entrance_lock).has_state()) return std::string("---");
+            return id(s_entrance_lock).state == "locked" ? std::string("ZU")
+                                                   : std::string("OFFEN");
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_entrance_lock).has_state()) return lv_color_hex(0x555555);
+            return id(s_entrance_lock).state == "locked" ? lv_color_hex(0xBDC1C6)
+                                                   : lv_color_hex(0xF39C12);
+      - lvgl.widget.update:
+          id: btn_entrance_lock
+          bg_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x202124);
+            #endif
+            if (!id(s_entrance_lock).has_state()) return lv_color_hex(0x202124);
+            return id(s_entrance_lock).state == "locked" ? lv_color_hex(0x202124)
+                                                   : lv_color_hex(0x4F3814);
+          border_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x3C4043);
+            #endif
+            if (!id(s_entrance_lock).has_state()) return lv_color_hex(0x3C4043);
+            return id(s_entrance_lock).state == "locked" ? lv_color_hex(0x3C4043)
+                                                   : lv_color_hex(0xF39C12);
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - script.execute: draw_entrance
+
+# ---------------------------------------------------------------------
+#  D  Widgets
+# ---------------------------------------------------------------------
+lvgl:
+  pages:
+    - id: page_entrance
+      bg_color: 0x000000
+      bg_opa: COVER
+      widgets:
+        - label:
+            id: lbl_entrance_cap_step
+            align: CENTER
+            x: -${x_col}
+            y: ${y_cap}
+            text: "STUFE"
+            text_font: montserrat_12
+            text_color: 0x555555
+        - button:
+            id: btn_entrance_step
+            align: CENTER
+            x: -${x_col}
+            y: ${y_row}
+            width: 76
+            height: 30
+            radius: 15
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  id: lbl_entrance_step
+                  align: CENTER
+                  text: "---"
+                  text_font: montserrat_16
+                  text_color: 0x555555
+            on_click:
+              - script.execute: act_entrance_step
+
+        - label:
+            id: lbl_entrance_cap_lock
+            align: CENTER
+            x: ${x_col}
+            y: ${y_cap}
+            text: "SCHLOSS"
+            text_font: montserrat_12
+            text_color: 0x555555
+        - button:
+            id: btn_entrance_lock
+            align: CENTER
+            x: ${x_col}
+            y: ${y_row}
+            width: 76
+            height: 30
+            radius: 15
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  id: lbl_entrance_lock
+                  align: CENTER
+                  text: "---"
+                  text_font: montserrat_16
+                  text_color: 0x555555
+            on_click:
+              - script.execute: act_entrance_lock
