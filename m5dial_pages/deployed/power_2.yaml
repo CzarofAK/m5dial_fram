@@ -1,5 +1,5 @@
 # =====================================================================
-#  m5dial/strom2.yaml — page: Power / Grid (MultiPlus)
+#  m5dial/power_2.yaml — page: Power / Grid (MultiPlus)
 #  FRAM M5Dial Cockpit · page package (block B + C + D)
 #
 #
@@ -21,30 +21,30 @@
 # ---------------------------------------------------------------------
 sensor:
   - platform: homeassistant
-    id: s_strom2_w
+    id: s_power_2_w
     entity_id: sensor.multiplus_eingangsleistung_l1
     on_value:
-      - script.execute: draw_strom2
+      - script.execute: draw_power_2
   - platform: homeassistant
-    id: s_strom2_a
+    id: s_power_2_a
     entity_id: sensor.multiplus_eingangsstromstarke_l1
     on_value:
-      - script.execute: draw_strom2
+      - script.execute: draw_power_2
   - platform: homeassistant
-    id: s_strom2_limit
+    id: s_power_2_limit
     entity_id: number.multiplus_strombegrenzung
     on_value:
-      - script.execute: draw_strom2
+      - script.execute: draw_power_2
 
 text_sensor:
   - platform: homeassistant
-    id: s_strom2_state
+    id: s_power_2_state
     entity_id: sensor.multiplus_zustand
     on_value:
-      - script.execute: draw_strom2
+      - script.execute: draw_power_2
 
   - platform: homeassistant
-    id: s_strom2_mode
+    id: s_power_2_mode
     entity_id: select.multiplus
     # The button shows three characters (design.md §8). The shortening
     # lives here as a filter, so blocks C and D don't need to know
@@ -59,12 +59,12 @@ text_sensor:
           if (s == "inverter_only") return std::string("INV");
           return std::string("OFF");
     on_value:
-      - script.execute: draw_strom2
+      - script.execute: draw_power_2
 
 script:
   # OPEN ITEM (design.md §13): the jump to OFF takes away shore power,
   # charging, and 230 V, and should require a long press.
-  - id: act_strom2_mode
+  - id: act_power_2_mode
     then:
       - homeassistant.service:
           service: select.select_option
@@ -75,13 +75,13 @@ script:
           variables:
             opt: !lambda |-
               // ON -> CHG -> INV -> OFF -> ON
-              std::string m = id(s_strom2_mode).state;
+              std::string m = id(s_power_2_mode).state;
               if (m == "ON")  return std::string("charger_only");
               if (m == "CHG") return std::string("inverter_only");
               if (m == "INV") return std::string("off");
               return std::string("on");
 
-  - id: act_strom2_limit
+  - id: act_power_2_limit
     then:
       - homeassistant.service:
           service: number.set_value
@@ -94,23 +94,23 @@ script:
               // next value up, snapping to the list in case HA
               // returns an in-between value (e.g. 10.5)
               static const float t[] = {4.0f, 6.0f, 8.0f, 10.0f, 13.0f, 16.0f};
-              float cur = id(s_strom2_limit).has_state() ? id(s_strom2_limit).state : 4.0f;
+              float cur = id(s_power_2_limit).has_state() ? id(s_power_2_limit).state : 4.0f;
               for (int i = 0; i < 6; i++)
                 if (t[i] > cur + 0.1f) return str_sprintf("%.0f", t[i]);
               return std::string("4");
 
-  - id: draw_strom2
+  - id: draw_power_2
     mode: restart
     then:
       # ---- Arc: load as % of the limit -------------------------------
       - lvgl.arc.update:
-          id: arc_strom2
+          id: arc_power_2
           value: !lambda |-
-            if (!id(s_strom2_a).has_state() || !id(s_strom2_limit).has_state())
+            if (!id(s_power_2_a).has_state() || !id(s_power_2_limit).has_state())
               return 0.0f;
-            float lim = id(s_strom2_limit).state;
+            float lim = id(s_power_2_limit).state;
             if (lim <= 0.0f) return 0.0f;
-            float p = id(s_strom2_a).state / lim * 100.0f;
+            float p = id(s_power_2_a).state / lim * 100.0f;
             if (p > 100.0f) p = 100.0f;
             if (p < 0.0f) p = 0.0f;
             return p;
@@ -119,90 +119,90 @@ script:
               #ifdef USE_API
               if (!api_is_connected()) return lv_color_hex(0x555555);
               #endif
-              if (!id(s_strom2_a).has_state() || !id(s_strom2_limit).has_state())
+              if (!id(s_power_2_a).has_state() || !id(s_power_2_limit).has_state())
                 return lv_color_hex(0x555555);
-              float lim = id(s_strom2_limit).state;
+              float lim = id(s_power_2_limit).state;
               if (lim <= 0.0f) return lv_color_hex(0x555555);
-              float p = id(s_strom2_a).state / lim * 100.0f;
+              float p = id(s_power_2_a).state / lim * 100.0f;
               if (p >= 95.0f) return lv_color_hex(0xE74C3C);
               if (p >= 80.0f) return lv_color_hex(0xF39C12);
               return lv_color_hex(0x4A9EFF);
 
       # ---- Main value: input power -----------------------------------
       - lvgl.label.update:
-          id: lbl_strom2_w
+          id: lbl_power_2_w
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("---W");
             #endif
-            if (!id(s_strom2_w).has_state()) return std::string("---W");
-            return str_sprintf("%.0fW", id(s_strom2_w).state);
+            if (!id(s_power_2_w).has_state()) return std::string("---W");
+            return str_sprintf("%.0fW", id(s_power_2_w).state);
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_strom2_w).has_state()) return lv_color_hex(0x555555);
-            if (!id(s_strom2_a).has_state() || !id(s_strom2_limit).has_state())
+            if (!id(s_power_2_w).has_state()) return lv_color_hex(0x555555);
+            if (!id(s_power_2_a).has_state() || !id(s_power_2_limit).has_state())
               return lv_color_hex(0xFFFFFF);
-            float lim = id(s_strom2_limit).state;
+            float lim = id(s_power_2_limit).state;
             if (lim <= 0.0f) return lv_color_hex(0xFFFFFF);
-            float p = id(s_strom2_a).state / lim * 100.0f;
+            float p = id(s_power_2_a).state / lim * 100.0f;
             if (p >= 95.0f) return lv_color_hex(0xE74C3C);
             if (p >= 80.0f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0xFFFFFF);
 
       # ---- Secondary line: MP state ------------------------------------
       - lvgl.label.update:
-          id: lbl_strom2_state
+          id: lbl_power_2_state
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("---");
             #endif
-            if (!id(s_strom2_state).has_state()) return std::string("---");
+            if (!id(s_power_2_state).has_state()) return std::string("---");
             // Options come as snake_case: bulk, absorption, float,
             // inverting, fault, power_assist, scheduled_recharging, ...
             // Longest case "SCHEDULED RECHARGING" = 20 characters ~184 px,
             // 197 px are available at y_line2 (design.md §4).
-            std::string s = id(s_strom2_state).state;
+            std::string s = id(s_power_2_state).state;
             for (auto &c : s) { if (c == '_') c = ' '; else c = ::toupper(c); }
             return s;
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_strom2_state).has_state()) return lv_color_hex(0x555555);
-            std::string s = id(s_strom2_state).state;
+            if (!id(s_power_2_state).has_state()) return lv_color_hex(0x555555);
+            std::string s = id(s_power_2_state).state;
             if (s == "fault") return lv_color_hex(0xE74C3C);
             if (s == "off" || s == "low_power") return lv_color_hex(0x707070);
             return lv_color_hex(0xBDC1C6);
 
       # ---- Left button: mode -------------------------------------------
       - lvgl.label.update:
-          id: lbl_strom2_mode
+          id: lbl_power_2_mode
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("---");
             #endif
-            if (!id(s_strom2_mode).has_state()) return std::string("---");
-            return id(s_strom2_mode).state;
+            if (!id(s_power_2_mode).has_state()) return std::string("---");
+            return id(s_power_2_mode).state;
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_strom2_mode).has_state()) return lv_color_hex(0x555555);
-            std::string m = id(s_strom2_mode).state;
+            if (!id(s_power_2_mode).has_state()) return lv_color_hex(0x555555);
+            std::string m = id(s_power_2_mode).state;
             if (m == "ON")  return lv_color_hex(0x2ECC71);
             if (m == "CHG") return lv_color_hex(0x4A9EFF);
             if (m == "INV") return lv_color_hex(0xF39C12);
             return lv_color_hex(0xBDC1C6);
       - lvgl.widget.update:
-          id: btn_strom2_mode
+          id: btn_power_2_mode
           bg_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x202124);
             #endif
-            if (!id(s_strom2_mode).has_state()) return lv_color_hex(0x202124);
-            std::string m = id(s_strom2_mode).state;
+            if (!id(s_power_2_mode).has_state()) return lv_color_hex(0x202124);
+            std::string m = id(s_power_2_mode).state;
             if (m == "ON")  return lv_color_hex(0x1B5E3A);
             if (m == "CHG") return lv_color_hex(0x14324F);
             if (m == "INV") return lv_color_hex(0x4F3814);
@@ -211,8 +211,8 @@ script:
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x3C4043);
             #endif
-            if (!id(s_strom2_mode).has_state()) return lv_color_hex(0x3C4043);
-            std::string m = id(s_strom2_mode).state;
+            if (!id(s_power_2_mode).has_state()) return lv_color_hex(0x3C4043);
+            std::string m = id(s_power_2_mode).state;
             if (m == "ON")  return lv_color_hex(0x2ECC71);
             if (m == "CHG") return lv_color_hex(0x4A9EFF);
             if (m == "INV") return lv_color_hex(0xF39C12);
@@ -220,46 +220,46 @@ script:
 
       # ---- Right button: current limit ----------------------------------
       - lvgl.label.update:
-          id: lbl_strom2_limit
+          id: lbl_power_2_limit
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("--A");
             #endif
-            if (!id(s_strom2_limit).has_state()) return std::string("--A");
-            return str_sprintf("%.0fA", id(s_strom2_limit).state);
+            if (!id(s_power_2_limit).has_state()) return std::string("--A");
+            return str_sprintf("%.0fA", id(s_power_2_limit).state);
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_strom2_limit).has_state()) return lv_color_hex(0x555555);
+            if (!id(s_power_2_limit).has_state()) return lv_color_hex(0x555555);
             return lv_color_hex(0x4A9EFF);
       - lvgl.widget.update:
-          id: btn_strom2_limit
+          id: btn_power_2_limit
           bg_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x202124);
             #endif
-            if (!id(s_strom2_limit).has_state()) return lv_color_hex(0x202124);
+            if (!id(s_power_2_limit).has_state()) return lv_color_hex(0x202124);
             return lv_color_hex(0x14324F);
           border_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x3C4043);
             #endif
-            if (!id(s_strom2_limit).has_state()) return lv_color_hex(0x3C4043);
+            if (!id(s_power_2_limit).has_state()) return lv_color_hex(0x3C4043);
             return lv_color_hex(0x4A9EFF);
 
       # ---- Status line ---------------------------------------------
       - lvgl.label.update:
-          id: lbl_strom2_status
+          id: lbl_power_2_status
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("KEINE VERBINDUNG");
             #endif
-            if (!id(s_strom2_a).has_state() || !id(s_strom2_limit).has_state())
+            if (!id(s_power_2_a).has_state() || !id(s_power_2_limit).has_state())
               return std::string("");
-            float lim = id(s_strom2_limit).state;
+            float lim = id(s_power_2_limit).state;
             if (lim <= 0.0f) return std::string("");
-            float p = id(s_strom2_a).state / lim * 100.0f;
+            float p = id(s_power_2_a).state / lim * 100.0f;
             if (p >= 95.0f) return std::string("NETZ AM LIMIT");
             if (p >= 80.0f) return std::string("NETZ HOCH");
             return std::string("");
@@ -267,11 +267,11 @@ script:
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_strom2_a).has_state() || !id(s_strom2_limit).has_state())
+            if (!id(s_power_2_a).has_state() || !id(s_power_2_limit).has_state())
               return lv_color_hex(0x555555);
-            float lim = id(s_strom2_limit).state;
+            float lim = id(s_power_2_limit).state;
             if (lim <= 0.0f) return lv_color_hex(0x555555);
-            float p = id(s_strom2_a).state / lim * 100.0f;
+            float p = id(s_power_2_a).state / lim * 100.0f;
             if (p >= 95.0f) return lv_color_hex(0xE74C3C);
             return lv_color_hex(0xF39C12);
 
@@ -279,14 +279,14 @@ esphome:
   on_boot:
     - priority: -100
       then:
-        - script.execute: draw_strom2
+        - script.execute: draw_power_2
 
 # ---------------------------------------------------------------------
 #  D  Widgets
 # ---------------------------------------------------------------------
 lvgl:
   pages:
-    - id: page_strom2
+    - id: page_power_2
       # An LVGL page is by default an opaque WHITE object and sits over
       # the bottom_layer from the header. Without these two lines
       # everything sits on a white background (correction to design.md
@@ -295,7 +295,7 @@ lvgl:
       bg_opa: COVER
       widgets:
         - arc:
-            id: arc_strom2
+            id: arc_power_2
             align: CENTER
             width: 224
             height: 224
@@ -313,7 +313,7 @@ lvgl:
               bg_opa: TRANSP
 
         - label:
-            id: lbl_strom2_w
+            id: lbl_power_2_w
             align: CENTER
             y: ${y_main}
             text: "---W"
@@ -321,7 +321,7 @@ lvgl:
             text_color: 0x555555
 
         - label:
-            id: lbl_strom2_state
+            id: lbl_power_2_state
             align: CENTER
             y: ${y_line2}
             text: "---"
@@ -329,7 +329,7 @@ lvgl:
             text_color: 0x555555
 
         - button:
-            id: btn_strom2_mode
+            id: btn_power_2_mode
             align: CENTER
             x: -${x_col}
             y: ${y_row}
@@ -341,16 +341,16 @@ lvgl:
             border_color: 0x3C4043
             widgets:
               - label:
-                  id: lbl_strom2_mode
+                  id: lbl_power_2_mode
                   align: CENTER
                   text: "---"
                   text_font: montserrat_16
                   text_color: 0x555555
             on_click:
-              - script.execute: act_strom2_mode
+              - script.execute: act_power_2_mode
 
         - button:
-            id: btn_strom2_limit
+            id: btn_power_2_limit
             align: CENTER
             x: ${x_col}
             y: ${y_row}
@@ -362,16 +362,16 @@ lvgl:
             border_color: 0x3C4043
             widgets:
               - label:
-                  id: lbl_strom2_limit
+                  id: lbl_power_2_limit
                   align: CENTER
                   text: "--A"
                   text_font: montserrat_16
                   text_color: 0x555555
             on_click:
-              - script.execute: act_strom2_limit
+              - script.execute: act_power_2_limit
 
         - label:
-            id: lbl_strom2_status
+            id: lbl_power_2_status
             align: BOTTOM_MID
             y: ${y_footer}
             text: ""

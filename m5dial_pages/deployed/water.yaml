@@ -1,5 +1,5 @@
 # =====================================================================
-#  m5dial/liquids.yaml — page: Water (Fresh / Grey)
+#  m5dial/water.yaml — page: Water (Fresh / Grey)
 #  FRAM M5Dial Cockpit · page package (block B + C + D)
 #
 #
@@ -24,127 +24,127 @@
 # ---------------------------------------------------------------------
 sensor:
   - platform: homeassistant
-    id: s_liquids_f
+    id: s_water_f
     entity_id: sensor.fresh_stand
     on_value:
-      - script.execute: draw_liquids
+      - script.execute: draw_water
   - platform: homeassistant
-    id: s_liquids_g
+    id: s_water_g
     entity_id: sensor.waste_stand
     on_value:
-      - script.execute: draw_liquids
+      - script.execute: draw_water
 
 binary_sensor:
   # No real pump switch on the vehicle yet — an input_boolean in HA
   # until then. Once the switch exists: swap the entity_id and set the
   # service in the act_ script to switch.toggle.
   - platform: homeassistant
-    id: s_liquids_pump
+    id: s_water_pump
     entity_id: input_boolean.waterpump
     on_state:
-      - script.execute: draw_liquids
+      - script.execute: draw_water
 
 script:
-  - id: act_liquids_pump
+  - id: act_water_pump
     then:
       - homeassistant.service:
           service: input_boolean.toggle
           data:
             entity_id: input_boolean.waterpump
 
-  - id: draw_liquids
+  - id: draw_water
     mode: restart
     then:
       # ---- Outer ring: fresh water -----------------------------------
       - lvgl.arc.update:
-          id: arc_liquids_f
+          id: arc_water_f
           value: !lambda |-
-            if (!id(s_liquids_f).has_state()) return 0.0f;
-            return id(s_liquids_f).state;
+            if (!id(s_water_f).has_state()) return 0.0f;
+            return id(s_water_f).state;
           indicator:
             arc_color: !lambda |-
               #ifdef USE_API
               if (!api_is_connected()) return lv_color_hex(0x555555);
               #endif
-              if (!id(s_liquids_f).has_state()) return lv_color_hex(0x555555);
-              float v = id(s_liquids_f).state;
+              if (!id(s_water_f).has_state()) return lv_color_hex(0x555555);
+              float v = id(s_water_f).state;
               if (v < 10.0f) return lv_color_hex(0xE74C3C);
               if (v < 25.0f) return lv_color_hex(0xF39C12);
               return lv_color_hex(0x4A9EFF);
 
       # ---- Inner ring: grey water ---------------------------------------
       - lvgl.arc.update:
-          id: arc_liquids_g
+          id: arc_water_g
           value: !lambda |-
-            if (!id(s_liquids_g).has_state()) return 0.0f;
-            return id(s_liquids_g).state;
+            if (!id(s_water_g).has_state()) return 0.0f;
+            return id(s_water_g).state;
           indicator:
             arc_color: !lambda |-
               #ifdef USE_API
               if (!api_is_connected()) return lv_color_hex(0x555555);
               #endif
-              if (!id(s_liquids_g).has_state()) return lv_color_hex(0x555555);
-              float v = id(s_liquids_g).state;
+              if (!id(s_water_g).has_state()) return lv_color_hex(0x555555);
+              float v = id(s_water_g).state;
               if (v >= 95.0f) return lv_color_hex(0xE74C3C);
               if (v >= 80.0f) return lv_color_hex(0xF39C12);
               return lv_color_hex(0x9AA0A6);
 
       # ---- Column label, carries the ring color ----------------------
       - lvgl.label.update:
-          id: lbl_liquids_cap_f
+          id: lbl_water_cap_f
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_liquids_f).has_state()) return lv_color_hex(0x555555);
-            float v = id(s_liquids_f).state;
+            if (!id(s_water_f).has_state()) return lv_color_hex(0x555555);
+            float v = id(s_water_f).state;
             if (v < 10.0f) return lv_color_hex(0xE74C3C);
             if (v < 25.0f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0x4A9EFF);
       - lvgl.label.update:
-          id: lbl_liquids_cap_g
+          id: lbl_water_cap_g
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_liquids_g).has_state()) return lv_color_hex(0x555555);
-            float v = id(s_liquids_g).state;
+            if (!id(s_water_g).has_state()) return lv_color_hex(0x555555);
+            float v = id(s_water_g).state;
             if (v >= 95.0f) return lv_color_hex(0xE74C3C);
             if (v >= 80.0f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0x9AA0A6);
 
       # ---- Percentage values -----------------------------------------
       - lvgl.label.update:
-          id: lbl_liquids_pct_f
+          id: lbl_water_pct_f
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("---%");
             #endif
-            if (!id(s_liquids_f).has_state()) return std::string("---%");
-            return str_sprintf("%.0f%%", id(s_liquids_f).state);
+            if (!id(s_water_f).has_state()) return std::string("---%");
+            return str_sprintf("%.0f%%", id(s_water_f).state);
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_liquids_f).has_state()) return lv_color_hex(0x555555);
-            float v = id(s_liquids_f).state;
+            if (!id(s_water_f).has_state()) return lv_color_hex(0x555555);
+            float v = id(s_water_f).state;
             if (v < 10.0f) return lv_color_hex(0xE74C3C);
             if (v < 25.0f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0xFFFFFF);
       - lvgl.label.update:
-          id: lbl_liquids_pct_g
+          id: lbl_water_pct_g
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("---%");
             #endif
-            if (!id(s_liquids_g).has_state()) return std::string("---%");
-            return str_sprintf("%.0f%%", id(s_liquids_g).state);
+            if (!id(s_water_g).has_state()) return std::string("---%");
+            return str_sprintf("%.0f%%", id(s_water_g).state);
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_liquids_g).has_state()) return lv_color_hex(0x555555);
-            float v = id(s_liquids_g).state;
+            if (!id(s_water_g).has_state()) return lv_color_hex(0x555555);
+            float v = id(s_water_g).state;
             if (v >= 95.0f) return lv_color_hex(0xE74C3C);
             if (v >= 80.0f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0xFFFFFF);
@@ -153,79 +153,79 @@ script:
       # Vehicle-fixed constants as literals (design.md §9):
       # fresh 180 L, grey 90 L.
       - lvgl.label.update:
-          id: lbl_liquids_l_f
+          id: lbl_water_l_f
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("--- L");
             #endif
-            if (!id(s_liquids_f).has_state()) return std::string("--- L");
-            return str_sprintf("%.0f L", id(s_liquids_f).state * 1.80f);
+            if (!id(s_water_f).has_state()) return std::string("--- L");
+            return str_sprintf("%.0f L", id(s_water_f).state * 1.80f);
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_liquids_f).has_state()) return lv_color_hex(0x555555);
+            if (!id(s_water_f).has_state()) return lv_color_hex(0x555555);
             return lv_color_hex(0xBDC1C6);
       - lvgl.label.update:
-          id: lbl_liquids_l_g
+          id: lbl_water_l_g
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("--- L");
             #endif
-            if (!id(s_liquids_g).has_state()) return std::string("--- L");
-            return str_sprintf("%.0f L", id(s_liquids_g).state * 0.90f);
+            if (!id(s_water_g).has_state()) return std::string("--- L");
+            return str_sprintf("%.0f L", id(s_water_g).state * 0.90f);
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_liquids_g).has_state()) return lv_color_hex(0x555555);
+            if (!id(s_water_g).has_state()) return lv_color_hex(0x555555);
             return lv_color_hex(0xBDC1C6);
 
       # ---- Button: water pump -------------------------------------------
       - lvgl.label.update:
-          id: lbl_liquids_pump
+          id: lbl_water_pump
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("PUMPE ---");
             #endif
-            if (!id(s_liquids_pump).has_state()) return std::string("PUMPE ---");
-            return id(s_liquids_pump).state ? std::string("PUMPE EIN")
+            if (!id(s_water_pump).has_state()) return std::string("PUMPE ---");
+            return id(s_water_pump).state ? std::string("PUMPE EIN")
                                     : std::string("PUMPE AUS");
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_liquids_pump).has_state()) return lv_color_hex(0x555555);
-            return id(s_liquids_pump).state ? lv_color_hex(0x4A9EFF)
+            if (!id(s_water_pump).has_state()) return lv_color_hex(0x555555);
+            return id(s_water_pump).state ? lv_color_hex(0x4A9EFF)
                                     : lv_color_hex(0xBDC1C6);
       - lvgl.widget.update:
-          id: btn_liquids_pump
+          id: btn_water_pump
           bg_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x202124);
             #endif
-            if (!id(s_liquids_pump).has_state()) return lv_color_hex(0x202124);
-            return id(s_liquids_pump).state ? lv_color_hex(0x14324F)
+            if (!id(s_water_pump).has_state()) return lv_color_hex(0x202124);
+            return id(s_water_pump).state ? lv_color_hex(0x14324F)
                                     : lv_color_hex(0x202124);
           border_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x3C4043);
             #endif
-            if (!id(s_liquids_pump).has_state()) return lv_color_hex(0x3C4043);
-            return id(s_liquids_pump).state ? lv_color_hex(0x4A9EFF)
+            if (!id(s_water_pump).has_state()) return lv_color_hex(0x3C4043);
+            return id(s_water_pump).state ? lv_color_hex(0x4A9EFF)
                                     : lv_color_hex(0x3C4043);
 
       # ---- Status line ---------------------------------------------
       - lvgl.label.update:
-          id: lbl_liquids_status
+          id: lbl_water_status
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("KEINE VERBINDUNG");
             #endif
-            if (!id(s_liquids_f).has_state() || !id(s_liquids_g).has_state())
+            if (!id(s_water_f).has_state() || !id(s_water_g).has_state())
               return std::string("KEIN WERT");
-            float f = id(s_liquids_f).state;
-            float g = id(s_liquids_g).state;
+            float f = id(s_water_f).state;
+            float g = id(s_water_g).state;
             if (g >= 95.0f) return std::string("ABWASSER VOLL");
             if (f < 10.0f)  return std::string("FRISCHWASSER LEER");
             if (g >= 80.0f) return std::string("ABWASSER VOLL");
@@ -235,10 +235,10 @@ script:
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_liquids_f).has_state() || !id(s_liquids_g).has_state())
+            if (!id(s_water_f).has_state() || !id(s_water_g).has_state())
               return lv_color_hex(0x555555);
-            float f = id(s_liquids_f).state;
-            float g = id(s_liquids_g).state;
+            float f = id(s_water_f).state;
+            float g = id(s_water_g).state;
             if (g >= 95.0f || f < 10.0f) return lv_color_hex(0xE74C3C);
             return lv_color_hex(0xF39C12);
 
@@ -246,14 +246,14 @@ esphome:
   on_boot:
     - priority: -100
       then:
-        - script.execute: draw_liquids
+        - script.execute: draw_water
 
 # ---------------------------------------------------------------------
 #  D  Widgets
 # ---------------------------------------------------------------------
 lvgl:
   pages:
-    - id: page_liquids
+    - id: page_water
       # An LVGL page is by default an opaque WHITE object and sits over
       # the bottom_layer from the header. Without these two lines
       # everything sits on a white background (correction to design.md
@@ -262,7 +262,7 @@ lvgl:
       bg_opa: COVER
       widgets:
         - arc:
-            id: arc_liquids_f
+            id: arc_water_f
             align: CENTER
             width: 224
             height: 224
@@ -280,7 +280,7 @@ lvgl:
               bg_opa: TRANSP
 
         - arc:
-            id: arc_liquids_g
+            id: arc_water_g
             align: CENTER
             width: 200
             height: 200
@@ -299,7 +299,7 @@ lvgl:
 
         # ---- Fresh-water column -----------------------------------
         - label:
-            id: lbl_liquids_cap_f
+            id: lbl_water_cap_f
             align: CENTER
             x: -${x_col}
             y: ${y_cap}
@@ -307,7 +307,7 @@ lvgl:
             text_font: montserrat_12
             text_color: 0x555555
         - label:
-            id: lbl_liquids_pct_f
+            id: lbl_water_pct_f
             align: CENTER
             x: -${x_col}
             y: ${y_main}
@@ -315,7 +315,7 @@ lvgl:
             text_font: montserrat_24
             text_color: 0x555555
         - label:
-            id: lbl_liquids_l_f
+            id: lbl_water_l_f
             align: CENTER
             x: -${x_col}
             y: ${y_line2}
@@ -325,7 +325,7 @@ lvgl:
 
         # ---- Grey-water column -------------------------------------
         - label:
-            id: lbl_liquids_cap_g
+            id: lbl_water_cap_g
             align: CENTER
             x: ${x_col}
             y: ${y_cap}
@@ -333,7 +333,7 @@ lvgl:
             text_font: montserrat_12
             text_color: 0x555555
         - label:
-            id: lbl_liquids_pct_g
+            id: lbl_water_pct_g
             align: CENTER
             x: ${x_col}
             y: ${y_main}
@@ -341,7 +341,7 @@ lvgl:
             text_font: montserrat_24
             text_color: 0x555555
         - label:
-            id: lbl_liquids_l_g
+            id: lbl_water_l_g
             align: CENTER
             x: ${x_col}
             y: ${y_line2}
@@ -350,7 +350,7 @@ lvgl:
             text_color: 0x555555
 
         - button:
-            id: btn_liquids_pump
+            id: btn_water_pump
             align: CENTER
             y: ${y_row}
             width: 104
@@ -361,16 +361,16 @@ lvgl:
             border_color: 0x3C4043
             widgets:
               - label:
-                  id: lbl_liquids_pump
+                  id: lbl_water_pump
                   align: CENTER
                   text: "PUMPE ---"
                   text_font: montserrat_16
                   text_color: 0x555555
             on_click:
-              - script.execute: act_liquids_pump
+              - script.execute: act_water_pump
 
         - label:
-            id: lbl_liquids_status
+            id: lbl_water_status
             align: BOTTOM_MID
             y: ${y_footer}
             text: ""

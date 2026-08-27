@@ -10,7 +10,7 @@
 #   BLOCK D  Page widgets        -> carried over 1:1 into the target file
 #
 # Difference from page 1: the displays depend on several values (input
-# power, current limit, mode). That's why a script, draw_grid, draws the
+# power, current limit, mode). That's why a script, draw_power_2, draws the
 # whole page, and each sensor just calls it.
 #
 # Layout: main value input power, secondary line MP state, button row
@@ -80,15 +80,15 @@ touchscreen:
 # BLOCK B — Data sources (SIMULATION)
 #
 # On the device:
-#   s_grid_w     -> sensor.multiplus_0_leitung_1_eingangsleistung
-#   s_mp_limit   -> number.multiplus_eingangsstrombegrenzung   # <-- adjust
-#   s_mp_state   -> sensor.multiplus_zustand
-#   s_mp_mode    -> select.multiplus_modus                     # <-- adjust
+#   s_power_2_w     -> sensor.multiplus_0_leitung_1_eingangsleistung
+#   s_power_2_limit -> number.multiplus_eingangsstrombegrenzung   # <-- adjust
+#   s_power_2_state -> sensor.multiplus_zustand
+#   s_power_2_mode  -> select.multiplus_modus                     # <-- adjust
 # IDs stay the same, so BLOCK C can be carried over unchanged.
 # ---------------------------------------------------------------------------
 sensor:
   - platform: template
-    id: s_grid_w
+    id: s_power_2_w
     update_interval: 1500ms
     internal: true
     lambda: |-
@@ -97,20 +97,20 @@ sensor:
       if (w > 3800.0f) w = 0.0f;
       return w;
     on_value:
-      - script.execute: draw_grid
+      - script.execute: draw_power_2
 
   - platform: template
-    id: s_mp_limit
+    id: s_power_2_limit
     update_interval: 1s
     internal: true
     lambda: |-
       return id(g_sim_limit);
     on_value:
-      - script.execute: draw_grid
+      - script.execute: draw_power_2
 
 text_sensor:
   - platform: template
-    id: s_mp_state
+    id: s_power_2_state
     update_interval: 5s
     internal: true
     lambda: |-
@@ -120,119 +120,119 @@ text_sensor:
       i = (i + 1) % 5;
       return std::string(st[i]);
     on_value:
-      - script.execute: draw_grid
+      - script.execute: draw_power_2
 
   - platform: template
-    id: s_mp_mode
+    id: s_power_2_mode
     update_interval: 1s
     internal: true
     lambda: |-
       static const char *md[] = {"on", "charger_only", "inverter_only", "off"};
       return std::string(md[id(g_sim_mode) & 3]);
     on_value:
-      - script.execute: draw_grid
+      - script.execute: draw_power_2
 
 # ---------------------------------------------------------------------------
 # BLOCK C — Bindings
 # ---------------------------------------------------------------------------
 script:
-  - id: draw_grid
+  - id: draw_power_2
     mode: restart
     then:
       # ---- Shore-power connection load, in % of the limit ------------------
       - lvgl.arc.update:
-          id: arc_grid
+          id: arc_power_2
           value: !lambda |-
-            if (!id(s_grid_w).has_state() || !id(s_mp_limit).has_state())
+            if (!id(s_power_2_w).has_state() || !id(s_power_2_limit).has_state())
               return 0;
-            float lim = id(s_mp_limit).state;
+            float lim = id(s_power_2_limit).state;
             if (lim <= 0.0f) return 0;
-            float pct = (id(s_grid_w).state / 230.0f) / lim * 100.0f;
+            float pct = (id(s_power_2_w).state / 230.0f) / lim * 100.0f;
             if (pct > 100.0f) pct = 100.0f;
             if (pct < 0.0f) pct = 0.0f;
             return (int) pct;
       - lvgl.arc.update:
-          id: arc_grid
+          id: arc_power_2
           indicator:
             arc_color: !lambda |-
               #ifdef USE_API
               if (!api_is_connected()) return lv_color_hex(0x555555);
               #endif
-              if (!id(s_grid_w).has_state() || !id(s_mp_limit).has_state())
+              if (!id(s_power_2_w).has_state() || !id(s_power_2_limit).has_state())
                 return lv_color_hex(0x555555);
-              float lim = id(s_mp_limit).state;
+              float lim = id(s_power_2_limit).state;
               if (lim <= 0.0f) return lv_color_hex(0x555555);
-              float pct = (id(s_grid_w).state / 230.0f) / lim * 100.0f;
+              float pct = (id(s_power_2_w).state / 230.0f) / lim * 100.0f;
               if (pct >= 95.0f) return lv_color_hex(0xE74C3C);
               if (pct >= 80.0f) return lv_color_hex(0xF39C12);
               return lv_color_hex(0x4A9EFF);
 
       # ---- Input power ----------------------------------------------------
       - lvgl.label.update:
-          id: lbl_grid_w
+          id: lbl_power_2_w
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("---");
             #endif
-            if (!id(s_grid_w).has_state()) return std::string("---");
-            return str_sprintf("%.0f W", id(s_grid_w).state);
+            if (!id(s_power_2_w).has_state()) return std::string("---");
+            return str_sprintf("%.0f W", id(s_power_2_w).state);
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_grid_w).has_state()) return lv_color_hex(0x555555);
+            if (!id(s_power_2_w).has_state()) return lv_color_hex(0x555555);
             return lv_color_hex(0xFFFFFF);
 
       # ---- MP state ------------------------------------------------------
       - lvgl.label.update:
-          id: lbl_mp_state
+          id: lbl_power_2_state
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("---");
             #endif
-            if (!id(s_mp_state).has_state()) return std::string("---");
-            std::string s = id(s_mp_state).state;
+            if (!id(s_power_2_state).has_state()) return std::string("---");
+            std::string s = id(s_power_2_state).state;
             for (auto &c : s) c = toupper(c);
             return s;
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_mp_state).has_state()) return lv_color_hex(0x555555);
-            if (id(s_mp_state).state == "fault") return lv_color_hex(0xE74C3C);
+            if (!id(s_power_2_state).has_state()) return lv_color_hex(0x555555);
+            if (id(s_power_2_state).state == "fault") return lv_color_hex(0xE74C3C);
             return lv_color_hex(0xBDC1C6);
 
       # ---- Current limit: button label ---------------------------------
       - lvgl.label.update:
-          id: lbl_mp_limit
+          id: lbl_power_2_limit
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("--- A");
             #endif
-            if (!id(s_mp_limit).has_state()) return std::string("--- A");
-            return str_sprintf("%.0f A", id(s_mp_limit).state);
+            if (!id(s_power_2_limit).has_state()) return std::string("--- A");
+            return str_sprintf("%.0f A", id(s_power_2_limit).state);
 
       # ---- Mode: button label and color ---------------------------------
       - lvgl.label.update:
-          id: lbl_mp_mode
+          id: lbl_power_2_mode
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("---");
             #endif
-            if (!id(s_mp_mode).has_state()) return std::string("---");
-            std::string m = id(s_mp_mode).state;
+            if (!id(s_power_2_mode).has_state()) return std::string("---");
+            std::string m = id(s_power_2_mode).state;
             if (m == "on")             return std::string("ON");
             if (m == "charger_only")   return std::string("CHG");
             if (m == "inverter_only")  return std::string("INV");
             if (m == "off")            return std::string("OFF");
             return std::string("?");
       - lvgl.widget.update:
-          id: btn_mp_mode
+          id: btn_power_2_mode
           bg_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x202124);
             #endif
-            std::string m = id(s_mp_mode).state;
+            std::string m = id(s_power_2_mode).state;
             if (m == "on")            return lv_color_hex(0x1B5E3A);
             if (m == "charger_only")  return lv_color_hex(0x14324F);
             if (m == "inverter_only") return lv_color_hex(0x4F3814);
@@ -241,7 +241,7 @@ script:
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x3C4043);
             #endif
-            std::string m = id(s_mp_mode).state;
+            std::string m = id(s_power_2_mode).state;
             if (m == "on")            return lv_color_hex(0x2ECC71);
             if (m == "charger_only")  return lv_color_hex(0x4A9EFF);
             if (m == "inverter_only") return lv_color_hex(0xF39C12);
@@ -257,11 +257,11 @@ lvgl:
   default_font: montserrat_16
 
   pages:
-    - id: page_grid
+    - id: page_power_2
       bg_color: 0x000000
       widgets:
         - arc:
-            id: arc_grid
+            id: arc_power_2
             align: CENTER
             width: 224
             height: 224
@@ -282,7 +282,7 @@ lvgl:
         # No title — the top slot stays free, same as on page 1.
 
         - label:
-            id: lbl_grid_w
+            id: lbl_power_2_w
             align: CENTER
             y: ${y_main}
             text: "---"
@@ -292,7 +292,7 @@ lvgl:
 
         # Two buttons side by side: left mode, right current limit
         - button:
-            id: btn_mp_mode
+            id: btn_power_2_mode
             align: CENTER
             x: -40
             y: ${y_row}
@@ -304,7 +304,7 @@ lvgl:
             border_color: 0x3C4043
             widgets:
               - label:
-                  id: lbl_mp_mode
+                  id: lbl_power_2_mode
                   align: CENTER
                   text: "---"
                   text_font: montserrat_16
@@ -322,7 +322,7 @@ lvgl:
                   id(g_sim_mode) = (id(g_sim_mode) + 1) % 4;
 
         - button:
-            id: btn_mp_limit
+            id: btn_power_2_limit
             align: CENTER
             x: 40
             y: ${y_row}
@@ -334,7 +334,7 @@ lvgl:
             border_color: 0x3C4043
             widgets:
               - label:
-                  id: lbl_mp_limit
+                  id: lbl_power_2_limit
                   align: CENTER
                   text: "--- A"
                   text_font: montserrat_16
@@ -358,7 +358,7 @@ lvgl:
 
         # Secondary line, same slot as the DC values on page 1
         - label:
-            id: lbl_mp_state
+            id: lbl_power_2_state
             align: CENTER
             y: ${y_line2}
             text: "---"

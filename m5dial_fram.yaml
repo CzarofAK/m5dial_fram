@@ -115,7 +115,7 @@ light:
 #
 #  ONLY VALUES NEEDED BY MORE THAN ONE PAGE BELONG HERE.
 #  Everything else lives on the page that displays it, with a
-#  page-prefixed ID (s_strom1_soc, s_gas_a). Duplicate IDs are a hard
+#  page-prefixed ID (s_power_1_soc, s_gas_a). Duplicate IDs are a hard
 #  error in ESPHome — a collision fails at `esphome config`, not at
 #  runtime. If a second page needs a value: move the sensor definition
 #  here, rename the IDs, the validator will point out the leftovers.

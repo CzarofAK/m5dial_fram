@@ -504,9 +504,13 @@ bottle 10.5 kg net.
 
 ## 10. Naming scheme
 
+The short page name is the yaml file's own name (`m5dial_pages/<name>.yaml`):
+`clock`, `gas`, `power_1`, `power_2`, `water`. All page-prefixed IDs use it,
+e.g. `s_power_1_soc`, `page_power_2`, `draw_water`.
+
 | Prefix | For |
 |---|---|
-| `page_` | page (`page_battery`, `page_grid`) |
+| `page_` | page (`page_power_1`, `page_gas`) |
 | `arc_` | arc |
 | `lbl_` | label |
 | `btn_` | button |

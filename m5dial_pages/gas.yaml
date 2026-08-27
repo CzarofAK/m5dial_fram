@@ -287,7 +287,7 @@ script:
 
       # ---- Footer: exactly one message, empty in normal operation --------
       - lvgl.label.update:
-          id: lbl_gas_footer
+          id: lbl_gas_status
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("KEINE VERBINDUNG");
@@ -439,7 +439,7 @@ lvgl:
 
         # --- Footer in the arc gap ------------------------
         - label:
-            id: lbl_gas_footer
+            id: lbl_gas_status
             align: BOTTOM_MID
             y: ${y_footer}
             text: ""
