@@ -9,17 +9,15 @@
 #    inner 200 x 200, arc_width 10  -> r  90..100   GAS I
 #    both 135 -> 45, gap at the bottom for the footer
 #
-#  NOTE grid change vs. page 1/2/4: the whole stack sits lower. Per §3
-#  the substitutions must be identical on all pages -> catch up pages
-#  1, 2 and 4.
+#  Grid matches the current design.md §3 substitutions (this page was
+#  the reason for that correction — see the addendum at the top of
+#  design.md). y_row stays free: the page has no button.
 #
 #  Line boxes (LVGL line heights m12 15, m16 20, m24 29, m40 49):
 #    y_cap   -42  m12  -49.5 .. -34.5
 #    y_main  -20  m24  -34.5 ..  -5.5   (m40 on page 1/2: -44.5 .. 4.5)
-#    y_line2  22  m16   12.0 ..  32.0   -> 7.5 px below the m40 box
-#    y_row    54  button 39 .. 69       -> corner radius 86.4 < 90, still
-#                                          fits on double-ring pages too
-#    y_footer -32 m12   80.5 ..  95.5   -> 11.5 px below the button
+#    y_line2  15  m16    5.0 ..  25.0   -> 8 px below the m24 box
+#    y_footer -32 m12   80.5 ..  95.5
 #
 #  Widths (design.md §4, inner radius 90 on double-ring pages):
 #    label top edge y -49.5 -> up to x ±75
@@ -37,8 +35,8 @@
 
 substitutions:
   y_main:   "-20"
-  y_line2:  "22"
-  y_row:    "54"
+  y_line2:  "15"
+  y_row:    "48"
   y_footer: "-32"
   y_cap:    "-42"
   x_col:    "40"

@@ -228,7 +228,7 @@ script:
             float g = id(s_liquids_g).state;
             if (g >= 95.0f) return std::string("ABWASSER VOLL");
             if (f < 10.0f)  return std::string("FRISCHWASSER LEER");
-            if (g >= 80.0f) return std::string("ABWASSER HOCH");
+            if (g >= 80.0f) return std::string("ABWASSER VOLL");
             if (f < 25.0f)  return std::string("FRISCHWASSER KNAPP");
             return std::string("");
           text_color: !lambda |-
