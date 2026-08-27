@@ -14,6 +14,7 @@ document is outdated — either way it must be corrected, not ignored.
 | Display | GC9A01A, 240 × 240, round, via `mipi_spi` |
 | Mounting | Dashboard / driver position |
 | Controls | Rotary encoder, front button, capacitive touch (FT5x06) |
+| Buzzer | GPIO3, via `rtttl:` (`rtttl_player`) |
 | Flash | 8 MB (`flash_size: 8MB` under `esp32:`) |
 | Rotation | `rotation: 0` |
 
@@ -600,7 +601,14 @@ reusable by any dial in the project, not just this one.
 * **Confirmation for dangerous buttons.** `MP OFF` takes away shore
   power, charging, and 230 V; `RETRACT` on the leveling page retracts
   the jacks. Both should require a long press or a confirmation prompt,
-  not just a second click while paging through.
+  not just a second click while paging through. Once that UX exists,
+  have it call `beep_confirm` (`.m5dial_fram.yaml`) -- the buzzer's
+  already wired, this item is only the missing long-press/confirm
+  logic itself.
+* **Alert tone for the overlays.** Pre-flight-check and cat-litter-box
+  are visual-only right now. A tone on the pre-flight overlay is worth
+  adding once it exists; deliberately NOT on the cat-litter one --
+  that one would fire far too often to stay a "pay attention" signal.
 * **Level 2 with two buttons.** The encoder must be able to switch
   between the buttons in a row, not just adjust one value.
 * **Special characters.** `°` is needed on the temperature and boiler
