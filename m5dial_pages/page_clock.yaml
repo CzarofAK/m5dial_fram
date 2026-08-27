@@ -2,50 +2,36 @@
 #  m5dial_pages/page_clock.yaml — page: Clock (SBB railway clock)
 #  FRAM M5Dial Cockpit · page package
 #
-#  This is the version from fram_hw_v01.yaml that ran on the device —
-#  unchanged apart from the time source and the IDs.
+#  The clock widget itself (hand kinematics, Stop2Go sweep, ticks,
+#  date/temperature rendering) lives in its own repo now, as a reusable
+#  ESPHome external component — not FRAM-specific, so it doesn't belong
+#  in this repo. This file is only the FRAM wiring around it: which
+#  time/temperature source, page id, colors, bezel.
+#  https://github.com/CzarofAK/m5dial_clock_sbb
 #
-#  Deliberately NOT included, because it was never on the hardware in
-#  this form:
-#    - no `obj` as a dial face underneath the canvas. With
-#      `show_face: false` and an opaque canvas, the component draws the
-#      black background itself; a second 240x240 object with radius 120
-#      underneath it would make LVGL compose an extra layer every
-#      frame — and LVGL had already reported 147 ms even without it.
-#    - no mode_day/mode_night scripts with C++ setters. design.md §6:
-#      day and night differ ONLY in backlight brightness, never in the
-#      color scheme. apply_daynight in the header handles that.
+#  Deliberately NOT set: `night_mode`. design.md §6 says day and night
+#  differ ONLY in backlight brightness, never in the color scheme —
+#  apply_daynight in the header already handles that. The component
+#  supports inverting the clock face for night (`set_night_mode()`),
+#  but wiring that up would contradict §6, so it's left at its default
+#  (off) here. Revisit deliberately if that rule ever changes.
 #
-#  Colors: black face, white hands and ticks, red second hand — same in
-#  day and night, so the second hand is always red.
-#
-#  Canvas: TRANSPARENT, so date and temperature sit UNDER the hands.
-#  Order in widgets: = z-order, earlier means further down:
-#  1. dial face (obj)  2. date + temperature  3. hands.
-#
-#  RAM: transparent means ARGB8888, 4 bytes/px, 240*240*4 = 230 kB.
-#  The last build reports 226,685 bytes of free DIRAM — that's just
-#  UNDER it. If the allocation fails, the widget disables itself and
-#  logs an error; the clock then stays black, the device doesn't crash.
-#  Look for exactly that right after in the log.
-#  If it's not enough: set width/height to 200 (ARGB8888 = 160 kB), the
-#  dial-face obj stays at 240 and the border stays the same.
-#
-#  `direct_draw` would be the elegant way out (no canvas, no copying),
-#  but per the component's own header it's "clockclock24 only for now"
-#  and not available for style: analog.
+#  `show_face: true` draws a filled circle in `background` with a
+#  `foreground`-colored border (width scales with the radius, 3 px at
+#  240x240) — this is what replaces the old page's separate bezel
+#  object, no extra widget needed for it.
 # =====================================================================
 
 external_components:
   - source:
       type: git
-      url: https://github.com/tuct/esphome-lvgl-clock
+      url: https://github.com/CzarofAK/m5dial_clock_sbb
       ref: main
     refresh: 1d
-    components: [lvgl_clock]
+    components: [sbb_clock]
 
 # Marker key — without it ESPHome won't load the component's code.
-lvgl_clock:
+sbb_clock:
 
 # The component takes colors as color: objects, not as hex numbers.
 color:
@@ -57,63 +43,11 @@ color:
     hex: E74C3C
 
 # ---------------------------------------------------------------------
-#  B + C  Data sources and bindings
-# ---------------------------------------------------------------------
-#  The component draws the hands itself. Only date and outdoor
-#  temperature run here.
-sensor:
-  - id: !extend s_aussentemp
-    on_value:
-      - script.execute: draw_clock
-
-interval:
-  # Once a minute is enough: the clock draws itself, only the date
-  # changes here.
-  - interval: 60s
-    then:
-      - script.execute: draw_clock
-
-script:
-  - id: draw_clock
-    mode: restart
-    then:
-      - lvgl.label.update:
-          id: lbl_clock_date
-          text: !lambda |-
-            auto t = id(homeassistant_time).now();
-            if (!t.is_valid()) return std::string("--.--.----");
-            // day_of_week: 1 = Sunday
-            static const char *wd[] = {"So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"};
-            return str_sprintf("%s, %02d.%02d.%04d", wd[t.day_of_week - 1],
-                               t.day_of_month, t.month, t.year);
-          text_color: !lambda |-
-            return id(homeassistant_time).now().is_valid()
-                 ? lv_color_hex(0xBDC1C6) : lv_color_hex(0x555555);
-
-      - lvgl.label.update:
-          id: lbl_clock_temp
-          text: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return std::string("--.-°C");
-            #endif
-            if (!id(s_aussentemp).has_state()) return std::string("--.-°C");
-            return str_sprintf("%.1f°C", id(s_aussentemp).state);
-          text_color: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return lv_color_hex(0x555555);
-            #endif
-            return id(s_aussentemp).has_state()
-                 ? lv_color_hex(0xBDC1C6) : lv_color_hex(0x555555);
-
-esphome:
-  on_boot:
-    - priority: -100
-      then:
-        - script.execute: draw_clock
-
-# ---------------------------------------------------------------------
 #  D  Widgets
 # ---------------------------------------------------------------------
+#  No block B/C here: the component reads time and temperature itself
+#  on every render tick, and draws date/temperature/hands in one pass —
+#  no separate sensor, script, or interval needed on this side any more.
 lvgl:
   pages:
     - id: page_clock
@@ -122,72 +56,25 @@ lvgl:
       bg_color: 0x000000
       bg_opa: COVER
       widgets:
-        # 1. Dial face. With transparent: true the widget no longer
-        #    draws it itself, hence its own object at the very bottom.
-        - obj:
-            id: clk_dial
-            align: CENTER
-            width: 240
-            height: 240
-            radius: 120
-            bg_color: 0x000000
-            bg_opa: COVER
-            border_width: 3
-            border_color: 0xFFFFFF
-            pad_all: 0
-            scrollbar_mode: "OFF"
-
-        # 2. Temperature and date — above the face, UNDER the hands.
-        - label:
-            id: lbl_clock_temp
-            align: CENTER
-            y: ${y_cap}
-            text: "--.-°C"
-            text_font: montserrat_16
-            text_color: 0x555555
-
-        - label:
-            id: lbl_clock_date
-            align: CENTER
-            y: ${y_row}
-            text: "--.--.----"
-            text_font: montserrat_16
-            text_color: 0x555555
-
-        # 3. Hands and ticks on top, transparent canvas.
-        - lvgl_clock:
+        - sbb_clock:
             id: clock_face
-            time_id: homeassistant_time
             align: CENTER
             width: 240
             height: 240
-            style: analog
-            twenty_four_hour: true
-            show_seconds: true
-            # 33ms would be a steady 30 fps just for the second hand,
-            # i.e. two thirds of the SPI bandwidth — even while another
-            # page is in the foreground. 100ms is enough for the eye.
-            render_interval: 100ms
-            transparent: true
+            time_id: homeassistant_time
             foreground: col_ink
-            analog:
-              show_face: false
-              minute_ticks:
-                enabled: true
-                color: col_ink
-              hour_ticks:
-                enabled: true
-                color: col_ink
-              hour_hand:
-                style: sbb
-                center_style: none
-                extend: 15%
-              minute_hand:
-                style: sbb
-                center_style: none
-                extend: 15%
-              second_hand:
-                style: lollipop
-                color: col_second
-                center_style: round
-                extend: 30%
+            background: col_bg
+            second_hand_color: col_second
+            render_interval: 100ms
+            show_seconds: true
+            # Verified real value (SBB/Mondaine "Stop2Go"): 58s sweep,
+            # 2s pause at 12 — this is the component default, set here
+            # only for visibility.
+            second_hand_sweep: 58s
+            show_ticks: true
+            show_face: true
+            show_date: true
+            date_font: montserrat_16
+            show_temperature: true
+            temperature_sensor_id: s_aussentemp
+            temperature_font: montserrat_16
