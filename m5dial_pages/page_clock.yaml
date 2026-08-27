@@ -9,12 +9,16 @@
 #  time/temperature source, page id, colors, bezel.
 #  https://github.com/CzarofAK/m5dial_clock_sbb
 #
-#  Deliberately NOT set: `night_mode`. design.md §6 says day and night
-#  differ ONLY in backlight brightness, never in the color scheme —
-#  apply_daynight in the header already handles that. The component
-#  supports inverting the clock face for night (`set_night_mode()`),
-#  but wiring that up would contradict §6, so it's left at its default
-#  (off) here. Revisit deliberately if that rule ever changes.
+#  Exception to design.md §6 (background always black, day/night is
+#  brightness only): by day this page is white face / black hands,
+#  matching the real SBB station clock — genuinely nicer than the dark
+#  theme everywhere else, per design.md §6. That's too bright for a
+#  dark cabin at night, so it inverts instead of just dimming: black
+#  face / white hands, the look this page used before the switch to
+#  this component. The header's `apply_daynight` script drives the
+#  switch via `id(clock_face).set_night_mode(...)` — see the comment
+#  there for the coupling that creates. The second hand stays red in
+#  both modes either way (component behavior, matches the real clock).
 #
 #  `show_face: true` draws a filled circle in `background` with a
 #  `foreground`-colored border (width scales with the radius, 3 px at
@@ -34,11 +38,13 @@ external_components:
 sbb_clock:
 
 # The component takes colors as color: objects, not as hex numbers.
+# Day (default): white face, black ink -- the real SBB look. Night
+# mode swaps these at runtime (set_night_mode(), see the header).
 color:
   - id: col_ink
-    hex: FFFFFF
-  - id: col_bg
     hex: "000000"
+  - id: col_bg
+    hex: FFFFFF
   - id: col_second
     hex: E74C3C
 
@@ -65,6 +71,9 @@ lvgl:
             foreground: col_ink
             background: col_bg
             second_hand_color: col_second
+            # Initial/day state; apply_daynight (header) flips this at
+            # runtime via set_night_mode() -- see the header comment.
+            night_mode: false
             render_interval: 100ms
             show_seconds: true
             # Verified real value (SBB/Mondaine "Stop2Go"): 58s sweep,

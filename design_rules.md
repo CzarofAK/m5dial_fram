@@ -245,6 +245,15 @@ Only even sizes from 8 to 48 are available.
 Background always black. Day/night differs only in backlight
 brightness, never in the color scheme.
 
+> **Exception: the clock page.** White face, black hands by day — the
+> real SBB station clock's own look, and genuinely nicer than the dark
+> theme everywhere else. Too bright for a dark cabin at night, though,
+> so instead of just dimming it, it inverts: black face, white hands —
+> the same look this page had before. The second hand stays red either
+> way. This is the one deliberate, permanent departure from "background
+> always black" / "day and night never differ in color scheme" above;
+> every other page follows both rules without exception.
+
 | Purpose | Value |
 |---|---|
 | Background | `0x000000` |
