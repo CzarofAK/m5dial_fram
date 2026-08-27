@@ -1,0 +1,150 @@
+esphome:
+  name: clock
+  on_boot:
+    priority: -100
+    then:
+      - script.execute: mode_day
+      - script.execute: update_date
+
+host:
+
+logger:
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/tuct/esphome-lvgl-clock
+      ref: main
+    components: [lvgl_clock]
+
+time:
+  - platform: host
+    id: clock_time
+    timezone: "CET-1CEST,M3.5.0,M10.5.0/3"
+
+lvgl_clock:
+
+display:
+  - platform: sdl
+    id: my_display
+    auto_clear_enabled: false
+    update_interval: never
+    dimensions:
+      width: 240
+      height: 240
+
+font:
+  - file: "fonts/NimbusSans-Bold.otf"
+    id: date_font
+    size: 22
+    bpp: 4
+    glyphs: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ. "
+
+lvgl:
+  displays: [my_display]
+  bg_color: 0x000000
+  widgets:
+    # 1. Zifferblatt
+    - obj:
+        id: dial
+        width: 240
+        height: 240
+        align: CENTER
+        radius: 120
+        bg_color: 0xFFFFFF
+        bg_opa: 100%
+        border_width: 3
+        border_color: 0x000000
+        pad_all: 0
+        scrollbar_mode: "OFF"
+
+    # 2. Datum - ueber dem Blatt, unter den Zeigern
+    - label:
+        id: date_lbl
+        align: CENTER
+        y: 40
+        text_font: date_font
+        text: ""
+
+    # 3. Zeiger und Marken, transparenter Canvas
+    - lvgl_clock:
+        id: dc
+        time_id: clock_time
+        width: 240
+        height: 240
+        style: analog
+        twenty_four_hour: true
+        show_seconds: true
+        render_interval: 33ms
+        transparent: true
+        analog:
+          show_face: false
+          minute_ticks:
+            enabled: true
+          hour_ticks:
+            enabled: true
+          hour_hand:
+            style: sbb
+            center_style: none
+            extend: 15%
+          minute_hand:
+            style: sbb
+            center_style: none
+            extend: 15%
+          second_hand:
+            style: lollipop
+            center_style: round
+            extend: 30%
+
+interval:
+  - interval: 8s
+    then:
+      - script.execute: mode_night
+      - delay: 4s
+      - script.execute: mode_day
+
+  - interval: 30s
+    then:
+      - script.execute: update_date
+
+script:
+  - id: update_date
+    then:
+      - lvgl.label.update:
+          id: date_lbl
+          text: !lambda |-
+            static const char *const WD[] = {"SUN","MON","TUE","WED","THU","FRI","SAT"};
+            static const char *const MT[] = {"JAN","FEB","MAR","APR","MAY","JUN",
+                                             "JUL","AUG","SEP","OCT","NOV","DEC"};
+            auto t = id(clock_time).now();
+            if (!t.is_valid()) return std::string("");
+            char buf[24];
+            snprintf(buf, sizeof(buf), "%s %d %s",
+                     WD[t.day_of_week - 1], t.day_of_month, MT[t.month - 1]);
+            return std::string(buf);
+
+  - id: mode_day
+    then:
+      - lambda: |-
+          id(dc)->set_foreground(Color(0, 0, 0));
+          id(dc)->set_second_hand_color(Color(255, 50, 50));
+      - lvgl.widget.update:
+          id: dial
+          bg_color: 0xFFFFFF
+          border_color: 0x000000
+      - lvgl.label.update:
+          id: date_lbl
+          text_color: 0x000000
+
+  - id: mode_night
+    then:
+      - lambda: |-
+          id(dc)->set_foreground(Color(255, 255, 255));
+          id(dc)->set_second_hand_color(Color(255, 50, 50));
+      - lvgl.widget.update:
+          id: dial
+          bg_color: 0x000000
+          border_color: 0xFFFFFF
+      - lvgl.label.update:
+          id: date_lbl
+          text_color: 0xFFFFFF
