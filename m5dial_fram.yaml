@@ -1,0 +1,253 @@
+# =====================================================================
+#  m5dial_fram.yaml — Header fuer jedes M5 Dial im FRAM
+#  FRAM M5Dial Cockpit
+#
+#  Gilt fuer JEDES Dial im FRAM. Enthaelt alles, was am M5 Dial haengt und
+#  was jede Seite braucht — aber keine Seite selbst und nichts, was nur
+#  fuer ein einzelnes Geraet gilt.
+#
+#  Der Geraetename, die Startseite und die Seitenliste stehen deshalb NICHT
+#  hier, sondern im _cockpit. Sonst koennte sich ein zweites Dial im FRAM
+#  diesen Header nicht teilen.
+#
+#  Setzt basics.yaml voraus (liegt bereits im ESPHome-Verzeichnis und
+#  wird NICHT von hier eingebunden). Von dort kommen wifi, api, ota,
+#  logger, web_server, restart_button und die Zeitquelle
+#  `homeassistant_time`.
+#
+#  Eingebunden wird dieser Header vom Geraetefile
+#  m5dial_fram_cockpit.yaml, das auch die Seiten mitbringt.
+#
+#  ACHTUNG: Die Pinbelegung ist noch nicht am Geraet gegengeprueft.
+# =====================================================================
+
+substitutions:
+  # ---- Layout-Raster, design.md §3 ---------------------------------
+  # Steht nur noch hier. Die Seiten erben es.
+  #
+  # ${name}, ${friendly_name} und ${home_page} kommen aus dem _cockpit —
+  # sie sind Aussagen ueber EIN Geraet, nicht ueber die Bauart.
+  y_main: "-20"
+  y_line2: "15"
+  y_row: "48"
+  y_footer: "-32"
+  y_cap: "-42"
+  x_col: "40"
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - script.execute: apply_daynight
+
+esp32:
+  board: esp32s3
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+
+# =====================================================================
+#  Hardware
+# =====================================================================
+i2c:
+  - id: bus_int
+    sda: GPIO11
+    scl: GPIO12
+    scan: true
+
+spi:
+  - id: bus_disp
+    clk_pin: GPIO6
+    mosi_pin: GPIO5
+
+display:
+  - platform: mipi_spi
+    id: disp_main
+    model: GC9A01A
+    spi_id: bus_disp
+    cs_pin: GPIO7
+    dc_pin: GPIO4
+    reset_pin: GPIO8
+    dimensions:
+      width: 240
+      height: 240
+    # Das GC9A01A-Glas im M5Dial ist invertiert verbaut. Ohne diese
+    # Zeile kommt jede Farbe als Komplementaerfarbe an: Gruen wird pink,
+    # Rot wird gruen. Steht so in M5s eigener Anleitung fuer den Dial
+    # mit mipi_spi (docs.m5stack.com/en/homeassistant/kit/dial), dort
+    # zusammen mit data_rate: 40MHz.
+    invert_colors: true
+    data_rate: 40MHz
+    auto_clear_enabled: false
+    # rotation gehoert NICHT hierher, solange LVGL aktiv ist —
+    # sie steht im lvgl-Block.
+
+# Der Touch ist ein FT3267 und laeuft ueber die ft5x06-Plattform auf
+# Adresse 0x38. KEIN interrupt_pin: die M5Dial-Referenzkonfiguration hat
+# GPIO14 ausdruecklich auskommentiert, ohne den Pin wird gepollt.
+# Mit interrupt_pin kam beim ersten Flash:
+#   [E][component:143]: touchscreen is marked FAILED: unspecified
+touchscreen:
+  - platform: ft5x06
+    id: touch_main
+    i2c_id: bus_int
+    address: 0x38
+    display: disp_main
+
+output:
+  - platform: ledc
+    id: out_backlight
+    pin: GPIO9
+
+light:
+  - platform: monochromatic
+    id: lgt_backlight
+    output: out_backlight
+    name: "Backlight"
+    restore_mode: ALWAYS_ON
+    default_transition_length: 500ms
+
+# =====================================================================
+#  Sensoren
+# =====================================================================
+#  Der Drehencoder gehoert zum Geraet. Die Datenquellen darunter sind
+#  die AUSNAHME:
+#
+#  HIER GEHOEREN NUR WERTE HIN, DIE MEHR ALS EINE SEITE BRAUCHT.
+#  Alles andere steht in der Seite, die es anzeigt, mit
+#  seitenpraefixierter ID (s_strom1_soc, s_gas_a). Doppelte IDs sind in
+#  ESPHome ein harter Fehler — eine Kollision faellt beim
+#  `esphome config` auf, nicht im Betrieb. Wenn eine zweite Seite einen
+#  Wert braucht: Sensordefinition hierher ziehen, IDs umbenennen, der
+#  Validator zeigt die Reste.
+# ---------------------------------------------------------------------
+sensor:
+  # M5 Dial: 16 Rastungen, 64 Impulse, 4 Flanken je Rastung — deshalb
+  # KEIN `resolution:`, sonst springt eine Rastung vier Seiten weiter.
+  # Kennt keine Seitenzahl: page.next laeuft ueber die Liste, wie lang
+  # sie auch ist.
+  - platform: rotary_encoder
+    id: s_encoder
+    internal: true
+    pin_a: GPIO40
+    pin_b: GPIO41
+    on_clockwise:
+      - lvgl.page.next
+    on_anticlockwise:
+      - lvgl.page.previous
+
+  # ---- geteilt: Uhr-Seite und Temperatur-Seite ---------------------
+  # Es gibt (noch) keinen echten Aussenfuehler am Fahrzeug. Bis dahin
+  # kommt der Wert aus der Wetter-Vorhersage fuer den Standort — das ist
+  # die Lufttemperatur der Region, nicht die am Fahrzeug. Sobald ein
+  # Fuehler da ist: entity_id tauschen und `attribute:` streichen.
+  - platform: homeassistant
+    id: s_aussentemp
+    entity_id: weather.forecast_home
+    attribute: temperature
+
+binary_sensor:
+  - platform: gpio
+    id: s_frontbutton
+    internal: true
+    pin:
+      number: GPIO42
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    on_multi_click:
+      # Dreifachklick: AUTO -> TAG -> NACHT -> AUTO
+      - timing:
+          - ON for at most 0.35s
+          - OFF for at most 0.35s
+          - ON for at most 0.35s
+          - OFF for at most 0.35s
+          - ON for at most 0.35s
+          - OFF for at least 0.2s
+        then:
+          - globals.set:
+              id: g_daynight
+              value: !lambda "return (id(g_daynight) + 1) % 3;"
+          - script.execute: apply_daynight
+      # Doppelklick: zurueck zur Startseite
+      - timing:
+          - ON for at most 0.35s
+          - OFF for at most 0.35s
+          - ON for at most 0.35s
+          - OFF for at least 0.5s
+        then:
+          - lvgl.page.show: ${home_page}
+      # Langer Druck: ebenfalls zurueck zur Startseite
+      - timing:
+          - ON for 0.5s to 3s
+          - OFF for at least 0.2s
+        then:
+          - lvgl.page.show: ${home_page}
+
+text_sensor:
+  # ---- geteilt: faehrt das Fahrzeug? -------------------------------
+  # Unterdrueckt spaeter die Overlays (Pre-Flight, Katzentoilette).
+  # mbapi2020 liefert einen Zustand, keinen Schalter:
+  #   0 lock · 1 off · 2 accessory · 4 on · 5 start
+  # Seit v0.19.0 sind value_short/value_description weg, der State ist
+  # also die nackte Zahl. Der Vergleich unten nimmt beides.
+  - platform: homeassistant
+    id: s_ignition
+    entity_id: sensor.nw19939_ignition_state
+
+  # ---- geteilt: sun.sun folgt der GPS-Position des Fahrzeugs -------
+  - platform: homeassistant
+    id: s_sun
+    entity_id: sun.sun
+    on_value:
+      - script.execute: apply_daynight
+
+# =====================================================================
+#  Tag / Nacht
+# =====================================================================
+#  design.md §6: Tag und Nacht unterscheiden sich NUR in der
+#  Backlight-Helligkeit, nie im Farbschema.
+globals:
+  - id: g_daynight
+    type: int
+    restore_value: true
+    initial_value: "0" # 0 AUTO, 1 TAG, 2 NACHT
+
+script:
+  - id: apply_daynight
+    mode: restart
+    then:
+      - lambda: |-
+          bool night;
+          int m = id(g_daynight);
+          if (m == 1) {
+            night = false;
+          } else if (m == 2) {
+            night = true;
+          } else {
+            night = id(s_sun).has_state() && id(s_sun).state != "above_horizon";
+          }
+          auto call = id(lgt_backlight).turn_on();
+          call.set_brightness(night ? 0.25f : 1.0f);
+          call.perform();
+
+# =====================================================================
+#  LVGL-Rahmen
+# =====================================================================
+#  Nur der Rahmen. Die pages: kommen aus den Seiten-Packages.
+lvgl:
+  id: lvgl_main
+  displays:
+    - disp_main
+  touchscreens:
+    - touch_main
+  default_font: montserrat_16
+  # Am Geraet gemessen: 0 ist richtig, nicht 180 (design.md §1 war
+  # falsch). Falls doch einmal gedreht werden muss: hierher, nicht
+  # unter display: — mit aktivem LVGL bricht die Validierung sonst ab.
+  rotation: 0
+  buffer_size: 25% # kein PSRAM auf dem M5StampS3
+  bottom_layer:
+    bg_color: 0x000000
+    bg_opa: COVER
