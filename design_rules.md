@@ -542,7 +542,7 @@ lokal gehalten.
 ## 12. Struktur
 
 Das yaml ist in mehrere blöcke gegliedert um eine bessere modularität zu erhalten und um die reuseability zu erhöhen.
-Die struktur umfasst ein m5dial-fram.yaml, in welchem alle FRAM (Fram = der Name des Wohnmobiles) spezifischen Werte. Darunter befindet sich das m5dial-fram-cockpit.yaml, welches die Werte dieses speziellen m5dial enthält, wie z.B. der Ablauf der Pages, etc. Die letze Ebene bildet der ordner "m5dial-pages" im esphome folder. Dort sind alle pages gespeichert und können von allen m5dials in dem jeweiligen projekt wiederverwendet werden.
+Die struktur umfasst ein m5dial-fram.yaml, in welchem alle FRAM (Fram = der Name des Wohnmobiles) spezifischen Werte. Darunter befindet sich das m5dial-fram-cockpit.yaml, welches die Werte dieses speziellen m5dial enthält, wie z.B. der Ablauf der Pages, etc. Die letze Ebene bildet der ordner "m5dial_pages" im esphome folder. Dort sind alle pages gespeichert und können von allen m5dials in dem jeweiligen projekt wiederverwendet werden.
 
 ---
 
