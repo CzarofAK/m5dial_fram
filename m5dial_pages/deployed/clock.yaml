@@ -1,0 +1,193 @@
+# =====================================================================
+#  m5dial/clock.yaml — Seite: Uhr (SBB-Bahnhofsuhr)
+#  FRAM M5Dial Cockpit · Seiten-Package
+#
+#  Das ist die Fassung aus fram_hw_v01.yaml, die auf dem Geraet lief —
+#  unveraendert bis auf die Zeitquelle und die IDs.
+#
+#  Bewusst NICHT drin, weil es in dieser Form nie auf der Hardware war:
+#    - kein `obj` als Zifferblatt unter der Leinwand. Bei
+#      `show_face: false` und opaker Leinwand zeichnet die Komponente
+#      den schwarzen Grund selbst; ein zweites 240x240-Objekt mit
+#      radius 120 darunter muesste LVGL pro Frame zusaetzlich
+#      komponieren — und LVGL hat schon vorher 147 ms gemeldet.
+#    - keine mode_day/mode_night-Skripte mit C++-Settern. design.md §6:
+#      Tag und Nacht unterscheiden sich NUR in der Backlight-Helligkeit,
+#      nie im Farbschema. Das erledigt apply_daynight im Header.
+#
+#  Farben: schwarzes Blatt, weisse Zeiger und Marken, roter
+#  Sekundenzeiger — in Tag und Nacht gleich, der Sekundenzeiger also
+#  immer rot.
+#
+#  Leinwand: TRANSPARENT, damit Datum und Temperatur UNTER den Zeigern
+#  liegen. Reihenfolge in widgets: = z-Ordnung, frueher heisst weiter
+#  unten:  1. Zifferblatt (obj)  2. Datum + Temperatur  3. Zeiger.
+#
+#  RAM: transparent heisst ARGB8888, 4 Byte/px, 240*240*4 = 230 kB.
+#  Der letzte Build meldet 226'685 Byte freien DIRAM — das ist knapp
+#  DARUNTER. Wenn die Allokation scheitert, schaltet sich das Widget ab
+#  und loggt einen Fehler; die Uhr bleibt dann schwarz, das Geraet
+#  stuerzt nicht ab. Genau danach im Log suchen.
+#  Falls es nicht reicht: width/height auf 200 (ARGB8888 = 160 kB), das
+#  Zifferblatt-obj bleibt bei 240 und der Rand bleibt gleich.
+#
+#  `direct_draw` waere der elegante Ausweg (kein Canvas, kein Kopieren),
+#  ist laut Header der Komponente aber "clockclock24 only for now" und
+#  fuer style: analog nicht verfuegbar.
+# =====================================================================
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/tuct/esphome-lvgl-clock
+      ref: main
+    refresh: 1d
+    components: [lvgl_clock]
+
+# Markerschluessel — ohne ihn laedt ESPHome den Code der Komponente nicht.
+lvgl_clock:
+
+# Die Komponente nimmt Farben als color:-Objekte, nicht als Hexzahlen.
+color:
+  - id: col_ink
+    hex: FFFFFF
+  - id: col_bg
+    hex: "000000"
+  - id: col_second
+    hex: E74C3C
+
+# ---------------------------------------------------------------------
+#  B + C  Datenquellen und Bindings
+# ---------------------------------------------------------------------
+#  Die Zeiger zeichnet die Komponente selbst. Hier laufen nur Datum und
+#  Aussentemperatur.
+sensor:
+  - id: !extend s_aussentemp
+    on_value:
+      - script.execute: draw_clock
+
+interval:
+  # Einmal pro Minute reicht: die Uhr zeichnet sich selbst, hier
+  # aendert sich nur das Datum.
+  - interval: 60s
+    then:
+      - script.execute: draw_clock
+
+script:
+  - id: draw_clock
+    mode: restart
+    then:
+      - lvgl.label.update:
+          id: lbl_clock_date
+          text: !lambda |-
+            auto t = id(homeassistant_time).now();
+            if (!t.is_valid()) return std::string("--.--.----");
+            // day_of_week: 1 = Sonntag
+            static const char *wd[] = {"So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"};
+            return str_sprintf("%s, %02d.%02d.%04d", wd[t.day_of_week - 1],
+                               t.day_of_month, t.month, t.year);
+          text_color: !lambda |-
+            return id(homeassistant_time).now().is_valid()
+                 ? lv_color_hex(0xBDC1C6) : lv_color_hex(0x555555);
+
+      - lvgl.label.update:
+          id: lbl_clock_temp
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("--.-°C");
+            #endif
+            if (!id(s_aussentemp).has_state()) return std::string("--.-°C");
+            return str_sprintf("%.1f°C", id(s_aussentemp).state);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            return id(s_aussentemp).has_state()
+                 ? lv_color_hex(0xBDC1C6) : lv_color_hex(0x555555);
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - script.execute: draw_clock
+
+# ---------------------------------------------------------------------
+#  D  Widgets
+# ---------------------------------------------------------------------
+lvgl:
+  pages:
+    - id: page_clock
+      # Die Seite ist per LVGL-Default deckend WEISS und liegt ueber dem
+      # bottom_layer — ohne das hier waere Weiss auf Weiss.
+      bg_color: 0x000000
+      bg_opa: COVER
+      widgets:
+        # 1. Zifferblatt. Zeichnet das Widget bei transparent: true NICHT
+        #    mehr selbst, deshalb hier als eigenes Objekt ganz unten.
+        - obj:
+            id: clk_dial
+            align: CENTER
+            width: 240
+            height: 240
+            radius: 120
+            bg_color: 0x000000
+            bg_opa: COVER
+            border_width: 3
+            border_color: 0xFFFFFF
+            pad_all: 0
+            scrollbar_mode: "OFF"
+
+        # 2. Temperatur und Datum — ueber dem Blatt, UNTER den Zeigern.
+        - label:
+            id: lbl_clock_temp
+            align: CENTER
+            y: ${y_cap}
+            text: "--.-°C"
+            text_font: montserrat_16
+            text_color: 0x555555
+
+        - label:
+            id: lbl_clock_date
+            align: CENTER
+            y: ${y_row}
+            text: "--.--.----"
+            text_font: montserrat_16
+            text_color: 0x555555
+
+        # 3. Zeiger und Marken zuoberst, transparente Leinwand.
+        - lvgl_clock:
+            id: clock_face
+            time_id: homeassistant_time
+            align: CENTER
+            width: 240
+            height: 240
+            style: analog
+            twenty_four_hour: true
+            show_seconds: true
+            # 33ms waeren 30 fps dauerhaft nur fuer den Sekundenzeiger,
+            # also zwei Drittel der SPI-Bandbreite — auch dann, wenn eine
+            # andere Seite im Vordergrund steht. 100ms reicht fuers Auge.
+            render_interval: 100ms
+            transparent: true
+            foreground: col_ink
+            analog:
+              show_face: false
+              minute_ticks:
+                enabled: true
+                color: col_ink
+              hour_ticks:
+                enabled: true
+                color: col_ink
+              hour_hand:
+                style: sbb
+                center_style: none
+                extend: 15%
+              minute_hand:
+                style: sbb
+                center_style: none
+                extend: 15%
+              second_hand:
+                style: lollipop
+                color: col_second
+                center_style: round
+                extend: 30%
