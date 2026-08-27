@@ -1,76 +1,76 @@
-# FRAM M5Dial — Design- und Bauvorschrift
+# FRAM M5Dial — Design and Build Specification
 
-Stand: 21.08.2026. Gilt für alle Seiten des Cockpit-Dashboards.
-Wenn eine Seite von diesem Dokument abweicht, ist entweder die Seite falsch
-oder dieses Dokument veraltet — beides gehört korrigiert, nicht ignoriert.
+As of: 2026-08-21. Applies to all pages of the cockpit dashboard.
+If a page deviates from this document, either the page is wrong or this
+document is outdated — either way it must be corrected, not ignored.
 
-> **Nachtrag 21.08.2026 (1), aus dem Bau von Seite 4 (Wasser).** Neu bzw.
-> geändert: §3 Zwei-Wert-Layout und zwei zusätzliche Substitutions, §4
-> Doppelring und der dadurch kleinere Innenradius, §5 `montserrat_24`,
-> §6 Wasser-Schwellen, Rangfolge der Statuszeile, Farbe des nachrangigen
-> Rings, §8 zweiter Ring.
+> **Addendum 2026-08-21 (1), from building page 4 (Water).** New or
+> changed: §3 two-value layout and two additional substitutions, §4
+> double ring and the resulting smaller inner radius, §5 `montserrat_24`,
+> §6 water thresholds, status-line precedence, color of the secondary
+> ring, §8 second ring.
 
-> **Nachtrag 21.08.2026 (2), aus dem Bau von Seite 3 (Gas) und der
-> Überarbeitung von Seite 1.** Neu bzw. geändert: §3 **alle
-> Rasterwerte** — der Stapel lag zu hoch, unten stand das Loch; §3
-> Beschriftung der Spalten benennt den Ring, nicht die Einbaulage; §6
-> Gas-Schwellen und eine Rangfolge für zwei gleichwertige Vorräte; §8
-> Eckenradius des Tasters auf Doppelring-Seiten.
+> **Addendum 2026-08-21 (2), from building page 3 (Gas) and revising
+> page 1.** New or changed: §3 **all grid values** — the stack sat too
+> high, the gap was at the bottom; §3 column labeling names the ring,
+> not the mounting position; §6 gas thresholds and a precedence rule for
+> two equal-ranked supplies; §8 corner radius of the button on
+> double-ring pages.
 >
-> **Die Seiten 2 und 4 stehen noch auf dem alten Raster.** Sie werden
-> beim ersten Zusammenführen nachgezogen, wo der Substitutions-Block
-> ohnehin nur noch einmal vorkommt. Bis dahin sitzen sie im Simulator
-> ein paar Pixel höher als Seite 1 und 3.
+> **Pages 2 and 4 are still on the old grid.** They will be brought up
+> to date at the first merge, where the substitutions block only occurs
+> once anyway. Until then they sit a few pixels higher than pages 1 and
+> 3 in the simulator.
 
 ---
 
-## 1. Zielgerät
+## 1. Target device
 
 | | |
 |---|---|
-| Gerät | M5Stack Dial (M5StampS3, ESP32-S3FN8, **kein PSRAM**) |
-| Display | GC9A01A, 240 × 240, rund, über `mipi_spi` |
-| Einbau | Armaturenbrett / Fahrerposition |
-| Bedienung | Drehencoder, Fronttaste, kapazitiver Touch (FT5x06) |
-| Flash | 8 MB (`flash_size: 8MB` unter `esp32:`) |
+| Device | M5Stack Dial (M5StampS3, ESP32-S3FN8, **no PSRAM**) |
+| Display | GC9A01A, 240 × 240, round, via `mipi_spi` |
+| Mounting | Dashboard / driver position |
+| Controls | Rotary encoder, front button, capacitive touch (FT5x06) |
+| Flash | 8 MB (`flash_size: 8MB` under `esp32:`) |
 | Rotation | `rotation: 0` |
 
-Konsequenz aus „rund": alles jenseits von r = 120 px vom Mittelpunkt
-existiert nicht. Der Simulator zeigt ein Quadrat und lügt an den Ecken.
+Consequence of "round": anything beyond r = 120 px from the center
+doesn't exist. The simulator shows a square and lies at the corners.
 
 ---
 
-## 2. Dateistruktur
+## 2. File structure
 
-Eine Datei pro Seite, benannt `sim_NN_kurzname.yaml`. Jede Datei ist für
-sich im SDL2-Simulator lauffähig:
+One file per page, named `sim_NN_shortname.yaml`. Each file runs on its
+own in the SDL2 simulator:
 
 ```
 esphome run sim_02_netz.yaml
 ```
 
-> Keine Leerzeichen in Dateinamen. `esphome config strom 2.yaml` übergibt
-> zwei Dateinamen und schlägt zweimal fehl.
+> No spaces in file names. `esphome config strom 2.yaml` passes two
+> file names and fails twice.
 
-Jede Datei ist in vier Blöcke geteilt, in dieser Reihenfolge:
+Each file is split into four blocks, in this order:
 
-| Block | Inhalt | beim Zusammenführen |
+| Block | Content | when merging |
 |---|---|---|
-| **A** Gerüst | `esphome:`, `host:`, `display: sdl`, `touchscreen: sdl`, Sim-Globals | **entfällt**, ersetzt durch die Hardware-Datei |
-| **B** Datenquellen | `sensor:` / `text_sensor:` mit `platform: template` | **getauscht** gegen `platform: homeassistant` |
-| **C** Bindings | `on_value`-Trigger bzw. Zeichenskripte | **1 : 1** übernommen |
-| **D** Widgets | `lvgl: pages: - id: page_xxx` | **1 : 1** übernommen, als eine Seite |
+| **A** Scaffold | `esphome:`, `host:`, `display: sdl`, `touchscreen: sdl`, sim globals | **dropped**, replaced by the hardware file |
+| **B** Data sources | `sensor:` / `text_sensor:` with `platform: template` | **swapped** for `platform: homeassistant` |
+| **C** Bindings | `on_value` triggers or drawing scripts | carried over **1:1** |
+| **D** Widgets | `lvgl: pages: - id: page_xxx` | carried over **1:1**, as one page |
 
-Der Sinn der Trennung: Blöcke C und D sind der eigentliche Wert und dürfen
-beim Übertragen nicht angefasst werden müssen. Alles, was sich zwischen
-Simulator und Gerät unterscheidet, steckt in A und B.
+The point of the separation: blocks C and D are the actual value and
+must not need to be touched when transferring. Everything that differs
+between simulator and device lives in A and B.
 
 ---
 
-## 3. Layout-Raster
+## 3. Layout grid
 
-Steht als `substitutions:` ganz oben in **jeder** Seitendatei, mit
-identischen Werten. Beim Zusammenführen wird daraus ein einziger Block.
+Sits as `substitutions:` at the very top of **every** page file, with
+identical values. When merging, this becomes a single block.
 
 ```yaml
 substitutions:
@@ -82,93 +82,96 @@ substitutions:
   x_col:    "40"
 ```
 
-`y_cap` und `x_col` braucht nur das Zwei-Wert-Layout weiter unten. Sie
-stehen trotzdem in jeder Datei, weil der Block sonst nicht mehr identisch
-ist und beim Zusammenführen nicht zusammenfällt.
+`y_cap` and `x_col` are only needed by the two-value layout further
+below. They still appear in every file, because otherwise the block
+would no longer be identical and wouldn't collapse into one when
+merging.
 
-| Slot | Ausrichtung | Inhalt | Schrift |
+| Slot | Alignment | Content | Font |
 |---|---|---|---|
-| — | `TOP_MID`, y 46 | **frei**, Reserve für Alarm-Icon | — |
-| `y_cap` | `CENTER`, `x: ±${x_col}` | Spaltenbeschriftung, nur Zwei-Wert-Layout | `montserrat_12` |
-| `y_main` | `CENTER` | Hauptwert der Seite | `montserrat_40` |
-| `y_line2` | `CENTER` | Nebenzeile, Kontext zum Hauptwert | `montserrat_16` |
-| `y_row` | `CENTER` | Tasterreihe, 1 oder 2 Taster | `montserrat_16` |
-| `y_footer` | `BOTTOM_MID` | Statuszeile, in der Bogenlücke | `montserrat_12` |
+| — | `TOP_MID`, y 46 | **free**, reserved for alarm icon | — |
+| `y_cap` | `CENTER`, `x: ±${x_col}` | Column label, two-value layout only | `montserrat_12` |
+| `y_main` | `CENTER` | Main value of the page | `montserrat_40` |
+| `y_line2` | `CENTER` | Secondary line, context for the main value | `montserrat_16` |
+| `y_row` | `CENTER` | Button row, 1 or 2 buttons | `montserrat_16` |
+| `y_footer` | `BOTTOM_MID` | Status line, in the arc gap | `montserrat_12` |
 
-Kein Seitentitel. Der Bogen und der Hauptwert sagen, wo man ist; ein Wort
-wie „NETZ" verbraucht den besten Platz für die geringste Information.
-Wenn eine Seite einen Slot nicht braucht, bleibt er leer — nicht
-nachrücken. Sonst springt das Bild beim Durchdrehen.
+No page title. The arc and the main value say where you are; a word
+like "GRID" would use up the best space for the least information.
+If a page doesn't need a slot, it stays empty — nothing moves up to
+fill it. Otherwise the layout jumps while paging through.
 
-### Woher die Werte kommen
+### Where the values come from
 
-LVGL positioniert ein Label über die Mitte seines **Zeilenkastens**, nicht
-über die Ziffern. Zeilenhöhen: `montserrat_12` 15 px, `_16` 20 px, `_24`
-29 px, `_40` 49 px; Taster 30 px.
+LVGL positions a label around the center of its **line box**, not the
+digits themselves. Line heights: `montserrat_12` 15 px, `_16` 20 px,
+`_24` 29 px, `_40` 49 px; button 30 px.
 
-| Slot | Kasten | Abstand nach unten |
+| Slot | Box | Distance below |
 |---|---|---|
-| `y_cap` −42 | −49.5 … −34.5 | berührt `y_main` |
-| `y_main` −20 | m40: −44.5 … 4.5 · m24: −34.5 … −5.5 | 0.5 px Kasten, ~15 px Ziffern |
+| `y_cap` −42 | −49.5 … −34.5 | touches `y_main` |
+| `y_main` −20 | m40: −44.5 … 4.5 · m24: −34.5 … −5.5 | 0.5 px box, ~15 px digits |
 | `y_line2` 15 | 5 … 25 | 8 px |
 | `y_row` 48 | 33 … 63 | 17.5 px |
 | `y_footer` −32 | 80.5 … 95.5 | — |
 
-Der Kastenabstand zwischen Hauptwert und Nebenzeile ist rechnerisch null
-und optisch trotzdem der grösste auf der Seite: `montserrat_40` setzt die
-Ziffern auf die Grundlinie, unter der etwa 10 px Kasten leer bleiben.
-**Nach Zeilenkästen rechnen, nach Ziffern beurteilen.**
+The box gap between the main value and the secondary line computes to
+zero and yet looks like the biggest one on the page: `montserrat_40`
+sets the digits on the baseline, leaving roughly 10 px of empty box
+below. **Calculate by line boxes, judge by digits.**
 
-Weiter nach unten geht nicht: bei `y_row 54` liegen die Ecken des Tasters
-auf Radius 86.4, der Innenring einer Doppelring-Seite sitzt bei 90 (§8).
-Und die Fusszeile beginnt bei 80.5.
+You can't go lower than this: at `y_row 54` the corners of the button
+sit at radius 86.4, and the inner ring of a double-ring page sits at 90
+(§8). And the footer starts at 80.5.
 
-### Zwei gleichrangige Werte (Gas, Wasser)
+### Two equal-ranked values (Gas, Water)
 
-Zwei Tanks derselben Art haben keinen Hauptwert und keine Nebenzeile —
-der eine ist nicht Kontext zum anderen. Sie stehen deshalb als zwei
-Spalten nebeneinander, beide auf `x: ±${x_col}`:
+Two tanks of the same kind have no main value and no secondary line —
+neither is context for the other. They're therefore laid out as two
+columns side by side, both on `x: ±${x_col}`:
 
-| Zeile | y | Inhalt | Schrift | Farbe |
+| Row | y | Content | Font | Color |
 |---|---|---|---|---|
-| Beschriftung | `y_cap` | `FRISCH` / `GRAU`, `GAS A` / `GAS I` | `montserrat_12` | Farbe des zugehörigen Rings |
-| Wert | `y_main` | `72%` | `montserrat_24` | Palette Hauptwert |
-| Absolut | `y_line2` | `128 L`, `7.6 kg` | `montserrat_16` | `0xBDC1C6` |
+| Label | `y_cap` | `FRESH` / `GREY`, `GAS A` / `GAS I` | `montserrat_12` | color of the associated ring |
+| Value | `y_main` | `72%` | `montserrat_24` | main-value palette |
+| Absolute | `y_line2` | `128 L`, `7.6 kg` | `montserrat_16` | `0xBDC1C6` |
 
-`montserrat_40` geht hier nicht: `100%` wäre 100 px breit, pro Spalte
-stehen gut 80 px zur Verfügung.
+`montserrat_40` doesn't work here: `100%` would be 100 px wide, and
+each column only has about 80 px available.
 
-Die Beschriftungszeile ist die **einzige** Zuordnung zwischen Spalte und
-Ring — konzentrische Ringe haben kein Links und kein Rechts. Sie trägt
-deshalb die Farbe ihres Rings und wird im Zeichenskript mitgeführt.
+The label row is the **only** mapping between column and ring —
+concentric rings have no left and no right. It therefore carries the
+color of its ring and is updated together with it in the drawing
+script.
 
-Wo die beiden Behälter unterscheidbar sind, benennt die Beschriftung den
-**Inhalt** (`FRISCH` / `GRAU`). Wo sie gleich sind, benennt sie den
-**Ring**, nicht die Einbaulage: `GAS A` (aussen) / `GAS I` (innen). Zwei
-Gasflaschen stehen hintereinander, `LINKS` / `RECHTS` wäre schlicht
-falsch — und selbst wo es stimmt, hilft es nicht, weil die Ringe
-konzentrisch sind.
+Where the two containers are distinguishable, the label names the
+**content** (`FRESH` / `GREY`). Where they're identical, it names the
+**ring**, not the mounting position: `GAS A` (outer) / `GAS I` (inner).
+Two gas bottles sit one behind the other, so `LEFT` / `RIGHT` would
+simply be wrong — and even where it happens to be correct, it doesn't
+help, because the rings are concentric.
 
-Höchstens vier Zeichen in der Wertzeile und sechs in der Beschriftung.
-Bei `y_cap −42` reicht die Beschriftung bis x ±75 (Innenradius 90);
-`GAS I` kommt auf 57.5, `RECHTS` auf 62.5.
+At most four characters in the value row and six in the label. At
+`y_cap −42` the label has room up to x ±75 (inner radius 90); `GAS I`
+comes to 57.5, `RECHTS` (RIGHT) to 62.5.
 
 ---
 
-## 4. Geometrie
+## 4. Geometry
 
-| Grösse | Wert |
+| Quantity | Value |
 |---|---|
-| Displayradius | 120 px |
-| Arc | 224 × 224, `arc_width: 10` → Ring von r = 102 bis 112 |
-| Arc-Winkel | `start_angle: 135`, `end_angle: 45` → Lücke unten |
-| Nutzbarer Innenradius | 102 px (in der unteren Lücke 118 px) |
+| Display radius | 120 px |
+| Arc | 224 × 224, `arc_width: 10` → ring from r = 102 to 112 |
+| Arc angle | `start_angle: 135`, `end_angle: 45` → gap at the bottom |
+| Usable inner radius | 102 px (118 px in the bottom gap) |
 
-Die Lücke unten ist kein Stilelement, sondern der Platz für `y_footer`.
+The gap at the bottom isn't a style choice — it's the space reserved
+for `y_footer`.
 
-Verfügbare Textbreite auf Höhe y (Abstand vom Mittelpunkt):
+Available text width at height y (distance from center):
 
-| y | Breite (r = 102) | Breite in der Lücke (r = 118) |
+| y | Width (r = 102) | Width in the gap (r = 118) |
 |---|---|---|
 | 40 | 187 px | — |
 | 58 | 168 px | — |
@@ -176,153 +179,155 @@ Verfügbare Textbreite auf Höhe y (Abstand vom Mittelpunkt):
 | 80 | — | 173 px |
 | 90 | — | 152 px |
 
-**Vor jedem neuen Layout die Textbreite nachrechnen**, nicht schätzen.
-Der längste real vorkommende String zählt, nicht der Platzhalter:
-`PARK AUS` ist breiter als `---`, `ABSORPTION` breiter als `BULK`.
+**Calculate the text width before every new layout**, don't estimate
+it. The longest string that actually occurs counts, not the
+placeholder: `PARK AUS` (PARK OFF) is wider than `---`, `ABSORPTION`
+wider than `BULK`.
 
-### Doppelring
+### Double ring
 
-Zwei Werte derselben Art bekommen zwei konzentrische Ringe, nicht zwei
-Halbarcs. Beide laufen über den vollen Bogen 135 → 45; die Halbarc-Lösung
-brauchte für den zweiten Bogen `mode: REVERSE`, damit er in dieselbe
-Richtung füllt, und halbierte die Auflösung jedes Werts.
+Two values of the same kind get two concentric rings, not two half
+arcs. Both run over the full 135 → 45 arc; the half-arc approach would
+need `mode: REVERSE` for the second arc so it fills in the same
+direction, and it would halve the resolution of each value.
 
-| Ring | Grösse | `arc_width` | Radius | Inhalt |
+| Ring | Size | `arc_width` | Radius | Content |
 |---|---|---|---|---|
-| aussen | 224 × 224 | 10 | 102 – 112 | der wichtigere Wert |
-| innen | 200 × 200 | 10 | 90 – 100 | der nachrangige Wert |
+| outer | 224 × 224 | 10 | 102 – 112 | the more important value |
+| inner | 200 × 200 | 10 | 90 – 100 | the secondary value |
 
-**Beide Ringe gleich dick.** Unterschiedliche Dicke liest sich als
-Wichtigkeit und stimmt nie mit der tatsächlichen Rangfolge überein.
-Zwischen den Ringen bleiben 2 px Schwarz.
+**Both rings the same thickness.** Different thickness reads as
+importance and never matches the actual precedence.
+2 px of black remain between the rings.
 
-Nutzbarer Innenradius auf einer Doppelring-Seite: **90 px**.
+Usable inner radius on a double-ring page: **90 px**.
 
-| y | Breite (r = 90) |
+| y | Width (r = 90) |
 |---|---|
 | 40 | 161 px |
 | 50 | 149 px |
 | 58 | 138 px |
 | 65 | 124 px |
 
-Die Lücke unten ändert sich nicht — die Fusszeile hat weiterhin 152 px
-bei y 90.
+The bottom gap doesn't change — the footer still has 152 px at y 90.
 
-Wo zwei Werte gleichrangig sind (zwei Gasflaschen), gibt es „aussen" und
-„innen" trotzdem, weil die Geometrie es erzwingt. Dann bekommt der Ring
-aussen den Wert, der gerade in Betrieb ist.
+Where two values are equally ranked (two gas bottles), "outer" and
+"inner" still exist because the geometry forces it. Then the outer
+ring gets whichever value is currently in use.
 
 ---
 
-## 5. Schriften
+## 5. Fonts
 
-LVGL-intern, **keine eigene Font-Datei**:
+Built into LVGL, **no custom font file**:
 
 ```yaml
 lvgl:
   default_font: montserrat_16
 ```
 
-| Alias im Text | Schrift | Verwendung |
+| Alias in text | Font | Use |
 |---|---|---|
-| gross | `montserrat_40` | Hauptwert |
-| mittel | `montserrat_24` | Wert im Zwei-Wert-Layout |
-| normal | `montserrat_16` | Nebenzeile, Taster |
-| klein | `montserrat_12` | Fusszeile, Spaltenbeschriftung |
+| large | `montserrat_40` | main value |
+| medium | `montserrat_24` | value in the two-value layout |
+| normal | `montserrat_16` | secondary line, buttons |
+| small | `montserrat_12` | footer, column label |
 
-Verfügbar sind gerade Grössen von 8 bis 48.
+Only even sizes from 8 to 48 are available.
 
-> **Erfahrung:** Ein Versuch mit eigener OTF (`bpp: 4`, beschnittene
-> Glyphenliste) hat die Beschriftung in den Tastern vertikal verschoben.
-> Die Metrik der Schriftdatei erklärte das nicht — offenbar trägt ESPHome
-> beim Erzeugen der Bitmap-Schrift eine andere Zeilenhöhe ein. Falls doch
-> einmal eine eigene Schrift nötig wird: **einzeln** umstellen, zuerst die
-> Tasterschrift, und die Glyphenliste grosszügig halten (Kleinbuchstaben
-> mit Unterlängen einschliessen, auch wenn sie im Text nicht vorkommen).
+> **Experience:** An attempt with a custom OTF (`bpp: 4`, trimmed glyph
+> list) shifted the button labels vertically. The font file's metrics
+> didn't explain it — apparently ESPHome writes a different line height
+> when generating the bitmap font. If a custom font is ever needed
+> after all: switch it **one at a time**, starting with the button
+> font, and keep the glyph list generous (include lowercase letters
+> with descenders even if they don't appear in the text).
 
 ---
 
-## 6. Farbpalette
+## 6. Color palette
 
-Hintergrund immer schwarz. Tag/Nacht unterscheidet sich nur in
-Backlight-Helligkeit, nie im Farbschema.
+Background always black. Day/night differs only in backlight
+brightness, never in the color scheme.
 
-| Zweck | Wert |
+| Purpose | Value |
 |---|---|
-| Hintergrund | `0x000000` |
-| Hauptwert, gut | `0xFFFFFF` |
-| Nebenzeile | `0xBDC1C6` |
-| Fusszeile, unauffällig | `0x707070` |
-| **Ungültig / kein Wert** | `0x555555` |
-| Gut / geladen | `0x2ECC71` |
-| Warnung | `0xF39C12` |
-| Alarm / Fehler | `0xE74C3C` |
-| Neutral aktiv (Netz, Wasser, Gas) | `0x4A9EFF` |
-| Nachrangiger Ring, unauffällig aktiv | `0x9AA0A6` |
-| Bogen-Hintergrundbahn | `0x1A1C1E` |
-| Taster, inaktiv (Fläche / Rand) | `0x202124` / `0x3C4043` |
-| Taster, aktiv grün | `0x1B5E3A` / `0x2ECC71` |
-| Taster, aktiv blau | `0x14324F` / `0x4A9EFF` |
-| Taster, aktiv orange | `0x4F3814` / `0xF39C12` |
+| Background | `0x000000` |
+| Main value, good | `0xFFFFFF` |
+| Secondary line | `0xBDC1C6` |
+| Footer, unobtrusive | `0x707070` |
+| **Invalid / no value** | `0x555555` |
+| Good / charged | `0x2ECC71` |
+| Warning | `0xF39C12` |
+| Alarm / error | `0xE74C3C` |
+| Neutral active (grid, water, gas) | `0x4A9EFF` |
+| Secondary ring, unobtrusively active | `0x9AA0A6` |
+| Arc background track | `0x1A1C1E` |
+| Button, inactive (fill / border) | `0x202124` / `0x3C4043` |
+| Button, active green | `0x1B5E3A` / `0x2ECC71` |
+| Button, active blue | `0x14324F` / `0x4A9EFF` |
+| Button, active orange | `0x4F3814` / `0xF39C12` |
 
-Farbe ist nie der einzige Träger einer Information — der Zustand steht
-zusätzlich als Text auf dem Taster.
+Color is never the sole carrier of information — the state is always
+also shown as text on the button.
 
-`0x9AA0A6` ist neu und noch nicht am Gerät beurteilt. Er soll einen Ring
-zeigen, dessen Füllstand im Normalfall niemanden interessiert (Grauwasser,
-zweite Gasflasche). `0xBDC1C6` wäre heller und würde neben dem blauen
-Aussenring nach einem Wert aussehen, den man ansehen soll; `0x707070`
-verschwindet bei kleinem Füllstand fast. Siehe §13.
+`0x9AA0A6` is new and hasn't been judged on the device yet. It's meant
+for a ring whose fill level nobody normally cares about (grey water,
+second gas bottle). `0xBDC1C6` would be brighter and would look, next
+to the blue outer ring, like a value you're supposed to watch;
+`0x707070` all but disappears at low fill levels. See §13.
 
-### Schwellen
+### Thresholds
 
-| Grösse | Warnung | Alarm |
+| Quantity | Warning | Alarm |
 |---|---|---|
-| Batterie-SOC | < 40 % | < 20 % |
-| Starterbatterie | < 12.4 V | < 12.0 V |
-| Netzauslastung | ≥ 80 % | ≥ 95 % |
-| Frischwasser | < 25 % | < 10 % |
-| Grauwasser | ≥ 80 % | ≥ 95 % |
-| Gas, je Flasche | < 25 % | < 10 % |
+| Battery SOC | < 40 % | < 20 % |
+| Starter battery | < 12.4 V | < 12.0 V |
+| Grid load | ≥ 80 % | ≥ 95 % |
+| Fresh water | < 25 % | < 10 % |
+| Grey water | ≥ 80 % | ≥ 95 % |
+| Gas, per bottle | < 25 % | < 10 % |
 
-Die Schwellen färben immer **beides**: den Ring und den Wert, plus die
-Spaltenbeschriftung, die die Ringfarbe trägt.
+The thresholds always color **both**: the ring and the value, plus the
+column label that carries the ring color.
 
-### Rangfolge in der Statuszeile
+### Precedence in the status line
 
-Die Fusszeile zeigt genau eine Meldung und ist im Normalbetrieb leer. Sie
-darf dafür Warn- und Alarmfarbe annehmen; das ist die einzige Ausnahme
-von „Fusszeile unauffällig".
+The footer shows exactly one message and is empty in normal operation.
+It's allowed to take on warning and alarm colors for that; that's the
+only exception to "footer stays unobtrusive".
 
-**Zwei verschiedene Behälter: erst Rang, dann Schaden vor Unbequemlichkeit.**
-Auf der Wasserseite heisst das `ABWASSER VOLL` vor `FRISCHWASSER LEER` —
-ein überlaufender Grautank ist Schaden im Fahrzeug, ein leerer Frischtank
-nicht. Beide Zustände treten meist gleichzeitig ein, der Gleichstand
-braucht also eine bewusste Regel. Der unterdrückte Wert steht ohnehin
-oben als Zahl.
+**Two different containers: rank first, then damage before
+inconvenience.** On the water page that means `ABWASSER VOLL` (GREY
+TANK FULL) before `FRISCHWASSER LEER` (FRESH WATER EMPTY) — an
+overflowing grey tank is damage to the vehicle, an empty fresh tank is
+not. Both conditions usually occur at the same time, so the tie needs a
+deliberate rule. The suppressed value is shown as a number above
+regardless.
 
-**Zwei austauschbare Behälter: es zählt der Vorrat, nicht der Einzelwert.**
-Zwei Gasflaschen sind ein Vorrat mit zwei Kammern; eine leere Flasche ist
-kein Alarm, solange die andere trägt. Auf der Gasseite deshalb:
+**Two interchangeable containers: the combined supply counts, not the
+individual value.** Two gas bottles are one supply with two chambers;
+an empty bottle isn't an alarm as long as the other one is still
+carrying. On the gas page, therefore:
 
-| Bedingung | Text | Farbe |
+| Condition | Text | Color |
 |---|---|---|
-| beide < 10 % | `GAS LEER` | rot |
-| beide < 25 % | `GAS KNAPP` | orange |
-| eine < 10 % | `GAS A LEER` / `GAS I LEER` | grau |
+| both < 10 % | `GAS LEER` (GAS EMPTY) | red |
+| both < 25 % | `GAS KNAPP` (GAS LOW) | orange |
+| one < 10 % | `GAS A LEER` / `GAS I LEER` (GAS A/I EMPTY) | grey |
 
-Der graue Fall setzt eine automatische Umschaltung voraus (Truma Duo o.
-ä.) — dann ist er ein Hinweis, dass eine Flasche fällig ist, und keine
-Aufforderung. Ohne automatische Umschaltung gehört er auf orange, weil
-dann jemand raus muss.
+The grey case assumes an automatic changeover exists (Truma Duo or
+similar) — then it's a heads-up that a bottle is due for a refill, not
+a call to action. Without automatic changeover it belongs on orange,
+because then someone has to go outside.
 
 ---
 
-## 7. Ungültige Werte
+## 7. Invalid values
 
-Ein Dashboard, das bei fehlender Verbindung den letzten Wert weiterzeigt,
-ist gefährlicher als eines, das nichts zeigt. Jedes Label prüft deshalb
-selbst und fällt auf `---` in `0x555555` zurück.
+A dashboard that keeps showing the last value when the connection is
+lost is more dangerous than one that shows nothing. Every label
+therefore checks for itself and falls back to `---` in `0x555555`.
 
 ```yaml
 text: !lambda |-
@@ -333,44 +338,46 @@ text: !lambda |-
   return str_sprintf("%.0f%%", x);
 ```
 
-Die `#ifdef USE_API`-Klammer ist der Trick, der Block C unverändert
-übertragbar macht: im Simulator gibt es keinen `api:`-Block, also fällt
-die Prüfung weg und man sieht echte Werte; auf dem Gerät greift sie
-automatisch. Ohne die Klammer würde der Simulator dauerhaft `---` zeigen.
+The `#ifdef USE_API` guard is the trick that makes block C portable
+unchanged: in the simulator there's no `api:` block, so the check is
+skipped and you see real values; on the device it kicks in
+automatically. Without the guard the simulator would permanently show
+`---`.
 
-Der Platzhalter behält die Einheit: `START ---V` und `---%`, nicht `---`.
-Sonst springt die Zeilenbreite beim ersten gültigen Wert.
+The placeholder keeps the unit: `START ---V` and `---%`, not `---`.
+Otherwise the line width jumps on the first valid value.
 
-Das gilt auch für **Taster**: ohne Verbindung `PARK ---`, nicht
-`PARK AUS`. „Aus" ist eine Aussage über den Zustand des Fahrzeugs, die
-man ohne Verbindung nicht belegen kann.
+This also applies to **buttons**: without a connection, `PARK ---`, not
+`PARK AUS` (PARK OFF). "Off" is a statement about the vehicle's state
+that you can't back up without a connection.
 
-Der im Widget hinterlegte Starttext steht ebenfalls in `0x555555` — sonst
-sieht der Platzhalter vor dem ersten Sensorwert aus wie ein gültiger Wert.
+The initial text stored in the widget is likewise in `0x555555` —
+otherwise the placeholder looks like a valid value before the first
+sensor reading arrives.
 
-Die Fusszeile ist von der `---`-Regel ausgenommen: sie ist im Normalfall
-leer, ein `---` dort wäre kein fehlender Wert, sondern ein neuer Zustand.
-Sie schreibt stattdessen `KEINE VERBINDUNG` bzw. `KEIN WERT` in
+The footer is exempt from the `---` rule: it's normally empty, and a
+`---` there wouldn't be a missing value but a new state. Instead it
+writes `KEINE VERBINDUNG` (NO CONNECTION) or `KEIN WERT` (NO VALUE) in
 `0x555555`.
 
 ---
 
-## 8. Widget-Konventionen
+## 8. Widget conventions
 
-### Taster
+### Button
 
-| | ein Taster | zwei Taster |
+| | one button | two buttons |
 |---|---|---|
-| Breite | 104 px | 76 px, `x: ±40` |
-| Höhe | 30 px | 30 px |
+| Width | 104 px | 76 px, `x: ±40` |
+| Height | 30 px | 30 px |
 | Radius | 15 | 15 |
 
-Der Taster ist rechteckig, das Display ist rund: es zählen die **Ecken**,
-nicht die Mitte. Bei `y_row 48` liegt die untere Ecke eines 104er Tasters
-auf Radius 81.7 — auf einer Doppelring-Seite (Innenring bei 90) noch
-sauber. Ab `y_row 56` schneidet er.
+The button is rectangular, the display is round: the **corners** count,
+not the center. At `y_row 48` the lower corner of a 104 px button sits
+at radius 81.7 — still clean on a double-ring page (inner ring at 90).
+From `y_row 56` on, it clips.
 
-Beschriftung als **Kind-Label** mit `align: CENTER`:
+Label as a **child label** with `align: CENTER`:
 
 ```yaml
 - button:
@@ -394,16 +401,16 @@ Beschriftung als **Kind-Label** mit `align: CENTER`:
       - ...
 ```
 
-> Nicht die `text:`-Eigenschaft des Tasters verwenden. Sie ist zwar gültig
-> und wird über `lvgl.button.update` gesetzt, hat im Test aber schlechter
-> ausgesehen als das Kind-Label. Ebenso `pad_all: 0` weglassen.
+> Don't use the button's own `text:` property. It's valid and gets set
+> via `lvgl.button.update`, but looked worse in testing than the child
+> label. Likewise leave out `pad_all: 0`.
 
-Bei zwei Tastern muss die Beschriftung auf drei bis vier Zeichen passen
-(`ON` / `CHG` / `INV` / `OFF`, `10 A`). Reicht das nicht, gehört der
-zweite Wert nicht in diese Reihe.
+With two buttons, the label must fit in three to four characters
+(`ON` / `CHG` / `INV` / `OFF`, `10 A`). If that's not enough, the
+second value doesn't belong in this row.
 
-Fläche und Rand des Tasters werden über `lvgl.widget.update` gesetzt
-(`bg_color`, `border_color`), die Beschriftung über `lvgl.label.update`.
+The button's fill and border are set via `lvgl.widget.update`
+(`bg_color`, `border_color`), the label via `lvgl.label.update`.
 
 ### Arc
 
@@ -427,18 +434,18 @@ Fläche und Rand des Tasters werden über `lvgl.widget.update` gesetzt
       bg_opa: TRANSP
 ```
 
-Der zweite Ring einer Doppelring-Seite ist derselbe Block mit
-`width: 200` / `height: 200`; alles andere bleibt gleich, insbesondere
-`arc_width: 10` und die Winkel. Geometrie siehe §4.
+The second ring of a double-ring page is the same block with
+`width: 200` / `height: 200`; everything else stays the same, in
+particular `arc_width: 10` and the angles. Geometry: see §4.
 
-Der Arc zeigt immer **0–100 %**, nie eine physikalische Grösse. Wenn die
-Grösse keine natürliche Obergrenze hat, wird sie in Prozent einer
-sinnvollen Bezugsgrösse umgerechnet (Beispiel Netz: Eingangsstrom in
-Prozent der eingestellten Strombegrenzung). Eine feste absolute Skala
-führt dazu, dass der Bogen die meiste Zeit fast leer oder fast voll ist.
+The arc always shows **0–100 %**, never a physical quantity. If the
+quantity has no natural upper bound, it's converted to a percentage of
+a sensible reference value (example, grid: input current as a
+percentage of the configured current limit). A fixed absolute scale
+means the arc is almost empty or almost full most of the time.
 
-Wert und Indikatorfarbe gehören in **einen** `lvgl.arc.update`-Aufruf,
-nicht in zwei hintereinander:
+Value and indicator color belong in **one** `lvgl.arc.update` call, not
+two in sequence:
 
 ```yaml
 - lvgl.arc.update:
@@ -448,10 +455,10 @@ nicht in zwei hintereinander:
       arc_color: !lambda "return lv_color_hex(0xE74C3C);"
 ```
 
-### Hintergrund
+### Background
 
-`disp_bg_color:` ist abgekündigt, und ein `bg_color:` direkt unter `lvgl:`
-deckt nur den Teil ab, den die Seite freilässt. Stattdessen:
+`disp_bg_color:` is deprecated, and a `bg_color:` directly under
+`lvgl:` only covers the part a page leaves free. Instead:
 
 ```yaml
 lvgl:
@@ -465,10 +472,10 @@ lvgl:
 
 ## 9. Bindings
 
-**Ein Wert, eine Anzeige** → `on_value` direkt am Sensor.
+**One value, one display** → `on_value` directly on the sensor.
 
-**Mehrere voneinander abhängige Werte** → ein Zeichenskript pro Seite,
-das die ganze Seite neu schreibt; jeder Sensor ruft nur `script.execute`:
+**Several interdependent values** → one drawing script per page that
+redraws the whole page; each sensor only calls `script.execute`:
 
 ```yaml
 script:
@@ -479,119 +486,125 @@ script:
       - lvgl.label.update: ...
 ```
 
-Grund: sonst stünde nach der Änderung eines Werts die von beiden Werten
-abhängige Zeile bis zum nächsten Update des anderen Sensors falsch da.
-Im Skript wird über `id(sensor).state` gelesen, nicht über `x`.
+Reason: otherwise, after one value changes, the line that depends on
+both values would sit wrong until the next update of the other sensor.
+The script reads via `id(sensor).state`, not via `x`.
 
-Das Zeichenskript gehört zusätzlich in `esphome: on_boot:` mit
-`priority: -100`. Sonst steht die Zeile bis zum ersten Sensorwert auf dem
-Platzhalter, auf dem Gerät unter Umständen minutenlang.
+The drawing script additionally belongs in `esphome: on_boot:` with
+`priority: -100`. Otherwise the line sits on the placeholder until the
+first sensor value arrives, which on the device can take minutes.
 
-Fahrzeugfeste Konstanten (Tankgrössen, Flaschengewichte) stehen als
-Literal im Skript, mit Kommentar. Nicht in `substitutions:` — die müssen
-auf allen Seiten identisch bleiben — und nicht als `globals:`, weil auf
-dem Dial kein Zustand gehalten wird. Aktuell: Frisch 180 L, Grau 90 L,
-Gasflasche 10.5 kg netto.
+Vehicle-fixed constants (tank sizes, bottle weights) live as a literal
+in the script, with a comment. Not in `substitutions:` — those must
+stay identical across all pages — and not as `globals:`, because no
+state is held on the dial. Currently: fresh 180 L, grey 90 L, gas
+bottle 10.5 kg net.
 
 ---
 
-## 10. Namensschema
+## 10. Naming scheme
 
-| Präfix | Für |
+| Prefix | For |
 |---|---|
-| `page_` | Seite (`page_battery`, `page_grid`) |
-| `arc_` | Bogen |
-| `lbl_` | Label |
-| `btn_` | Taster |
-| `s_` | Sensor / Text-Sensor (Datenquelle) |
-| `draw_` | Zeichenskript einer Seite |
-| `g_sim_` | Global, **nur** in der Simulation |
+| `page_` | page (`page_battery`, `page_grid`) |
+| `arc_` | arc |
+| `lbl_` | label |
+| `btn_` | button |
+| `s_` | sensor / text sensor (data source) |
+| `draw_` | a page's drawing script |
+| `g_sim_` | global, simulation **only** |
 
-Bei zwei gleichrangigen Werten unterscheidet ein Suffix die Spalten, und
-zwar dasselbe Kürzel wie in der Beschriftung:
-`lbl_water_pct_f` / `_g`, `lbl_gas_pct_a` / `_i`. Das gilt bis zum
-Sensor durch (`s_gas_a`, `s_gas_i`) — welche Flasche physisch am
-Aussenring hängt, entscheidet dann allein die `entity_id`.
+For two equal-ranked values, a suffix distinguishes the columns, using
+the same abbreviation as in the label:
+`lbl_water_pct_f` / `_g`, `lbl_gas_pct_a` / `_i`. This holds all the
+way down to the sensor (`s_gas_a`, `s_gas_i`) — which bottle is
+physically connected to the outer ring is then decided solely by the
+`entity_id`.
 
-Die Seiten-IDs und ihre **Reihenfolge** sind die Navigation — der Encoder
-adressiert über den Index. Reihenfolge nur bewusst ändern.
+The page IDs and their **order** are the navigation — the encoder
+addresses via the index. Only change the order deliberately.
 
 ---
 
 ## 11. Simulation
 
-* Datenquellen als `platform: template` mit `update_interval`.
-* Werte **durchlaufen den ganzen Bereich**, damit alle Farbschwellen ohne
-  Warten sichtbar werden (SOC rampt in 4er-Schritten von 100 auf 0, der
-  MP-Zustand zykelt inklusive `fault`).
-* Zwei Werte einer Seite laufen mit **unterschiedlichem**
-  `update_interval`, sonst treten immer dieselben Kombinationen auf und
-  man sieht die Rangfolge der Statuszeile nie. Das gilt auch für Werte,
-  die nur zusammen in einer Zeile stehen (Spannung und Strom): bei
-  gleichem Intervall und gleicher Listenlänge wiederholt sich das Paar.
-* Taster ändern nur einen `g_sim_`-Global. Die Geräte-Variante
-  (`homeassistant.service`) steht **auskommentiert direkt darunter**.
-* Kein `api:`-Block — sonst greift die Ungültigkeitsprüfung.
+* Data sources as `platform: template` with `update_interval`.
+* Values **sweep the whole range**, so all color thresholds become
+  visible without waiting (SOC ramps in steps of 4 from 100 to 0, the
+  MP state cycles including `fault`).
+* Two values on one page run with **different**
+  `update_interval`s, otherwise the same combinations always occur and
+  you never see the status-line precedence. This also applies to
+  values that only appear together in one row (voltage and current):
+  with the same interval and the same list length, the pair repeats.
+* Buttons only change a `g_sim_` global. The device variant
+  (`homeassistant.service`) sits **commented out directly below it**.
+* No `api:` block — otherwise the invalidity check kicks in.
 
-Der Dial ist auf dem Gerät immer nur Anzeige und Taster. Die Wahrheit
-liegt bei Home Assistant beziehungsweise Node-RED; kein Zustand wird
-lokal gehalten.
-
----
-
-## 12. Struktur
-
-Das yaml ist in mehrere blöcke gegliedert um eine bessere modularität zu erhalten und um die reuseability zu erhöhen.
-Die struktur umfasst ein m5dial-fram.yaml, in welchem alle FRAM (Fram = der Name des Wohnmobiles) spezifischen Werte. Darunter befindet sich das m5dial-fram-cockpit.yaml, welches die Werte dieses speziellen m5dial enthält, wie z.B. der Ablauf der Pages, etc. Die letze Ebene bildet der ordner "m5dial_pages" im esphome folder. Dort sind alle pages gespeichert und können von allen m5dials in dem jeweiligen projekt wiederverwendet werden.
+On the device, the dial is always only a display and a set of buttons.
+The source of truth lives in Home Assistant and Node-RED respectively;
+no state is held locally.
 
 ---
 
-## 13. Checkliste Zusammenführen
+## 12. Structure
 
-1. Block A aller Seitendateien verwerfen, Hardware-Datei einsetzen.
-2. `substitutions:` **einmal** übernehmen, Werte müssen identisch sein.
-   Beim ersten Zusammenführen die Seiten prüfen, die noch auf einem
-   älteren Raster stehen — sie ändern sich dabei optisch.
-3. Block B: `platform: template` → `platform: homeassistant`, `entity_id`
-   eintragen. Sensor-IDs behalten.
-4. Taster-`on_click`: Sim-Lambda gegen den auskommentierten
-   `homeassistant.service`-Aufruf tauschen.
-5. Blöcke C und D unverändert einsetzen, D in der Reihenfolge der
-   Seitenindizes.
-6. `g_sim_`-Globals entfernen.
-7. Alle `on_boot`-Aufrufe der Zeichenskripte in **einen** `on_boot`-Block
-   zusammenfassen.
-8. Prüfen, dass keine ID doppelt vorkommt und keine Anzeige auf eine
-   gelöschte ID zeigt — das ist die häufigste Fehlerquelle.
-9. `esphome config` gegen die zusammengeführte Datei laufen lassen,
-   **bevor** geflasht wird.
+The yaml is split into several blocks to achieve better modularity and
+increase reusability. The structure consists of an m5dial-fram.yaml,
+which holds all FRAM-specific (Fram = the name of the motorhome)
+values. Below that sits the m5dial-fram-cockpit.yaml, which holds the
+values specific to this particular m5dial, such as the page order etc.
+The last layer is formed by the "m5dial_pages" folder in the esphome
+directory. All pages are stored there and can be reused by every
+m5dial in the respective project.
 
 ---
 
-## 14. Offene Punkte
+## 13. Merge checklist
 
-* **Farbe des nachrangigen Rings.** `0x9AA0A6` ist gesetzt, aber nur im
-  Simulator beurteilt. Am Gerät entscheiden, ob der Ring daneben zu laut
-  oder zu leise ist.
-* **`GAS A` / `GAS I`.** Die Beschriftung benennt den Ring und setzt
-  voraus, dass man „aussen/innen" auf die Ringe bezieht und nicht auf den
-  Gaskasten. Am Gerät prüfen, ob das ohne Erklärung trägt.
-* **Lesbarkeit von `montserrat_24`** im Zwei-Wert-Layout, aus
-  Fahrerposition. Falls zu klein: Literzeile streichen und auf 28 gehen.
-* **Beide Alarme gleichzeitig.** Die Statuszeile zeigt nur den höheren.
-  Ob das reicht oder ob es einen kombinierten Text braucht, zeigt sich
-  erst im Betrieb.
-* **Bestätigung für gefährliche Taster.** `MP OFF` nimmt Landstrom,
-  Ladung und 230 V weg; `RETRACT` auf der Nivellierungsseite fährt
-  Stützen ein. Beides sollte einen langen Druck oder eine Rückfrage
-  brauchen, nicht einen zweiten Klick im Durchschalten.
-* **Ebene 2 mit zwei Tastern.** Der Encoder muss zwischen den Tastern
-  einer Reihe wechseln können, nicht nur einen Wert verstellen.
-* **Sonderzeichen.** `°` wird auf der Temperatur- und Boilerseite
-  gebraucht; bei den internen montserrat-Schriften ist es enthalten, bei
-  einer eigenen Schrift müsste es in die Glyphenliste. Der Mittelpunkt
-  `·` ist nicht geprüft und wird bis dahin vermieden.
-* **Optische Höhe des Hauptwerts.** `72%` und `540 W` stehen auf
-  demselben `y_main`, wirken aber unterschiedlich hoch, weil das
-  Prozentzeichen weiter nach oben reicht. Erst beim echten Durchblättern
-  entscheiden, ob das stört.
+1. Discard block A of every page file, insert the hardware file.
+2. Adopt `substitutions:` **once**, values must be identical.
+   On the first merge, check the pages that are still on an older
+   grid — they'll change visually as a result.
+3. Block B: `platform: template` → `platform: homeassistant`, fill in
+   `entity_id`. Keep the sensor IDs.
+4. Button `on_click`: swap the sim lambda for the commented-out
+   `homeassistant.service` call.
+5. Insert blocks C and D unchanged, D in the order of the page indices.
+6. Remove `g_sim_` globals.
+7. Combine all `on_boot` calls of the drawing scripts into **one**
+   `on_boot` block.
+8. Check that no ID occurs twice and no display points to a deleted
+   ID — that's the most common source of error.
+9. Run `esphome config` against the merged file **before** flashing.
+
+---
+
+## 14. Open items
+
+* **Color of the secondary ring.** `0x9AA0A6` is set, but only judged
+  in the simulator. Decide on the device whether the ring next to it
+  is too loud or too quiet.
+* **`GAS A` / `GAS I`.** The label names the ring and assumes that
+  "outer/inner" is understood as referring to the rings and not the gas
+  locker. Check on the device whether that holds up without an
+  explanation.
+* **Legibility of `montserrat_24`** in the two-value layout, from the
+  driver's position. If too small: drop the liter line and go to 28.
+* **Both alarms at the same time.** The status line only shows the
+  higher one. Whether that's enough, or whether a combined message is
+  needed, will only show up in operation.
+* **Confirmation for dangerous buttons.** `MP OFF` takes away shore
+  power, charging, and 230 V; `RETRACT` on the leveling page retracts
+  the jacks. Both should require a long press or a confirmation prompt,
+  not just a second click while paging through.
+* **Level 2 with two buttons.** The encoder must be able to switch
+  between the buttons in a row, not just adjust one value.
+* **Special characters.** `°` is needed on the temperature and boiler
+  pages; it's included in the built-in montserrat fonts, but with a
+  custom font it would need to go into the glyph list. The middle dot
+  `·` is untested and avoided until then.
+* **Visual height of the main value.** `72%` and `540 W` sit on the
+  same `y_main` but appear to be at different heights, because the
+  percent sign reaches further up. Only decide whether this is a
+  problem once actually paging through on the real device.

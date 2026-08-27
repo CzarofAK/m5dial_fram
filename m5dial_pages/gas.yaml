@@ -1,38 +1,38 @@
 # =====================================================================
-#  sim_03_gas.yaml — Seite 3: Gas (zwei Flaschen, Duo-Umschaltung)
-#  FRAM M5Dial Cockpit · Simulator-Fassung (SDL2)
+#  sim_03_gas.yaml — page 3: Gas (two bottles, duo changeover)
+#  FRAM M5Dial Cockpit · simulator version (SDL2)
 #
 #      esphome run sim_03_gas.yaml
 #
-#  Darstellung nach Design.md §3/§4 — Doppelring, kein Halbarc:
-#    aussen 224 x 224, arc_width 10  -> r 102..112   GAS A
-#    innen  200 x 200, arc_width 10  -> r  90..100   GAS I
-#    beide 135 -> 45, Luecke unten fuer die Fusszeile
+#  Layout per design.md §3/§4 — double ring, no half arc:
+#    outer 224 x 224, arc_width 10  -> r 102..112   GAS A
+#    inner 200 x 200, arc_width 10  -> r  90..100   GAS I
+#    both 135 -> 45, gap at the bottom for the footer
 #
-#  ACHTUNG Rasteraenderung gegenueber Seite 1/2/4: der ganze Stapel
-#  liegt tiefer. Die Substitutions muessen laut §3 auf allen Seiten
-#  identisch sein -> Seiten 1, 2 und 4 nachziehen.
+#  NOTE grid change vs. page 1/2/4: the whole stack sits lower. Per §3
+#  the substitutions must be identical on all pages -> catch up pages
+#  1, 2 and 4.
 #
-#  Zeilenkaesten (LVGL-Zeilenhoehen m12 15, m16 20, m24 29, m40 49):
+#  Line boxes (LVGL line heights m12 15, m16 20, m24 29, m40 49):
 #    y_cap   -42  m12  -49.5 .. -34.5
-#    y_main  -20  m24  -34.5 ..  -5.5   (m40 auf Seite 1/2: -44.5 .. 4.5)
-#    y_line2  22  m16   12.0 ..  32.0   -> 7.5 px unter dem m40-Kasten
-#    y_row    54  Taster 39 .. 69       -> Eckenradius 86.4 < 90, passt
-#                                          auch auf Doppelring-Seiten
-#    y_footer -32 m12   80.5 ..  95.5   -> 11.5 px unter dem Taster
+#    y_main  -20  m24  -34.5 ..  -5.5   (m40 on page 1/2: -44.5 .. 4.5)
+#    y_line2  22  m16   12.0 ..  32.0   -> 7.5 px below the m40 box
+#    y_row    54  button 39 .. 69       -> corner radius 86.4 < 90, still
+#                                          fits on double-ring pages too
+#    y_footer -32 m12   80.5 ..  95.5   -> 11.5 px below the button
 #
-#  Breiten (Design.md §4, Innenradius 90 auf Doppelring-Seiten):
-#    Beschriftung Oberkante y -49.5 -> bis x +-75
-#      "GAS I" montserrat_12 ~35 px, Spalte bei x 40 reicht bis 57.5.
-#    Wert montserrat_24: "100%" ~54 px, Spalte hat ~82 px.
-#    Fusszeile in der Luecke (r 118): 152 px,
-#      laengster Text "KEINE VERBINDUNG" ~112 px.
+#  Widths (design.md §4, inner radius 90 on double-ring pages):
+#    label top edge y -49.5 -> up to x ±75
+#      "GAS I" montserrat_12 ~35 px, column at x 40 has room to 57.5.
+#    value montserrat_24: "100%" ~54 px, column has ~82 px.
+#    footer in the gap (r 118): 152 px,
+#      longest text "KEINE VERBINDUNG" (NO CONNECTION) ~112 px.
 #
-#  Aufbau nach Design.md §2:
-#    A Geruest       — entfaellt beim Zusammenfuehren
-#    B Datenquellen  — template -> homeassistant tauschen
-#    C Bindings      — 1:1 uebernehmen
-#    D Widgets       — 1:1 uebernehmen
+#  Structure per design.md §2:
+#    A Scaffold       — dropped when merging
+#    B Data sources   — swap template -> homeassistant
+#    C Bindings       — carry over 1:1
+#    D Widgets        — carry over 1:1
 # =====================================================================
 
 substitutions:
@@ -45,7 +45,7 @@ substitutions:
 
 
 # =====================================================================
-# BLOCK A — Geruest (nur Simulator)
+# BLOCK A — Scaffold (simulator only)
 # =====================================================================
 
 esphome:
@@ -60,7 +60,7 @@ host:
 logger:
   level: INFO
 
-# Kein api:-Block — sonst greift die Ungueltigkeitspruefung (Design.md §11)
+# No api: block — otherwise the invalidity check kicks in (design.md §11)
 
 display:
   - platform: sdl
@@ -76,25 +76,25 @@ touchscreen:
     id: sim_touch
     display: sim_display
 
-# Keine g_sim_-Globals: die Seite hat keinen Taster (Design.md §3 —
-# leerer Slot bleibt leer, es rueckt nichts nach).
+# No g_sim_ globals: the page has no button (design.md §3 — an empty
+# slot stays empty, nothing moves up).
 
 
 # =====================================================================
-# BLOCK B — Datenquellen
-#   Geraet: platform: template  ->  platform: homeassistant + entity_id
+# BLOCK B — Data sources
+#   Device: platform: template  ->  platform: homeassistant + entity_id
 #
-#   s_gas_a = Flasche auf dem Aussenring, s_gas_i = auf dem Innenring.
-#   Welche Flasche das physisch ist, entscheidet die entity_id.
+#   s_gas_a = bottle on the outer ring, s_gas_i = on the inner ring.
+#   Which bottle that physically is gets decided by the entity_id.
 #
-#   Unterschiedliche update_interval nach Design.md §11, sonst treten
-#   immer dieselben Kombinationen auf und man sieht die Rangfolge der
-#   Statuszeile nie.
+#   Different update_interval per design.md §11, otherwise the same
+#   combinations always occur and you never see the status-line
+#   precedence.
 # =====================================================================
 
 sensor:
   - platform: template
-    id: s_gas_a                # Aussenring, Fuellstand %
+    id: s_gas_a                # outer ring, fill level %
     update_interval: 800ms
     lambda: |-
       static float v = 100.0f;
@@ -103,7 +103,7 @@ sensor:
       return v;
     on_value:
       - script.execute: draw_gas
-    # Geraet:
+    # Device:
     # - platform: homeassistant
     #   id: s_gas_a
     #   entity_id: sensor.gasflasche_a_prozent
@@ -111,7 +111,7 @@ sensor:
     #     - script.execute: draw_gas
 
   - platform: template
-    id: s_gas_i                # Innenring, Fuellstand %
+    id: s_gas_i                # inner ring, fill level %
     update_interval: 1300ms
     lambda: |-
       static float v = 100.0f;
@@ -120,7 +120,7 @@ sensor:
       return v;
     on_value:
       - script.execute: draw_gas
-    # Geraet:
+    # Device:
     # - platform: homeassistant
     #   id: s_gas_i
     #   entity_id: sensor.gasflasche_i_prozent
@@ -129,21 +129,21 @@ sensor:
 
 
 # =====================================================================
-# BLOCK C — Bindings (Zeichenskript der Seite, Design.md §9)
-#   Beide Fuellstaende haengen ueber die Statuszeile zusammen -> ein
-#   Skript, die Sensoren rufen nur script.execute.
+# BLOCK C — Bindings (page drawing script, design.md §9)
+#   Both fill levels are linked via the status line -> one script, the
+#   sensors only call script.execute.
 #
-#   Fahrzeugfeste Konstante: Flascheninhalt 10.5 kg netto
-#   (CH-Standardflasche). Bei 11 kg (DE) oder 5 kg hier aendern —
-#   nicht in substitutions:, die muessen seitenuebergreifend gleich sein.
+#   Vehicle-fixed constant: bottle content 10.5 kg net (CH standard
+#   bottle). Change here for 11 kg (DE) or 5 kg — not in substitutions:,
+#   those must stay the same across all pages.
 #
-#   Schwellen je Flasche: Warnung < 25 %, Alarm < 10 %.
+#   Thresholds per bottle: warning < 25 %, alarm < 10 %.
 #
-#   Rangfolge Fusszeile (Duo-Umschaltung vorhanden):
-#     1  beide < 10 %   GAS LEER     rot     — kein Vorrat mehr
-#     2  beide < 25 %   GAS KNAPP    orange  — nachfuellen einplanen
-#     3  eine  < 10 %   GAS A/I LEER grau    — Hinweis, die Duo hat
-#                                              bereits umgeschaltet
+#   Footer precedence (duo changeover present):
+#     1  both < 10 %   GAS LEER (GAS EMPTY)  red    — no supply left
+#     2  both < 25 %   GAS KNAPP (GAS LOW)   orange — plan a refill
+#     3  one   < 10 %  GAS A/I LEER (A/I EMPTY) grey — heads-up, the duo
+#                                              has already switched over
 # =====================================================================
 
 script:
@@ -151,7 +151,7 @@ script:
     mode: restart
     then:
 
-      # ---- Aussenring ---------------------------------------------
+      # ---- Outer ring -----------------------------------------------
       - lvgl.arc.update:
           id: arc_gas_a
           value: !lambda |-
@@ -171,7 +171,7 @@ script:
               if (v < 25.0f) return lv_color_hex(0xF39C12);
               return lv_color_hex(0x4A9EFF);
 
-      # ---- Innenring ----------------------------------------------
+      # ---- Inner ring -------------------------------------------------
       - lvgl.arc.update:
           id: arc_gas_i
           value: !lambda |-
@@ -191,7 +191,7 @@ script:
               if (v < 25.0f) return lv_color_hex(0xF39C12);
               return lv_color_hex(0x9AA0A6);
 
-      # ---- Beschriftung aussen (traegt die Farbe des Aussenrings) --
+      # ---- Outer label (carries the outer ring's color) --------------
       - lvgl.label.update:
           id: lbl_gas_cap_a
           text_color: !lambda |-
@@ -204,7 +204,7 @@ script:
             if (v < 25.0f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0x4A9EFF);
 
-      # ---- Beschriftung innen (traegt die Farbe des Innenrings) ----
+      # ---- Inner label (carries the inner ring's color) ---------------
       - lvgl.label.update:
           id: lbl_gas_cap_i
           text_color: !lambda |-
@@ -217,7 +217,7 @@ script:
             if (v < 25.0f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0x9AA0A6);
 
-      # ---- Wert aussen, % -----------------------------------------
+      # ---- Outer value, % ----------------------------------------------
       - lvgl.label.update:
           id: lbl_gas_pct_a
           text: !lambda |-
@@ -236,7 +236,7 @@ script:
             if (v < 25.0f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0xFFFFFF);
 
-      # ---- Wert innen, % ------------------------------------------
+      # ---- Inner value, % -----------------------------------------------
       - lvgl.label.update:
           id: lbl_gas_pct_i
           text: !lambda |-
@@ -255,7 +255,7 @@ script:
             if (v < 25.0f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0xFFFFFF);
 
-      # ---- Absolutwert aussen, kg ---------------------------------
+      # ---- Outer absolute value, kg -------------------------------------
       - lvgl.label.update:
           id: lbl_gas_kg_a
           text: !lambda |-
@@ -271,7 +271,7 @@ script:
             if (!id(s_gas_a).has_state()) return lv_color_hex(0x555555);
             return lv_color_hex(0xBDC1C6);
 
-      # ---- Absolutwert innen, kg ----------------------------------
+      # ---- Inner absolute value, kg --------------------------------------
       - lvgl.label.update:
           id: lbl_gas_kg_i
           text: !lambda |-
@@ -287,7 +287,7 @@ script:
             if (!id(s_gas_i).has_state()) return lv_color_hex(0x555555);
             return lv_color_hex(0xBDC1C6);
 
-      # ---- Fusszeile: genau eine Meldung, im Normalfall leer -------
+      # ---- Footer: exactly one message, empty in normal operation --------
       - lvgl.label.update:
           id: lbl_gas_footer
           text: !lambda |-
@@ -332,7 +332,7 @@ lvgl:
       bg_opa: COVER
       widgets:
 
-        # --- Aussenring ------------------------------------------
+        # --- Outer ring --------------------------------------------
         - arc:
             id: arc_gas_a
             align: CENTER
@@ -352,8 +352,8 @@ lvgl:
             knob:
               bg_opa: TRANSP
 
-        # --- Innenring -------------------------------------------
-        #     Gleiche Dicke, 2 px Schwarz dazwischen (Design.md §4).
+        # --- Inner ring ----------------------------------------------
+        #     Same thickness, 2 px black between them (design.md §4).
         - arc:
             id: arc_gas_i
             align: CENTER
@@ -373,13 +373,13 @@ lvgl:
             knob:
               bg_opa: TRANSP
 
-        # --- TOP_MID / y 46: bleibt frei (Reserve Alarm-Icon)
+        # --- TOP_MID / y 46: stays free (reserved for alarm icon)
 
-        # --- Beschriftungszeile ----------------------------------
-        #     A = Aussenring, I = Innenring. Die Flaschen stehen
-        #     hintereinander, links/rechts waere falsch.
-        #     Zugleich einzige Zuordnung Spalte <-> Ring, deshalb
-        #     in Ringfarbe mitgefuehrt.
+        # --- Label row -------------------------------------------
+        #     A = outer ring, I = inner ring. The bottles sit one
+        #     behind the other, left/right would be wrong.
+        #     Also the only mapping between column and ring, hence
+        #     carried in the ring's color.
         - label:
             id: lbl_gas_cap_a
             align: CENTER
@@ -398,7 +398,7 @@ lvgl:
             text_font: montserrat_12
             text_color: 0x555555
 
-        # --- Wertzeile, montserrat_24 (Design.md §3/§5) ----------
+        # --- Value row, montserrat_24 (design.md §3/§5) ----------
         - label:
             id: lbl_gas_pct_a
             align: CENTER
@@ -417,7 +417,7 @@ lvgl:
             text_font: montserrat_24
             text_color: 0x555555
 
-        # --- Absolutzeile ----------------------------------------
+        # --- Absolute-value row ----------------------------------------
         - label:
             id: lbl_gas_kg_a
             align: CENTER
@@ -436,10 +436,10 @@ lvgl:
             text_font: montserrat_16
             text_color: 0x555555
 
-        # --- y_row bleibt leer: die Seite hat keinen Taster.
-        #     Nicht nachruecken lassen (Design.md §3).
+        # --- y_row stays empty: the page has no button.
+        #     Don't let anything move up to fill it (design.md §3).
 
-        # --- Fusszeile in der Bogenluecke ------------------------
+        # --- Footer in the arc gap ------------------------
         - label:
             id: lbl_gas_footer
             align: BOTTOM_MID

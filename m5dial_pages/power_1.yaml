@@ -1,25 +1,25 @@
 # ===========================================================================
-# FRAM M5Dial — Seite 1: Strom-Batterie
-# Standalone-Konfiguration fuer den SDL2-Simulator (host-Plattform)
+# FRAM M5Dial — page 1: Battery power
+# Standalone configuration for the SDL2 simulator (host platform)
 #
 #   esphome run sim_01_strom.yaml
 #
-# Aufbau der Datei (Reihenfolge ist Absicht):
-#   BLOCK A  Simulator-Gerüst    -> faellt beim Zusammenfuehren weg
-#   BLOCK B  Datenquellen        -> wird gegen homeassistant-Sensoren getauscht
-#   BLOCK C  Bindings            -> wandert 1:1 in die Zieldatei
-#   BLOCK D  Seiten-Widgets      -> wandert 1:1 in die Zieldatei
+# File structure (order is deliberate):
+#   BLOCK A  Simulator scaffold  -> dropped when merging
+#   BLOCK B  Data sources        -> swapped for homeassistant sensors
+#   BLOCK C  Bindings            -> carried over 1:1 into the target file
+#   BLOCK D  Page widgets        -> carried over 1:1 into the target file
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
-# LAYOUT-RASTER — auf allen Seiten identisch, damit beim Durchdrehen
-# nichts springt. Diese vier Werte in *jeder* Seitendatei gleich halten.
+# LAYOUT GRID — identical on all pages, so nothing jumps while paging
+# through. Keep these four values the same in *every* page file.
 #
-#   oben          frei (reserviert)
-#   y_main        Hauptwert, gross
-#   y_line2       Nebenzeile, klein
-#   y_row         Tasterreihe (1 oder 2 Taster)
-#   y_footer      Statuszeile unten, in der Luecke des Bogens
+#   top            free (reserved)
+#   y_main         main value, large
+#   y_line2        secondary line, small
+#   y_row          button row (1 or 2 buttons)
+#   y_footer       status line at the bottom, in the gap of the arc
 # ---------------------------------------------------------------------------
 substitutions:
   y_main: "-36"
@@ -28,15 +28,16 @@ substitutions:
   y_footer: "-32"
 
 # ---------------------------------------------------------------------------
-# SCHRIFTEN — LVGL-intern (montserrat), keine Font-Datei noetig.
-# Verfuegbar sind gerade Groessen von 8 bis 48.
+# FONTS — LVGL-internal (montserrat), no font file needed.
+# Only even sizes from 8 to 48 are available.
 #
-# Falls spaeter doch eine eigene Groteske: font-Block anlegen und die drei
-# Namen hier ersetzen. Die Nimbus-Variante sass vertikal schief im Taster.
+# If a custom grotesque is needed later: set up a font block and replace
+# the three names here. The Nimbus variant sat vertically skewed in the
+# button.
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
-# BLOCK A — Simulator-Gerüst
+# BLOCK A — Simulator scaffold
 # ---------------------------------------------------------------------------
 esphome:
   name: sim-01-strom
@@ -47,7 +48,7 @@ logger:
   level: INFO
 
 globals:
-  # nur fuer die Simulation: haelt den Parkmodus-Zustand lokal
+  # simulation only: holds the park-mode state locally
   - id: g_sim_park
     type: bool
     initial_value: "false"
@@ -67,13 +68,13 @@ touchscreen:
     display: disp
 
 # ---------------------------------------------------------------------------
-# BLOCK B — Datenquellen (SIMULATION)
+# BLOCK B — Data sources (SIMULATION)
 #
-# Auf dem Geraet werden diese drei Bloecke ersetzt durch:
+# On the device, these three blocks get replaced by:
 #   - platform: homeassistant
 #     entity_id: sensor.smartshunt_batterieladung
-# Die IDs (s_soc, s_starter_v, s_parkmode) bleiben gleich, damit BLOCK C
-# unveraendert uebernommen werden kann.
+# The IDs (s_soc, s_starter_v, s_parkmode) stay the same, so BLOCK C can be
+# carried over unchanged.
 # ---------------------------------------------------------------------------
 sensor:
   - platform: template
@@ -85,7 +86,7 @@ sensor:
       v -= 4.0f;
       if (v < 0.0f) v = 100.0f;
       return v;
-    # ---- ab hier BLOCK C: identisch mit der Geraetedatei ----
+    # ---- from here on BLOCK C: identical to the device file ----
     on_value:
       - lvgl.arc.update:
           id: arc_soc
@@ -145,8 +146,8 @@ sensor:
             if (x < 12.4f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0x707070);
 
-  # DC-System: Spannung und Strom des Aufbau-Akkus (SmartShunt)
-  #   Geraet: sensor.smartshunt_spannung / sensor.smartshunt_dc_bus_stromstarke
+  # DC system: voltage and current of the house battery (SmartShunt)
+  #   Device: sensor.smartshunt_spannung / sensor.smartshunt_dc_bus_stromstarke
   - platform: template
     id: s_batt_v
     update_interval: 2s
@@ -194,13 +195,13 @@ text_sensor:
 # ---------------------------------------------------------------------------
 # BLOCK C — Bindings
 #
-# Diese Trigger haengen in der Zieldatei an den homeassistant-Sensoren.
-# Die Gueltigkeitspruefung ist mit #ifdef USE_API geklammert: im Simulator
-# (kein api:) faellt sie weg, auf dem Geraet greift sie automatisch.
+# In the target file, these triggers hang off the homeassistant sensors.
+# The validity check is bracketed with #ifdef USE_API: in the simulator
+# (no api:) it drops out, on the device it kicks in automatically.
 # ---------------------------------------------------------------------------
-# Anmerkung zur Struktur: ESPHome erlaubt on_value nur direkt am Sensor,
-# darum stehen die Trigger oben in BLOCK B mit drin. Beim Zusammenfuehren
-# wandern sie mit dem jeweiligen Sensor mit.
+# Note on structure: ESPHome only allows on_value directly on the sensor,
+# so the triggers live up in BLOCK B alongside it. When merging, they move
+# along with their respective sensor.
 
 script:
   - id: draw_batt_dc
@@ -225,7 +226,7 @@ script:
             return lv_color_hex(0xBDC1C6);
 
 # ---------------------------------------------------------------------------
-# BLOCK D — Seite 1
+# BLOCK D — page 1
 # ---------------------------------------------------------------------------
 lvgl:
   displays: [disp]
@@ -256,8 +257,8 @@ lvgl:
             knob:
               bg_opa: TRANSP
 
-        # Kein Titel — der Bogen und die Prozentzahl sagen genug.
-        # Der obere Slot bleibt frei (Reserve, z.B. Alarm-Icon).
+        # No title — the arc and the percentage say enough.
+        # The top slot stays free (reserve, e.g. an alarm icon).
 
         - label:
             id: lbl_soc
@@ -267,7 +268,7 @@ lvgl:
             text_font: montserrat_40
             text_color: 0xFFFFFF
 
-        # DC-System unter dem SOC — Spannung und Lade-/Entladestrom
+        # DC system below the SOC — voltage and charge/discharge current
         - label:
             id: lbl_batt_dc
             align: CENTER
@@ -294,8 +295,8 @@ lvgl:
                   text_font: montserrat_16
                   text_color: 0xE8EAED
             on_click:
-              # SIM: schaltet nur den lokalen Global.
-              # GERAET: hier stattdessen homeassistant.service switch.toggle
+              # SIM: only toggles the local global.
+              # DEVICE: homeassistant.service switch.toggle here instead
               - lambda: 'id(g_sim_park) = !id(g_sim_park);'
 
         - label:

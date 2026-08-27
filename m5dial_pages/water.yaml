@@ -1,21 +1,21 @@
 # =====================================================================
-#  sim_04_wasser.yaml — Seite 4: Wasser (Frisch / Grau)
-#  FRAM M5Dial Cockpit · Simulator-Fassung (SDL2)
+#  sim_04_wasser.yaml — page 4: Water (Fresh / Grey)
+#  FRAM M5Dial Cockpit · simulator version (SDL2)
 #
 #      esphome run sim_04_wasser.yaml
 #
-#  Darstellung: zwei konzentrische Ringe (Victron-GUIv2-Art)
-#    aussen  224 x 224, arc_width 10  -> r 102..112  Frischwasser
-#    innen   200 x 200, arc_width 10  -> r  90..100  Grauwasser
-#    beide 135 -> 45, Lücke unten für die Fusszeile, 2 px Schwarz dazwischen
+#  Layout: two concentric rings (Victron GUIv2 style)
+#    outer 224 x 224, arc_width 10  -> r 102..112  fresh water
+#    inner 200 x 200, arc_width 10  -> r  90..100  grey water
+#    both 135 -> 45, gap at the bottom for the footer, 2 px black between
 #
-#  Nutzbarer Innenradius dadurch 90 px statt 102 px.
-#  Verfügbare Textbreite (r = 90):
+#  Usable inner radius therefore 90 px instead of 102 px.
+#  Available text width (r = 90):
 #    y 48 -> 152 px   y 56 -> 141 px   y 64 -> 127 px
-#  Fusszeile in der Lücke unverändert (r = 118): y 90 -> 152 px
+#  Footer in the gap unchanged (r = 118): y 90 -> 152 px
 #
-#  Aufbau nach DESIGN.md §2:
-#    A Gerüst / B Datenquellen / C Bindings / D Widgets
+#  Structure per DESIGN.md §2:
+#    A Scaffold / B Data sources / C Bindings / D Widgets
 # =====================================================================
 
 substitutions:
@@ -23,13 +23,12 @@ substitutions:
   y_line2:  "6"
   y_row:    "44"
   y_footer: "-32"
-  # Neu, für Seiten mit zwei gleichrangigen Werten (Gas, Wasser):
-  y_cap:    "-58"     # Beschriftungszeile über dem Hauptwert
-  x_col:    "40"      # Spaltenabstand vom Mittelpunkt
-
+  # New, for pages with two equal-ranked values (Gas, Water):
+  y_cap:    "-58"     # label row above the main value
+  x_col:    "40"      # column offset from the center
 
 # =====================================================================
-# BLOCK A — Gerüst (nur Simulator)
+# BLOCK A — Scaffold (simulator only)
 # =====================================================================
 
 esphome:
@@ -44,7 +43,7 @@ host:
 logger:
   level: INFO
 
-# Kein api:-Block — sonst greift die Ungültigkeitsprüfung (DESIGN.md §11)
+# No api: block — otherwise the invalidity check kicks in (DESIGN.md §11)
 
 display:
   - platform: sdl
@@ -61,7 +60,7 @@ touchscreen:
     display: sim_display
 
 globals:
-  # Nur Simulation: hält den Pumpenzustand, den sonst HA hält.
+  # Simulation only: holds the pump state, which HA otherwise holds.
   - id: g_sim_pump
     type: bool
     restore_value: false
@@ -69,13 +68,13 @@ globals:
 
 
 # =====================================================================
-# BLOCK B — Datenquellen
-#   Gerät: platform: template  ->  platform: homeassistant + entity_id
+# BLOCK B — Data sources
+#   Device: platform: template  ->  platform: homeassistant + entity_id
 # =====================================================================
 
 sensor:
   - platform: template
-    id: s_water_fresh          # Frischwasser, %
+    id: s_water_fresh          # fresh water, %
     update_interval: 800ms
     lambda: |-
       static float v = 100.0f;
@@ -84,7 +83,7 @@ sensor:
       return v;
     on_value:
       - script.execute: draw_water
-    # Gerät:
+    # Device:
     # - platform: homeassistant
     #   id: s_water_fresh
     #   entity_id: sensor.frischwasser_prozent
@@ -92,7 +91,7 @@ sensor:
     #     - script.execute: draw_water
 
   - platform: template
-    id: s_water_grey           # Grauwasser, %
+    id: s_water_grey           # grey water, %
     update_interval: 1100ms
     lambda: |-
       static float v = 0.0f;
@@ -101,7 +100,7 @@ sensor:
       return v;
     on_value:
       - script.execute: draw_water
-    # Gerät:
+    # Device:
     # - platform: homeassistant
     #   id: s_water_grey
     #   entity_id: sensor.grauwasser_prozent
@@ -110,11 +109,11 @@ sensor:
 
 binary_sensor:
   - platform: template
-    id: s_water_pump           # Wasserpumpe ein/aus
+    id: s_water_pump           # water pump on/off
     lambda: "return id(g_sim_pump);"
     on_state:
       - script.execute: draw_water
-    # Gerät:
+    # Device:
     # - platform: homeassistant
     #   id: s_water_pump
     #   entity_id: switch.wasserpumpe
@@ -123,15 +122,15 @@ binary_sensor:
 
 
 # =====================================================================
-# BLOCK C — Bindings (ein Zeichenskript pro Seite, DESIGN.md §9)
+# BLOCK C — Bindings (one drawing script per page, DESIGN.md §9)
 #
-#   Tankgrössen fahrzeugfest:  Frisch 180 L, Grau 90 L
-#   Schwellen:  Frisch  Warnung < 25 %, Alarm < 10 %
-#               Grau    Warnung >= 80 %, Alarm >= 95 %
+#   Vehicle-fixed tank sizes: fresh 180 L, grey 90 L
+#   Thresholds: fresh  warning < 25 %, alarm < 10 %
+#               grey   warning >= 80 %, alarm >= 95 %
 #
-#   Die Beschriftung FRISCH / GRAU trägt jeweils die Farbe ihres Rings —
-#   das ist die Zuordnung zwischen Zahl und Ring. Welcher Tank gemeint
-#   ist, steht trotzdem als Wort da (DESIGN.md §6).
+#   The FRISCH / GRAU (FRESH / GREY) label each carries the color of its
+#   ring — that's the mapping between number and ring. Which tank is
+#   meant is still spelled out as a word regardless (DESIGN.md §6).
 # =====================================================================
 
 script:
@@ -139,7 +138,7 @@ script:
     mode: restart
     then:
 
-      # ---- Aussenring: Frischwasser --------------------------------
+      # ---- Outer ring: fresh water -----------------------------------
       - lvgl.arc.update:
           id: arc_water_fresh
           value: !lambda |-
@@ -159,7 +158,7 @@ script:
               if (v < 25.0f) return lv_color_hex(0xF39C12);
               return lv_color_hex(0x4A9EFF);
 
-      # ---- Innenring: Grauwasser -----------------------------------
+      # ---- Inner ring: grey water --------------------------------------
       - lvgl.arc.update:
           id: arc_water_grey
           value: !lambda |-
@@ -179,7 +178,7 @@ script:
               if (v >= 80.0f) return lv_color_hex(0xF39C12);
               return lv_color_hex(0x9AA0A6);
 
-      # ---- Beschriftungszeile (Farbe = Ringfarbe) ------------------
+      # ---- Label row (color = ring color) ------------------------------
       - lvgl.label.update:
           id: lbl_water_cap_f
           text_color: !lambda |-
@@ -204,7 +203,7 @@ script:
             if (v >= 80.0f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0x9AA0A6);
 
-      # ---- Hauptzeile: beide Füllstände in % -----------------------
+      # ---- Main row: both fill levels in % -----------------------------
       - lvgl.label.update:
           id: lbl_water_pct_f
           text: !lambda |-
@@ -241,7 +240,7 @@ script:
             if (v >= 80.0f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0xFFFFFF);
 
-      # ---- Nebenzeile: beide Füllstände in Liter -------------------
+      # ---- Secondary row: both fill levels in liters --------------------
       - lvgl.label.update:
           id: lbl_water_l_f
           text: !lambda |-
@@ -272,7 +271,7 @@ script:
             if (!id(s_water_grey).has_state()) return lv_color_hex(0x555555);
             return lv_color_hex(0xBDC1C6);
 
-      # ---- Fusszeile: Statuszeile, im Normalfall leer --------------
+      # ---- Footer: status line, empty in normal operation ---------------
       - lvgl.label.update:
           id: lbl_water_status
           text: !lambda |-
@@ -283,9 +282,9 @@ script:
               return std::string("KEIN WERT");
             float f = id(s_water_fresh).state;
             float g = id(s_water_grey).state;
-            // Reihenfolge: erst Alarm, dann Warnung; bei gleichem Rang
-            // Abwasser vor Frischwasser (Überlauf ist Schaden, leerer
-            // Frischtank nur Unbequemlichkeit).
+            // Order: alarm first, then warning; on equal rank, grey water
+            // before fresh water (overflow is damage, an empty fresh tank
+            // is only an inconvenience).
             if (g >= 95.0f) return std::string("ABWASSER VOLL");
             if (f < 10.0f)  return std::string("FRISCHWASSER LEER");
             if (g >= 80.0f) return std::string("ABWASSER FAST VOLL");
@@ -302,7 +301,7 @@ script:
             if (f < 10.0f || g >= 95.0f) return lv_color_hex(0xE74C3C);
             return lv_color_hex(0xF39C12);
 
-      # ---- Taster: Wasserpumpe -------------------------------------
+      # ---- Button: water pump -------------------------------------------
       - lvgl.label.update:
           id: lbl_water_pump
           text: !lambda |-
@@ -350,7 +349,7 @@ lvgl:
       bg_opa: COVER
       widgets:
 
-        # --- Aussenring: Frischwasser
+        # --- Outer ring: fresh water
         - arc:
             id: arc_water_fresh
             align: CENTER
@@ -370,7 +369,7 @@ lvgl:
             knob:
               bg_opa: TRANSP
 
-        # --- Innenring: Grauwasser
+        # --- Inner ring: grey water
         - arc:
             id: arc_water_grey
             align: CENTER
@@ -390,7 +389,7 @@ lvgl:
             knob:
               bg_opa: TRANSP
 
-        # --- Beschriftungszeile
+        # --- Label row
         - label:
             id: lbl_water_cap_f
             align: CENTER
@@ -409,7 +408,7 @@ lvgl:
             text_font: montserrat_12
             text_color: 0x555555
 
-        # --- Hauptzeile (zwei gleichrangige Werte -> montserrat_24)
+        # --- Main row (two equal-ranked values -> montserrat_24)
         - label:
             id: lbl_water_pct_f
             align: CENTER
@@ -428,7 +427,7 @@ lvgl:
             text_font: montserrat_24
             text_color: 0x555555
 
-        # --- Nebenzeile
+        # --- Secondary row
         - label:
             id: lbl_water_l_f
             align: CENTER
@@ -447,7 +446,7 @@ lvgl:
             text_font: montserrat_16
             text_color: 0x555555
 
-        # --- Tasterreihe (ein Taster)
+        # --- Button row (one button)
         - button:
             id: btn_water_pump
             align: CENTER
@@ -466,16 +465,16 @@ lvgl:
                   text_font: montserrat_16
                   text_color: 0x555555
             on_click:
-              # Simulator: nur den g_sim_-Global kippen, der
-              # template-binary_sensor löst den Neuaufbau aus.
+              # Simulator: just flips the g_sim_ global, the
+              # template binary_sensor triggers the redraw.
               - lambda: "id(g_sim_pump) = !id(g_sim_pump);"
-              # Gerät:
+              # Device:
               # - homeassistant.service:
               #     service: switch.toggle
               #     data:
               #       entity_id: switch.wasserpumpe
 
-        # --- Fusszeile in der Bogenlücke
+        # --- Footer in the arc gap
         - label:
             id: lbl_water_status
             align: BOTTOM_MID
