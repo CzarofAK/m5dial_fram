@@ -1,0 +1,43 @@
+# =====================================================================
+#  m5dial_fram_cockpit.yaml — Geraetedatei
+#  Das Dial am Armaturenbrett, Fahrerposition.
+#
+#  Diese Datei legt ESPHome an; sie muss direkt in /config/esphome/
+#  liegen, das Dashboard listet keine Unterordner (os.listdir, nicht
+#  rekursiv). Die eingebundenen Dateien duerfen tiefer liegen.
+#
+#  Sie enthaelt selbst keine Widgets, keine Lambdas, keine Geometrie —
+#  nur vier Aussagen ueber DIESES Geraet:
+#    1. wie es heisst,
+#    2. wo Home ist,
+#    3. welche Seiten es zeigt,
+#    4. in welcher Reihenfolge.
+#
+#  DIE REIHENFOLGE DER SEITEN-PACKAGES IST DIE SEITENREIHENFOLGE.
+#  Umsortieren heisst, hier zwei Zeilen zu tauschen (design.md §10).
+#
+#  Ein zweites Dial im FRAM bekommt eine zweite Datei dieser Art und
+#  ansonsten dieselben Packages.
+# =====================================================================
+
+substitutions:
+  name: "m5dial-fram-cockpit"
+  friendly_name: "FRAM Cockpit"
+
+  # Seite, auf die Doppelklick und langer Druck zurueckspringen.
+  # Muss eine der unten eingebundenen Seiten sein.
+  home_page: "clock"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+
+packages:
+  basics: !include .basics.yaml
+  header: !include m5dial_fram.yaml
+
+  p0: !include m5dial/clock.yaml
+  p1: !include m5dial/power_1.yaml
+  p2: !include m5dial/power_2.yaml
+  p3: !include m5dial/gas.yaml
+  p4: !include m5dial/water.yaml
