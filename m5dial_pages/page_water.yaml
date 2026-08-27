@@ -1,7 +1,6 @@
 # =====================================================================
-#  m5dial/water.yaml — page: Water (Fresh / Grey)
-#  FRAM M5Dial Cockpit · page package (block B + C + D)
-#
+#  m5dial_pages/page_water.yaml — page: Water (Fresh / Grey)
+#  FRAM M5Dial Cockpit · page package
 #
 #  Double ring (design.md §4):
 #    outer 224 x 224 -> r 102..112   FRISCH (FRESH, the more important value)

@@ -1,7 +1,6 @@
 # =====================================================================
-#  m5dial/gas.yaml — page: Gas (two bottles)
-#  FRAM M5Dial Cockpit · page package (block B + C + D)
-#
+#  m5dial_pages/page_gas.yaml — page: Gas (two bottles)
+#  FRAM M5Dial Cockpit · page package
 #
 #  Double ring (design.md §4):
 #    outer 224 x 224, arc_width 10 -> r 102..112   GAS A (in use)

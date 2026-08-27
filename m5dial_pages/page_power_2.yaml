@@ -1,7 +1,6 @@
 # =====================================================================
-#  m5dial/power_2.yaml — page: Power / Grid (MultiPlus)
-#  FRAM M5Dial Cockpit · page package (block B + C + D)
-#
+#  m5dial_pages/page_power_2.yaml — page: Power / Grid (MultiPlus)
+#  FRAM M5Dial Cockpit · page package
 #
 #  Slots (design.md §3):
 #    y_main   1240W            montserrat_40

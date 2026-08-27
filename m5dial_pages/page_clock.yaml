@@ -1,5 +1,5 @@
 # =====================================================================
-#  m5dial/clock.yaml — page: Clock (SBB railway clock)
+#  m5dial_pages/page_clock.yaml — page: Clock (SBB railway clock)
 #  FRAM M5Dial Cockpit · page package
 #
 #  This is the version from fram_hw_v01.yaml that ran on the device —

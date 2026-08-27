@@ -36,8 +36,8 @@ packages:
   basics: !include .basics.yaml
   header: !include m5dial_fram.yaml
 
-  p0: !include m5dial/clock.yaml
-  p1: !include m5dial/power_1.yaml
-  p2: !include m5dial/power_2.yaml
-  p3: !include m5dial/gas.yaml
-  p4: !include m5dial/water.yaml
+  p0: !include m5dial_pages/page_clock.yaml
+  p1: !include m5dial_pages/page_power_1.yaml
+  p2: !include m5dial_pages/page_power_2.yaml
+  p3: !include m5dial_pages/page_gas.yaml
+  p4: !include m5dial_pages/page_water.yaml
