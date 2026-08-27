@@ -1,39 +1,39 @@
 # =====================================================================
-#  m5dial/clock.yaml — Seite: Uhr (SBB-Bahnhofsuhr)
-#  FRAM M5Dial Cockpit · Seiten-Package
+#  m5dial/clock.yaml — page: Clock (SBB railway clock)
+#  FRAM M5Dial Cockpit · page package
 #
-#  Das ist die Fassung aus fram_hw_v01.yaml, die auf dem Geraet lief —
-#  unveraendert bis auf die Zeitquelle und die IDs.
+#  This is the version from fram_hw_v01.yaml that ran on the device —
+#  unchanged apart from the time source and the IDs.
 #
-#  Bewusst NICHT drin, weil es in dieser Form nie auf der Hardware war:
-#    - kein `obj` als Zifferblatt unter der Leinwand. Bei
-#      `show_face: false` und opaker Leinwand zeichnet die Komponente
-#      den schwarzen Grund selbst; ein zweites 240x240-Objekt mit
-#      radius 120 darunter muesste LVGL pro Frame zusaetzlich
-#      komponieren — und LVGL hat schon vorher 147 ms gemeldet.
-#    - keine mode_day/mode_night-Skripte mit C++-Settern. design.md §6:
-#      Tag und Nacht unterscheiden sich NUR in der Backlight-Helligkeit,
-#      nie im Farbschema. Das erledigt apply_daynight im Header.
+#  Deliberately NOT included, because it was never on the hardware in
+#  this form:
+#    - no `obj` as a dial face underneath the canvas. With
+#      `show_face: false` and an opaque canvas, the component draws the
+#      black background itself; a second 240x240 object with radius 120
+#      underneath it would make LVGL compose an extra layer every
+#      frame — and LVGL had already reported 147 ms even without it.
+#    - no mode_day/mode_night scripts with C++ setters. design.md §6:
+#      day and night differ ONLY in backlight brightness, never in the
+#      color scheme. apply_daynight in the header handles that.
 #
-#  Farben: schwarzes Blatt, weisse Zeiger und Marken, roter
-#  Sekundenzeiger — in Tag und Nacht gleich, der Sekundenzeiger also
-#  immer rot.
+#  Colors: black face, white hands and ticks, red second hand — same in
+#  day and night, so the second hand is always red.
 #
-#  Leinwand: TRANSPARENT, damit Datum und Temperatur UNTER den Zeigern
-#  liegen. Reihenfolge in widgets: = z-Ordnung, frueher heisst weiter
-#  unten:  1. Zifferblatt (obj)  2. Datum + Temperatur  3. Zeiger.
+#  Canvas: TRANSPARENT, so date and temperature sit UNDER the hands.
+#  Order in widgets: = z-order, earlier means further down:
+#  1. dial face (obj)  2. date + temperature  3. hands.
 #
-#  RAM: transparent heisst ARGB8888, 4 Byte/px, 240*240*4 = 230 kB.
-#  Der letzte Build meldet 226'685 Byte freien DIRAM — das ist knapp
-#  DARUNTER. Wenn die Allokation scheitert, schaltet sich das Widget ab
-#  und loggt einen Fehler; die Uhr bleibt dann schwarz, das Geraet
-#  stuerzt nicht ab. Genau danach im Log suchen.
-#  Falls es nicht reicht: width/height auf 200 (ARGB8888 = 160 kB), das
-#  Zifferblatt-obj bleibt bei 240 und der Rand bleibt gleich.
+#  RAM: transparent means ARGB8888, 4 bytes/px, 240*240*4 = 230 kB.
+#  The last build reports 226,685 bytes of free DIRAM — that's just
+#  UNDER it. If the allocation fails, the widget disables itself and
+#  logs an error; the clock then stays black, the device doesn't crash.
+#  Look for exactly that right after in the log.
+#  If it's not enough: set width/height to 200 (ARGB8888 = 160 kB), the
+#  dial-face obj stays at 240 and the border stays the same.
 #
-#  `direct_draw` waere der elegante Ausweg (kein Canvas, kein Kopieren),
-#  ist laut Header der Komponente aber "clockclock24 only for now" und
-#  fuer style: analog nicht verfuegbar.
+#  `direct_draw` would be the elegant way out (no canvas, no copying),
+#  but per the component's own header it's "clockclock24 only for now"
+#  and not available for style: analog.
 # =====================================================================
 
 external_components:
@@ -44,10 +44,10 @@ external_components:
     refresh: 1d
     components: [lvgl_clock]
 
-# Markerschluessel — ohne ihn laedt ESPHome den Code der Komponente nicht.
+# Marker key — without it ESPHome won't load the component's code.
 lvgl_clock:
 
-# Die Komponente nimmt Farben als color:-Objekte, nicht als Hexzahlen.
+# The component takes colors as color: objects, not as hex numbers.
 color:
   - id: col_ink
     hex: FFFFFF
@@ -57,18 +57,18 @@ color:
     hex: E74C3C
 
 # ---------------------------------------------------------------------
-#  B + C  Datenquellen und Bindings
+#  B + C  Data sources and bindings
 # ---------------------------------------------------------------------
-#  Die Zeiger zeichnet die Komponente selbst. Hier laufen nur Datum und
-#  Aussentemperatur.
+#  The component draws the hands itself. Only date and outdoor
+#  temperature run here.
 sensor:
   - id: !extend s_aussentemp
     on_value:
       - script.execute: draw_clock
 
 interval:
-  # Einmal pro Minute reicht: die Uhr zeichnet sich selbst, hier
-  # aendert sich nur das Datum.
+  # Once a minute is enough: the clock draws itself, only the date
+  # changes here.
   - interval: 60s
     then:
       - script.execute: draw_clock
@@ -82,7 +82,7 @@ script:
           text: !lambda |-
             auto t = id(homeassistant_time).now();
             if (!t.is_valid()) return std::string("--.--.----");
-            // day_of_week: 1 = Sonntag
+            // day_of_week: 1 = Sunday
             static const char *wd[] = {"So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"};
             return str_sprintf("%s, %02d.%02d.%04d", wd[t.day_of_week - 1],
                                t.day_of_month, t.month, t.year);
@@ -117,13 +117,13 @@ esphome:
 lvgl:
   pages:
     - id: page_clock
-      # Die Seite ist per LVGL-Default deckend WEISS und liegt ueber dem
-      # bottom_layer — ohne das hier waere Weiss auf Weiss.
+      # By LVGL default the page is opaque WHITE and sits over the
+      # bottom_layer — without this line it would be white on white.
       bg_color: 0x000000
       bg_opa: COVER
       widgets:
-        # 1. Zifferblatt. Zeichnet das Widget bei transparent: true NICHT
-        #    mehr selbst, deshalb hier als eigenes Objekt ganz unten.
+        # 1. Dial face. With transparent: true the widget no longer
+        #    draws it itself, hence its own object at the very bottom.
         - obj:
             id: clk_dial
             align: CENTER
@@ -137,7 +137,7 @@ lvgl:
             pad_all: 0
             scrollbar_mode: "OFF"
 
-        # 2. Temperatur und Datum — ueber dem Blatt, UNTER den Zeigern.
+        # 2. Temperature and date — above the face, UNDER the hands.
         - label:
             id: lbl_clock_temp
             align: CENTER
@@ -154,7 +154,7 @@ lvgl:
             text_font: montserrat_16
             text_color: 0x555555
 
-        # 3. Zeiger und Marken zuoberst, transparente Leinwand.
+        # 3. Hands and ticks on top, transparent canvas.
         - lvgl_clock:
             id: clock_face
             time_id: homeassistant_time
@@ -164,9 +164,9 @@ lvgl:
             style: analog
             twenty_four_hour: true
             show_seconds: true
-            # 33ms waeren 30 fps dauerhaft nur fuer den Sekundenzeiger,
-            # also zwei Drittel der SPI-Bandbreite — auch dann, wenn eine
-            # andere Seite im Vordergrund steht. 100ms reicht fuers Auge.
+            # 33ms would be a steady 30 fps just for the second hand,
+            # i.e. two thirds of the SPI bandwidth — even while another
+            # page is in the foreground. 100ms is enough for the eye.
             render_interval: 100ms
             transparent: true
             foreground: col_ink

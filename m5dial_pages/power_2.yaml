@@ -1,31 +1,31 @@
 # ===========================================================================
-# FRAM M5Dial — Seite 2: Strom-Netz
-# Standalone-Konfiguration fuer den SDL2-Simulator (host-Plattform)
+# FRAM M5Dial — page 2: Grid power
+# Standalone configuration for the SDL2 simulator (host platform)
 #
 #   esphome run sim_02_netz.yaml
 #
-#   BLOCK A  Simulator-Gerüst    -> faellt beim Zusammenfuehren weg
-#   BLOCK B  Datenquellen        -> wird gegen homeassistant-Sensoren getauscht
-#   BLOCK C  Bindings            -> wandert 1:1 in die Zieldatei
-#   BLOCK D  Seiten-Widgets      -> wandert 1:1 in die Zieldatei
+#   BLOCK A  Simulator scaffold  -> dropped when merging
+#   BLOCK B  Data sources        -> swapped for homeassistant sensors
+#   BLOCK C  Bindings            -> carried over 1:1 into the target file
+#   BLOCK D  Page widgets        -> carried over 1:1 into the target file
 #
-# Abweichung zu Seite 1: die Anzeigen haengen von mehreren Werten ab
-# (Eingangsleistung, Strombegrenzung, Modus). Darum zeichnet ein Skript
-# draw_grid die ganze Seite, und jeder Sensor ruft es nur auf.
+# Difference from page 1: the displays depend on several values (input
+# power, current limit, mode). That's why a script, draw_grid, draws the
+# whole page, and each sensor just calls it.
 #
-# Layout: Hauptwert Eingangsleistung, Nebenzeile MP-Zustand, Tasterreihe
-# Modus | Strombegrenzung. Die Fusszeile (y_footer) bleibt hier frei.
+# Layout: main value input power, secondary line MP state, button row
+# mode | current limit. The footer (y_footer) stays free here.
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
-# LAYOUT-RASTER — auf allen Seiten identisch, damit beim Durchdrehen
-# nichts springt. Diese vier Werte in *jeder* Seitendatei gleich halten.
+# LAYOUT GRID — identical on all pages, so nothing jumps while paging
+# through. Keep these four values the same in *every* page file.
 #
-#   oben          frei (reserviert)
-#   y_main        Hauptwert, gross
-#   y_line2       Nebenzeile, klein
-#   y_row         Tasterreihe (1 oder 2 Taster)
-#   y_footer      Statuszeile unten, in der Luecke des Bogens
+#   top            free (reserved)
+#   y_main         main value, large
+#   y_line2        secondary line, small
+#   y_row          button row (1 or 2 buttons)
+#   y_footer       status line at the bottom, in the gap of the arc
 # ---------------------------------------------------------------------------
 substitutions:
   y_main: "-36"
@@ -34,15 +34,16 @@ substitutions:
   y_footer: "-32"
 
 # ---------------------------------------------------------------------------
-# SCHRIFTEN — LVGL-intern (montserrat), keine Font-Datei noetig.
-# Verfuegbar sind gerade Groessen von 8 bis 48.
+# FONTS — LVGL-internal (montserrat), no font file needed.
+# Only even sizes from 8 to 48 are available.
 #
-# Falls spaeter doch eine eigene Groteske: font-Block anlegen und die drei
-# Namen hier ersetzen. Die Nimbus-Variante sass vertikal schief im Taster.
+# If a custom grotesque is needed later: set up a font block and replace
+# the three names here. The Nimbus variant sat vertically skewed in the
+# button.
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
-# BLOCK A — Simulator-Gerüst
+# BLOCK A — Simulator scaffold
 # ---------------------------------------------------------------------------
 esphome:
   name: sim-02-netz
@@ -53,7 +54,7 @@ logger:
   level: INFO
 
 globals:
-  # nur fuer die Simulation: halten Modus und Strombegrenzung lokal
+  # simulation only: hold mode and current limit locally
   - id: g_sim_limit
     type: float
     initial_value: "10.0f"
@@ -76,14 +77,14 @@ touchscreen:
     display: disp
 
 # ---------------------------------------------------------------------------
-# BLOCK B — Datenquellen (SIMULATION)
+# BLOCK B — Data sources (SIMULATION)
 #
-# Auf dem Geraet:
+# On the device:
 #   s_grid_w     -> sensor.multiplus_0_leitung_1_eingangsleistung
-#   s_mp_limit   -> number.multiplus_eingangsstrombegrenzung   # <-- anpassen
+#   s_mp_limit   -> number.multiplus_eingangsstrombegrenzung   # <-- adjust
 #   s_mp_state   -> sensor.multiplus_zustand
-#   s_mp_mode    -> select.multiplus_modus                     # <-- anpassen
-# IDs bleiben gleich, damit BLOCK C unveraendert uebernommen werden kann.
+#   s_mp_mode    -> select.multiplus_modus                     # <-- adjust
+# IDs stay the same, so BLOCK C can be carried over unchanged.
 # ---------------------------------------------------------------------------
 sensor:
   - platform: template
@@ -138,7 +139,7 @@ script:
   - id: draw_grid
     mode: restart
     then:
-      # ---- Auslastung des Landstromanschlusses in % der Begrenzung --------
+      # ---- Shore-power connection load, in % of the limit ------------------
       - lvgl.arc.update:
           id: arc_grid
           value: !lambda |-
@@ -166,7 +167,7 @@ script:
               if (pct >= 80.0f) return lv_color_hex(0xF39C12);
               return lv_color_hex(0x4A9EFF);
 
-      # ---- Eingangsleistung ----------------------------------------------
+      # ---- Input power ----------------------------------------------------
       - lvgl.label.update:
           id: lbl_grid_w
           text: !lambda |-
@@ -182,7 +183,7 @@ script:
             if (!id(s_grid_w).has_state()) return lv_color_hex(0x555555);
             return lv_color_hex(0xFFFFFF);
 
-      # ---- MP-Zustand ------------------------------------------------------
+      # ---- MP state ------------------------------------------------------
       - lvgl.label.update:
           id: lbl_mp_state
           text: !lambda |-
@@ -201,7 +202,7 @@ script:
             if (id(s_mp_state).state == "fault") return lv_color_hex(0xE74C3C);
             return lv_color_hex(0xBDC1C6);
 
-      # ---- Strombegrenzung: Button-Beschriftung ---------------------------
+      # ---- Current limit: button label ---------------------------------
       - lvgl.label.update:
           id: lbl_mp_limit
           text: !lambda |-
@@ -211,7 +212,7 @@ script:
             if (!id(s_mp_limit).has_state()) return std::string("--- A");
             return str_sprintf("%.0f A", id(s_mp_limit).state);
 
-      # ---- Modus: Button-Beschriftung und Farbe ---------------------------
+      # ---- Mode: button label and color ---------------------------------
       - lvgl.label.update:
           id: lbl_mp_mode
           text: !lambda |-
@@ -247,7 +248,7 @@ script:
             return lv_color_hex(0x3C4043);
 
 # ---------------------------------------------------------------------------
-# BLOCK D — Seite 2
+# BLOCK D — page 2
 # ---------------------------------------------------------------------------
 lvgl:
   displays: [disp]
@@ -278,7 +279,7 @@ lvgl:
             knob:
               bg_opa: TRANSP
 
-        # Kein Titel — der obere Slot bleibt frei, wie auf Seite 1.
+        # No title — the top slot stays free, same as on page 1.
 
         - label:
             id: lbl_grid_w
@@ -289,7 +290,7 @@ lvgl:
             text_color: 0xFFFFFF
 
 
-        # Zwei Taster nebeneinander: links Modus, rechts Strombegrenzung
+        # Two buttons side by side: left mode, right current limit
         - button:
             id: btn_mp_mode
             align: CENTER
@@ -309,8 +310,8 @@ lvgl:
                   text_font: montserrat_16
                   text_color: 0xE8EAED
             on_click:
-              # SIM: schaltet ON -> CHG -> INV -> OFF -> ON durch.
-              # GERAET: stattdessen
+              # SIM: cycles ON -> CHG -> INV -> OFF -> ON.
+              # DEVICE: instead
               #   - homeassistant.service:
               #       service: select.select_option
               #       data:
@@ -339,8 +340,8 @@ lvgl:
                   text_font: montserrat_16
                   text_color: 0xE8EAED
             on_click:
-              # SIM: schaltet 4 -> 6 -> 8 -> 10 -> 13 -> 16 -> 4 A durch.
-              # GERAET: stattdessen
+              # SIM: cycles 4 -> 6 -> 8 -> 10 -> 13 -> 16 -> 4 A.
+              # DEVICE: instead
               #   - homeassistant.service:
               #       service: number.set_value
               #       data:
@@ -355,7 +356,7 @@ lvgl:
                     if (v >= steps[i] - 0.5f) idx = i;
                   id(g_sim_limit) = steps[(idx + 1) % 6];
 
-        # Nebenzeile, gleicher Slot wie die DC-Werte auf Seite 1
+        # Secondary line, same slot as the DC values on page 1
         - label:
             id: lbl_mp_state
             align: CENTER

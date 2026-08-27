@@ -1,19 +1,19 @@
 # =====================================================================
-#  m5dial/strom2.yaml — Seite: Strom / Netz (MultiPlus)
-#  FRAM M5Dial Cockpit · Seiten-Package (Block B + C + D)
+#  m5dial/strom2.yaml — page: Power / Grid (MultiPlus)
+#  FRAM M5Dial Cockpit · page package (block B + C + D)
 #
 #
 #  Slots (design.md §3):
 #    y_main   1240W            montserrat_40
 #    y_line2  ABSORPTION       montserrat_16
-#    y_row    zwei Taster      je 76 x 30, x ±${x_col}
-#    y_footer Statuszeile      montserrat_12
+#    y_row    two buttons      76 x 30 each, x ±${x_col}
+#    y_footer status line      montserrat_12
 #
-#  Der Arc zeigt die Auslastung in Prozent der eingestellten
-#  Strombegrenzung (design.md §8: nie eine physikalische Grösse).
-#  Breitenprüfung y_line2: "ABSORPTION" montserrat_16 ≈ 92 px,
-#  verfügbar bei y 25 rund 197 px. Passt.
-#  Taster: 3–4 Zeichen (design.md §8) — ON / CHG / INV / OFF, "16 A".
+#  The arc shows the load as a percentage of the configured current
+#  limit (design.md §8: never a physical quantity).
+#  Width check y_line2: "ABSORPTION" montserrat_16 ≈ 92 px, about 197 px
+#  available at y 25. Fits.
+#  Button: 3–4 characters (design.md §8) — ON / CHG / INV / OFF, "16 A".
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -46,11 +46,12 @@ text_sensor:
   - platform: homeassistant
     id: s_strom2_mode
     entity_id: select.multiplus
-    # Der Taster zeigt drei Zeichen (design.md §8). Die Kuerzung steht
-    # hier als Filter, damit Block C und D sie nicht kennen muessen.
+    # The button shows three characters (design.md §8). The shortening
+    # lives here as a filter, so blocks C and D don't need to know
+    # about it.
     filters:
       - lambda: |-
-          // Optionen von select.multiplus:
+          // Options of select.multiplus:
           //   charger_only · inverter_only · on · off
           std::string s = x;
           if (s == "on") return std::string("ON");
@@ -61,8 +62,8 @@ text_sensor:
       - script.execute: draw_strom2
 
 script:
-  # OFFENER PUNKT (design.md §13): der Sprung nach OFF nimmt Landstrom,
-  # Ladung und 230 V weg und sollte einen langen Druck brauchen.
+  # OPEN ITEM (design.md §13): the jump to OFF takes away shore power,
+  # charging, and 230 V, and should require a long press.
   - id: act_strom2_mode
     then:
       - homeassistant.service:
@@ -90,8 +91,8 @@ script:
             value: "{{ val }}"
           variables:
             val: |-
-              // naechster Wert nach oben, mit Einrasten auf die Liste,
-              // falls HA einen Zwischenwert liefert (etwa 10.5)
+              // next value up, snapping to the list in case HA
+              // returns an in-between value (e.g. 10.5)
               static const float t[] = {4.0f, 6.0f, 8.0f, 10.0f, 13.0f, 16.0f};
               float cur = id(s_strom2_limit).has_state() ? id(s_strom2_limit).state : 4.0f;
               for (int i = 0; i < 6; i++)
@@ -101,7 +102,7 @@ script:
   - id: draw_strom2
     mode: restart
     then:
-      # ---- Bogen: Auslastung in % der Begrenzung -------------------
+      # ---- Arc: load as % of the limit -------------------------------
       - lvgl.arc.update:
           id: arc_strom2
           value: !lambda |-
@@ -127,7 +128,7 @@ script:
               if (p >= 80.0f) return lv_color_hex(0xF39C12);
               return lv_color_hex(0x4A9EFF);
 
-      # ---- Hauptwert: Eingangsleistung -----------------------------
+      # ---- Main value: input power -----------------------------------
       - lvgl.label.update:
           id: lbl_strom2_w
           text: !lambda |-
@@ -150,7 +151,7 @@ script:
             if (p >= 80.0f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0xFFFFFF);
 
-      # ---- Nebenzeile: MP-Zustand ----------------------------------
+      # ---- Secondary line: MP state ------------------------------------
       - lvgl.label.update:
           id: lbl_strom2_state
           text: !lambda |-
@@ -158,10 +159,10 @@ script:
             if (!api_is_connected()) return std::string("---");
             #endif
             if (!id(s_strom2_state).has_state()) return std::string("---");
-            // Optionen kommen als snake_case: bulk, absorption, float,
+            // Options come as snake_case: bulk, absorption, float,
             // inverting, fault, power_assist, scheduled_recharging, ...
-            // Laengster Fall "SCHEDULED RECHARGING" = 20 Zeichen ~184 px,
-            // bei y_line2 stehen 197 px zur Verfuegung (design.md §4).
+            // Longest case "SCHEDULED RECHARGING" = 20 characters ~184 px,
+            // 197 px are available at y_line2 (design.md §4).
             std::string s = id(s_strom2_state).state;
             for (auto &c : s) { if (c == '_') c = ' '; else c = ::toupper(c); }
             return s;
@@ -175,7 +176,7 @@ script:
             if (s == "off" || s == "low_power") return lv_color_hex(0x707070);
             return lv_color_hex(0xBDC1C6);
 
-      # ---- Taster links: Modus -------------------------------------
+      # ---- Left button: mode -------------------------------------------
       - lvgl.label.update:
           id: lbl_strom2_mode
           text: !lambda |-
@@ -217,7 +218,7 @@ script:
             if (m == "INV") return lv_color_hex(0xF39C12);
             return lv_color_hex(0x3C4043);
 
-      # ---- Taster rechts: Strombegrenzung --------------------------
+      # ---- Right button: current limit ----------------------------------
       - lvgl.label.update:
           id: lbl_strom2_limit
           text: !lambda |-
@@ -247,7 +248,7 @@ script:
             if (!id(s_strom2_limit).has_state()) return lv_color_hex(0x3C4043);
             return lv_color_hex(0x4A9EFF);
 
-      # ---- Statuszeile ---------------------------------------------
+      # ---- Status line ---------------------------------------------
       - lvgl.label.update:
           id: lbl_strom2_status
           text: !lambda |-
@@ -286,9 +287,10 @@ esphome:
 lvgl:
   pages:
     - id: page_strom2
-      # Eine LVGL-Seite ist per Default ein deckend WEISSES Objekt und
-      # liegt ueber dem bottom_layer aus dem Header. Ohne diese zwei
-      # Zeilen steht alles auf weissem Grund (Korrektur zu design.md §8).
+      # An LVGL page is by default an opaque WHITE object and sits over
+      # the bottom_layer from the header. Without these two lines
+      # everything sits on a white background (correction to design.md
+      # §8).
       bg_color: 0x000000
       bg_opa: COVER
       widgets:

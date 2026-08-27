@@ -1,34 +1,35 @@
 # =====================================================================
-#  m5dial/gas.yaml — Seite: Gas (zwei Flaschen)
-#  FRAM M5Dial Cockpit · Seiten-Package (Block B + C + D)
+#  m5dial/gas.yaml — page: Gas (two bottles)
+#  FRAM M5Dial Cockpit · page package (block B + C + D)
 #
 #
-#  Doppelring (design.md §4):
-#    aussen 224 x 224, arc_width 10 -> r 102..112   GAS A (in Betrieb)
-#    innen  200 x 200, arc_width 10 -> r  90..100   GAS I (Reserve)
-#    beide 135 -> 45. Nutzbarer Innenradius dadurch 90 px.
+#  Double ring (design.md §4):
+#    outer 224 x 224, arc_width 10 -> r 102..112   GAS A (in use)
+#    inner 200 x 200, arc_width 10 -> r  90..100   GAS I (reserve)
+#    both 135 -> 45. Usable inner radius therefore 90 px.
 #
-#  Zwei-Wert-Layout (design.md §3), beide Spalten auf x ±${x_col}:
-#    y_cap    GAS A / GAS I    montserrat_12, Farbe des Rings
+#  Two-value layout (design.md §3), both columns on x ±${x_col}:
+#    y_cap    GAS A / GAS I    montserrat_12, color of the ring
 #    y_main   72%              montserrat_24
 #    y_line2  7.6 kg           montserrat_16, 0xBDC1C6
-#    y_row    frei (kein Taster)
-#    y_footer Statuszeile
+#    y_row    free (no button)
+#    y_footer status line
 #
-#  Breitenprüfung: "GAS I" montserrat_12 ≈ 57.5 px, bei y_cap -42 steht
-#  bis x ±75 zur Verfügung. "100%" montserrat_24 ≈ 54 px, Spalte ~82 px.
-#  Fusszeile "GAS A LEER" ≈ 66 px, in der Lücke bei y 90 sind es 152 px.
+#  Width check: "GAS I" montserrat_12 ≈ 57.5 px, at y_cap -42 there's
+#  room up to x ±75. "100%" montserrat_24 ≈ 54 px, column ~82 px.
+#  Footer "GAS A LEER" (GAS A EMPTY) ≈ 66 px, in the gap at y 90 there's
+#  152 px.
 #
-#  Die Beschriftung benennt den RING, nicht die Einbaulage: zwei
-#  Flaschen stehen hintereinander, und konzentrische Ringe haben kein
-#  Links und kein Rechts (design.md §3).
+#  The label names the RING, not the mounting position: two bottles sit
+#  one behind the other, and concentric rings have no left and no right
+#  (design.md §3).
 # =====================================================================
 
 # ---------------------------------------------------------------------
 #  C  Bindings
 # ---------------------------------------------------------------------
-# Welche Flasche physisch am Aussenring haengt, entscheidet allein die
-# entity_id (design.md §10).
+# Which bottle is physically connected to the outer ring is decided
+# solely by the entity_id (design.md §10).
 sensor:
   - platform: homeassistant
     id: s_gas_a
@@ -45,7 +46,7 @@ script:
   - id: draw_gas
     mode: restart
     then:
-      # ---- Aussenring: GAS A ---------------------------------------
+      # ---- Outer ring: GAS A -----------------------------------------
       - lvgl.arc.update:
           id: arc_gas_a
           value: !lambda |-
@@ -62,7 +63,7 @@ script:
               if (v < 25.0f) return lv_color_hex(0xF39C12);
               return lv_color_hex(0x4A9EFF);
 
-      # ---- Innenring: GAS I ----------------------------------------
+      # ---- Inner ring: GAS I ------------------------------------------
       - lvgl.arc.update:
           id: arc_gas_i
           value: !lambda |-
@@ -79,7 +80,7 @@ script:
               if (v < 25.0f) return lv_color_hex(0xF39C12);
               return lv_color_hex(0x9AA0A6);
 
-      # ---- Spaltenbeschriftung, trägt die Ringfarbe ----------------
+      # ---- Column label, carries the ring color --------------------
       - lvgl.label.update:
           id: lbl_gas_cap_a
           text_color: !lambda |-
@@ -103,7 +104,7 @@ script:
             if (v < 25.0f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0x9AA0A6);
 
-      # ---- Prozentwerte --------------------------------------------
+      # ---- Percentage values -----------------------------------------
       - lvgl.label.update:
           id: lbl_gas_pct_a
           text: !lambda |-
@@ -139,9 +140,9 @@ script:
             if (v < 25.0f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0xFFFFFF);
 
-      # ---- Absolutwerte --------------------------------------------
-      # Fahrzeugfeste Konstante als Literal (design.md §9):
-      # Gasflasche 10.5 kg netto.
+      # ---- Absolute values ---------------------------------------------
+      # Vehicle-fixed constant as a literal (design.md §9):
+      # gas bottle 10.5 kg net.
       - lvgl.label.update:
           id: lbl_gas_kg_a
           text: !lambda |-
@@ -171,10 +172,10 @@ script:
             if (!id(s_gas_i).has_state()) return lv_color_hex(0x555555);
             return lv_color_hex(0xBDC1C6);
 
-      # ---- Statuszeile ---------------------------------------------
-      # design.md §6: zwei austauschbare Behälter, es zählt der Vorrat.
-      # Der graue Fall setzt die automatische Umschaltung voraus
-      # (Truma Duo). Ohne Umschaltung gehört er auf orange.
+      # ---- Status line ---------------------------------------------
+      # design.md §6: two interchangeable containers, the combined
+      # supply counts. The grey case assumes automatic changeover
+      # (Truma Duo). Without changeover it belongs on orange.
       - lvgl.label.update:
           id: lbl_gas_status
           text: !lambda |-
@@ -214,9 +215,10 @@ esphome:
 lvgl:
   pages:
     - id: page_gas
-      # Eine LVGL-Seite ist per Default ein deckend WEISSES Objekt und
-      # liegt ueber dem bottom_layer aus dem Header. Ohne diese zwei
-      # Zeilen steht alles auf weissem Grund (Korrektur zu design.md §8).
+      # An LVGL page is by default an opaque WHITE object and sits over
+      # the bottom_layer from the header. Without these two lines
+      # everything sits on a white background (correction to design.md
+      # §8).
       bg_color: 0x000000
       bg_opa: COVER
       widgets:
@@ -256,7 +258,7 @@ lvgl:
             knob:
               bg_opa: TRANSP
 
-        # ---- Spalte aussen -----------------------------------------
+        # ---- Outer column -----------------------------------------
         - label:
             id: lbl_gas_cap_a
             align: CENTER
@@ -282,7 +284,7 @@ lvgl:
             text_font: montserrat_16
             text_color: 0x555555
 
-        # ---- Spalte innen ------------------------------------------
+        # ---- Inner column ------------------------------------------
         - label:
             id: lbl_gas_cap_i
             align: CENTER

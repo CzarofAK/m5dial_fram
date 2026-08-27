@@ -1,30 +1,30 @@
 # =====================================================================
-#  m5dial/strom1.yaml — Seite: Strom / Batterie
-#  FRAM M5Dial Cockpit · Seiten-Package (Block B + C + D)
+#  m5dial/strom1.yaml — page: Power / Battery
+#  FRAM M5Dial Cockpit · page package (block B + C + D)
 #
-#  Datenquellen kommen aus sources/strom1.sim.yaml bzw. strom1.ha.yaml.
+#  Data sources come from sources/strom1.sim.yaml resp. strom1.ha.yaml.
 #
 #  Slots (design.md §3):
 #    y_main   72%              montserrat_40
 #    y_line2  13.4V  -12A      montserrat_16
-#    y_row    Taster PARK      104 x 30
-#    y_footer Statuszeile      montserrat_12
+#    y_row    button PARK      104 x 30
+#    y_footer status line      montserrat_12
 #
-#  Statuszeile: design.md §6 verlangt "im Normalbetrieb leer". Die
-#  Starterbatterie steht deshalb nur unten, wenn sie nicht "ok" meldet.
-#  Sie liefert einen Zustand, keine Spannung — die Schwellen 12.4/12.0 V
-#  aus design.md §6 sind damit gegenstandslos, solange kein echter
-#  Spannungsfuehler an der Starterbatterie haengt.
+#  Status line: design.md §6 requires "empty in normal operation". The
+#  starter battery therefore only shows at the bottom when it doesn't
+#  report "ok". It delivers a state, not a voltage — the 12.4/12.0 V
+#  thresholds from design.md §6 are therefore moot as long as no real
+#  voltage sensor is wired to the starter battery.
 #
-#  Breitenprüfung y_main (montserrat_40, Kastenoberkante -44.5, r 102):
-#    verfügbar ~183 px, "100%" ≈ 100 px. Passt.
+#  Width check y_main (montserrat_40, box top edge -44.5, r 102):
+#    available ~183 px, "100%" ≈ 100 px. Fits.
 # =====================================================================
 
 # ---------------------------------------------------------------------
 #  C  Bindings
 # ---------------------------------------------------------------------
-# Hängt sich per ID an die Sensoren aus dem Quellen-Package. Merge nach
-# id: die Plattform steht dort, der Trigger hier.
+# Hooks onto the sensors from the sources package by ID. Merge by id:
+# the platform lives there, the trigger here.
 sensor:
   - platform: homeassistant
     id: s_strom1_soc
@@ -43,15 +43,14 @@ sensor:
       - script.execute: draw_strom1
 
 text_sensor:
-  # Die Starterbatterie liefert KEINE Spannung, sondern einen Zustand
-  # (mbapi2020):
+  # The starter battery delivers NO voltage, but a state (mbapi2020):
   #   0 green            Vehicle ok
   #   1 yellow           Battery partly charged
   #   2 red              Vehicle not available
   #   3 serviceDisabled  Remote service disabled
   #   4 vehicleNotAvalable
-  # 2/3/4 sagen nichts ueber die Batterie, sondern dass die Abfrage
-  # nicht durchkam — die gelten deshalb als "kein Wert", nicht als Alarm.
+  # 2/3/4 say nothing about the battery, only that the query didn't get
+  # through — those therefore count as "no value", not as an alarm.
   - platform: homeassistant
     id: s_strom1_starter
     entity_id: sensor.nw19939_starter_battery_state
@@ -66,8 +65,8 @@ binary_sensor:
       - script.execute: draw_strom1
 
 script:
-  # Der Taster ruft nie direkt einen Dienst, sondern immer ein
-  # act_-Skript. Damit bleibt Block D geraeteunabhaengig.
+  # The button never calls a service directly, always an act_ script.
+  # That keeps block D device-independent.
   - id: act_strom1_park
     then:
       - homeassistant.service:
@@ -78,7 +77,7 @@ script:
   - id: draw_strom1
     mode: restart
     then:
-      # ---- Bogen + Hauptwert: SOC ----------------------------------
+      # ---- Arc + main value: SOC ------------------------------------
       - lvgl.arc.update:
           id: arc_strom1_soc
           value: !lambda |-
@@ -113,7 +112,7 @@ script:
             if (v < 40.0f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0xFFFFFF);
 
-      # ---- Nebenzeile: DC-Spannung und -Strom ----------------------
+      # ---- Secondary line: DC voltage and current --------------------
       - lvgl.label.update:
           id: lbl_strom1_dc
           text: !lambda |-
@@ -131,8 +130,8 @@ script:
               return lv_color_hex(0x555555);
             return lv_color_hex(0xBDC1C6);
 
-      # ---- Taster: Parkmodus ---------------------------------------
-      # design.md §7: ohne Verbindung "PARK ---", nicht "PARK AUS".
+      # ---- Button: park mode -------------------------------------------
+      # design.md §7: without a connection "PARK ---", not "PARK AUS".
       - lvgl.label.update:
           id: lbl_strom1_park
           text: !lambda |-
@@ -166,8 +165,8 @@ script:
             return id(s_strom1_park).state ? lv_color_hex(0x2ECC71)
                                     : lv_color_hex(0x3C4043);
 
-      # ---- Statuszeile: Starterbatterie nur im Warnfall ------------
-      # design.md §6: im Normalbetrieb leer.
+      # ---- Status line: starter battery only in a warning state ------
+      # design.md §6: empty in normal operation.
       - lvgl.label.update:
           id: lbl_strom1_status
           text: !lambda |-
@@ -178,7 +177,7 @@ script:
             std::string v = id(s_strom1_starter).state;
             if (v == "1" || v == "yellow") return std::string("START SCHWACH");
             if (v == "0" || v == "green")  return std::string("");
-            // 2/3/4: Fahrzeug bzw. Fernabfrage nicht erreichbar
+            // 2/3/4: vehicle resp. remote query unreachable
             return std::string("START KEIN WERT");
           text_color: !lambda |-
             #ifdef USE_API
@@ -201,9 +200,10 @@ esphome:
 lvgl:
   pages:
     - id: page_strom1
-      # Eine LVGL-Seite ist per Default ein deckend WEISSES Objekt und
-      # liegt ueber dem bottom_layer aus dem Header. Ohne diese zwei
-      # Zeilen steht alles auf weissem Grund (Korrektur zu design.md §8).
+      # An LVGL page is by default an opaque WHITE object and sits over
+      # the bottom_layer from the header. Without these two lines
+      # everything sits on a white background (correction to design.md
+      # §8).
       bg_color: 0x000000
       bg_opa: COVER
       widgets:
