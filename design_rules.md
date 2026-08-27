@@ -616,8 +616,12 @@ reusable by any dial in the project, not just this one.
   are visual-only right now. A tone on the pre-flight overlay is worth
   adding once it exists; deliberately NOT on the cat-litter one --
   that one would fire far too often to stay a "pay attention" signal.
-* **Level 2 with two buttons.** The encoder must be able to switch
-  between the buttons in a row, not just adjust one value.
+* **~~Level 2 with two buttons.~~** Built: `g_edit_target`
+  (`.m5dial_fram.yaml`) lets a page arm one of its values for the
+  encoder to adjust instead of paging, tap to switch which one. Only
+  `page_fans` uses it so far (2 targets) — the dispatch in
+  `encoder_adjust_up`/`_down` is hand-written per target, so a third
+  page adopting this needs a branch added there too.
 * **Special characters.** `°` is needed on the temperature and boiler
   pages; it's included in the built-in montserrat fonts, but with a
   custom font it would need to go into the glyph list. The middle dot
@@ -639,8 +643,8 @@ alphabetical). "Implemented" means a `page_<id>.yaml` exists in
 entity_ids are placeholders (`PLACEHOLDER_*` or otherwise unverified)
 that don't point at anything real yet — it'll compile and show `---`
 everywhere rather than break the build, but check each one's
-entity_ids (and, for `levelling`/`fans`/`lights_outside`/`entrance`/
-`ipixel`, the whole design — there was no spec to build against beyond
+entity_ids (and, for `lights_outside`/`ipixel`, the whole design —
+there was no spec to build against beyond
 one line each) before relying on it.
 
 | # | id | Content | Status |
@@ -653,7 +657,7 @@ one line each) before relying on it.
 | 5 | `levelling` | Spirit level — sensor is **external** hardware, not on the dial | implemented |
 | 6 | `climate` | Truma Combi 4 (gas only) room-heating side + fan mode; AC not installed yet | draft |
 | 7 | `boiler` | Truma Combi 4 water-heating side: mode, actual temperature | draft |
-| 8 | `fans` | HVAC / fan board | draft |
+| 8 | `fans` | Fan board (real) + Sprinter HVAC fan (**placeholder** — that PCB doesn't exist yet) | implemented |
 | 9 | `lights_outside` | Entrance light, awning light (dimmable; dial only does on/off, no brightness) | draft |
 | 10 | `entrance` | Step, door lock | implemented |
 | 11 | `ipixel` | On/off and status only | draft |
