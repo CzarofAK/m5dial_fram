@@ -1,244 +1,214 @@
-# ===========================================================================
-# FRAM M5Dial — page 1: Battery power
-# Standalone configuration for the SDL2 simulator (host platform)
+# =====================================================================
+#  m5dial/power_1.yaml — page: Power / Battery
+#  FRAM M5Dial Cockpit · page package (block B + C + D)
 #
-#   esphome run sim_01_strom.yaml
+#  Data sources come from sources/power_1.sim.yaml resp. power_1.ha.yaml.
 #
-# File structure (order is deliberate):
-#   BLOCK A  Simulator scaffold  -> dropped when merging
-#   BLOCK B  Data sources        -> swapped for homeassistant sensors
-#   BLOCK C  Bindings            -> carried over 1:1 into the target file
-#   BLOCK D  Page widgets        -> carried over 1:1 into the target file
-# ===========================================================================
-
-# ---------------------------------------------------------------------------
-# LAYOUT GRID — identical on all pages, so nothing jumps while paging
-# through. Keep these four values the same in *every* page file. Matches
-# the current design.md §3 substitutions.
+#  Slots (design.md §3):
+#    y_main   72%              montserrat_40
+#    y_line2  13.4V  -12A      montserrat_16
+#    y_row    button PARK      104 x 30
+#    y_footer status line      montserrat_12
 #
-#   top            free (reserved)
-#   y_main         main value, large
-#   y_line2        secondary line, small
-#   y_row          button row (1 or 2 buttons)
-#   y_footer       status line at the bottom, in the gap of the arc
-# ---------------------------------------------------------------------------
-substitutions:
-  y_main: "-20"
-  y_line2: "15"
-  y_row: "48"
-  y_footer: "-32"
-
-# ---------------------------------------------------------------------------
-# FONTS — LVGL-internal (montserrat), no font file needed.
-# Only even sizes from 8 to 48 are available.
+#  Status line: design.md §6 requires "empty in normal operation". The
+#  starter battery therefore only shows at the bottom when it doesn't
+#  report "ok". It delivers a state, not a voltage — the 12.4/12.0 V
+#  thresholds from design.md §6 are therefore moot as long as no real
+#  voltage sensor is wired to the starter battery.
 #
-# If a custom grotesque is needed later: set up a font block and replace
-# the three names here. The Nimbus variant sat vertically skewed in the
-# button.
-# ---------------------------------------------------------------------------
+#  Width check y_main (montserrat_40, box top edge -44.5, r 102):
+#    available ~183 px, "100%" ≈ 100 px. Fits.
+# =====================================================================
 
-# ---------------------------------------------------------------------------
-# BLOCK A — Simulator scaffold
-# ---------------------------------------------------------------------------
-esphome:
-  name: sim-01-strom
-
-host:
-
-logger:
-  level: INFO
-
-globals:
-  # simulation only: holds the park-mode state locally
-  - id: g_sim_park
-    type: bool
-    initial_value: "false"
-
-display:
-  - platform: sdl
-    id: disp
-    auto_clear_enabled: false
-    update_interval: never
-    dimensions:
-      width: 240
-      height: 240
-
-touchscreen:
-  - platform: sdl
-    id: tsc
-    display: disp
-
-# ---------------------------------------------------------------------------
-# BLOCK B — Data sources (SIMULATION)
-#
-# On the device, these three blocks get replaced by:
-#   - platform: homeassistant
-#     entity_id: sensor.smartshunt_batterieladung
-# The IDs (s_soc, s_starter_v, s_parkmode) stay the same, so BLOCK C can be
-# carried over unchanged.
-# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------
+#  C  Bindings
+# ---------------------------------------------------------------------
+# Hooks onto the sensors from the sources package by ID. Merge by id:
+# the platform lives there, the trigger here.
 sensor:
-  - platform: template
-    id: s_soc
-    update_interval: 1500ms
-    internal: true
-    lambda: |-
-      static float v = 100.0f;
-      v -= 4.0f;
-      if (v < 0.0f) v = 100.0f;
-      return v;
-    # ---- from here on BLOCK C: identical to the device file ----
+  - platform: homeassistant
+    id: s_power_1_soc
+    entity_id: sensor.smartshunt_ladestand
     on_value:
+      - script.execute: draw_power_1
+  - platform: homeassistant
+    id: s_power_1_dc_v
+    entity_id: sensor.smartshunt_dc_bus_spannung
+    on_value:
+      - script.execute: draw_power_1
+  - platform: homeassistant
+    id: s_power_1_dc_a
+    entity_id: sensor.smartshunt_dc_bus_stromstarke
+    on_value:
+      - script.execute: draw_power_1
+
+text_sensor:
+  # The starter battery delivers NO voltage, but a state (mbapi2020):
+  #   0 green            Vehicle ok
+  #   1 yellow           Battery partly charged
+  #   2 red              Vehicle not available
+  #   3 serviceDisabled  Remote service disabled
+  #   4 vehicleNotAvalable
+  # 2/3/4 say nothing about the battery, only that the query didn't get
+  # through — those therefore count as "no value", not as an alarm.
+  - platform: homeassistant
+    id: s_power_1_starter
+    entity_id: sensor.nw19939_starter_battery_state
+    on_value:
+      - script.execute: draw_power_1
+
+binary_sensor:
+  - platform: homeassistant
+    id: s_power_1_park
+    entity_id: switch.fram_parkmodus
+    on_state:
+      - script.execute: draw_power_1
+
+script:
+  # The button never calls a service directly, always an act_ script.
+  # That keeps block D device-independent.
+  - id: act_power_1_park
+    then:
+      - homeassistant.service:
+          service: switch.toggle
+          data:
+            entity_id: switch.fram_parkmodus
+
+  - id: draw_power_1
+    mode: restart
+    then:
+      # ---- Arc + main value: SOC ------------------------------------
       - lvgl.arc.update:
-          id: arc_soc
-          value: !lambda "return x;"
+          id: arc_power_1_soc
+          value: !lambda |-
+            if (!id(s_power_1_soc).has_state()) return 0.0f;
+            return id(s_power_1_soc).state;
           indicator:
             arc_color: !lambda |-
               #ifdef USE_API
               if (!api_is_connected()) return lv_color_hex(0x555555);
               #endif
-              if (!id(s_soc).has_state()) return lv_color_hex(0x555555);
-              if (x < 20.0f) return lv_color_hex(0xE74C3C);
-              if (x < 40.0f) return lv_color_hex(0xF39C12);
+              if (!id(s_power_1_soc).has_state()) return lv_color_hex(0x555555);
+              float v = id(s_power_1_soc).state;
+              if (v < 20.0f) return lv_color_hex(0xE74C3C);
+              if (v < 40.0f) return lv_color_hex(0xF39C12);
               return lv_color_hex(0x2ECC71);
+
       - lvgl.label.update:
-          id: lbl_soc
+          id: lbl_power_1_soc
           text: !lambda |-
             #ifdef USE_API
-            if (!api_is_connected()) return std::string("---");
+            if (!api_is_connected()) return std::string("---%");
             #endif
-            if (!id(s_soc).has_state()) return std::string("---");
-            return str_sprintf("%.0f%%", x);
+            if (!id(s_power_1_soc).has_state()) return std::string("---%");
+            return str_sprintf("%.0f%%", id(s_power_1_soc).state);
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_soc).has_state()) return lv_color_hex(0x555555);
-            if (x < 20.0f) return lv_color_hex(0xE74C3C);
-            if (x < 40.0f) return lv_color_hex(0xF39C12);
+            if (!id(s_power_1_soc).has_state()) return lv_color_hex(0x555555);
+            float v = id(s_power_1_soc).state;
+            if (v < 20.0f) return lv_color_hex(0xE74C3C);
+            if (v < 40.0f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0xFFFFFF);
 
-  - platform: template
-    id: s_starter_v
-    update_interval: 4s
-    internal: true
-    lambda: |-
-      static const float vs[] = {12.8f, 12.5f, 12.2f, 11.8f};
-      static int i = -1;
-      i = (i + 1) % 4;
-      return vs[i];
-    on_value:
+      # ---- Secondary line: DC voltage and current --------------------
       - lvgl.label.update:
-          id: lbl_starter_v
+          id: lbl_power_1_dc
           text: !lambda |-
             #ifdef USE_API
-            if (!api_is_connected()) return std::string("START ---V");
+            if (!api_is_connected()) return std::string("---V  ---A");
             #endif
-            if (!id(s_starter_v).has_state()) return std::string("START ---V");
-            return str_sprintf("START %.1fV", x);
+            if (!id(s_power_1_dc_v).has_state() || !id(s_power_1_dc_a).has_state())
+              return std::string("---V  ---A");
+            return str_sprintf("%.1fV  %+.0fA", id(s_power_1_dc_v).state, id(s_power_1_dc_a).state);
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_starter_v).has_state()) return lv_color_hex(0x555555);
-            if (x < 12.0f) return lv_color_hex(0xE74C3C);
-            if (x < 12.4f) return lv_color_hex(0xF39C12);
-            return lv_color_hex(0x707070);
-
-  # DC system: voltage and current of the house battery (SmartShunt)
-  #   Device: sensor.smartshunt_spannung / sensor.smartshunt_dc_bus_stromstarke
-  - platform: template
-    id: s_batt_v
-    update_interval: 2s
-    internal: true
-    lambda: |-
-      static const float vs[] = {13.4f, 13.2f, 12.9f, 12.6f, 14.2f};
-      static int i = -1;
-      i = (i + 1) % 5;
-      return vs[i];
-    on_value:
-      - script.execute: draw_batt_dc
-
-  - platform: template
-    id: s_batt_a
-    update_interval: 2s
-    internal: true
-    lambda: |-
-      static const float as[] = {12.5f, -8.3f, 0.4f, -22.1f, 45.0f};
-      static int i = -1;
-      i = (i + 1) % 5;
-      return as[i];
-    on_value:
-      - script.execute: draw_batt_dc
-
-text_sensor:
-  - platform: template
-    id: s_parkmode
-    update_interval: 1s
-    internal: true
-    lambda: |-
-      return id(g_sim_park) ? std::string("on") : std::string("off");
-    on_value:
-      - lvgl.label.update:
-          id: lbl_parkmode
-          text: !lambda |-
-            return (x == "on") ? std::string("PARK EIN")
-                               : std::string("PARK AUS");
-      - lvgl.widget.update:
-          id: btn_parkmode
-          bg_color: !lambda |-
-            return lv_color_hex((x == "on") ? 0x1B5E3A : 0x202124);
-          border_color: !lambda |-
-            return lv_color_hex((x == "on") ? 0x2ECC71 : 0x3C4043);
-
-# ---------------------------------------------------------------------------
-# BLOCK C — Bindings
-#
-# In the target file, these triggers hang off the homeassistant sensors.
-# The validity check is bracketed with #ifdef USE_API: in the simulator
-# (no api:) it drops out, on the device it kicks in automatically.
-# ---------------------------------------------------------------------------
-# Note on structure: ESPHome only allows on_value directly on the sensor,
-# so the triggers live up in BLOCK B alongside it. When merging, they move
-# along with their respective sensor.
-
-script:
-  - id: draw_batt_dc
-    mode: restart
-    then:
-      - lvgl.label.update:
-          id: lbl_batt_dc
-          text: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return std::string("---V   ---A");
-            #endif
-            if (!id(s_batt_v).has_state() || !id(s_batt_a).has_state())
-              return std::string("---V   ---A");
-            return str_sprintf("%.1fV   %+.1fA",
-                               id(s_batt_v).state, id(s_batt_a).state);
-          text_color: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return lv_color_hex(0x555555);
-            #endif
-            if (!id(s_batt_v).has_state() || !id(s_batt_a).has_state())
+            if (!id(s_power_1_dc_v).has_state() || !id(s_power_1_dc_a).has_state())
               return lv_color_hex(0x555555);
             return lv_color_hex(0xBDC1C6);
 
-# ---------------------------------------------------------------------------
-# BLOCK D — page 1
-# ---------------------------------------------------------------------------
-lvgl:
-  displays: [disp]
-  touchscreens: [tsc]
-  bg_color: 0x000000
-  default_font: montserrat_16
+      # ---- Button: park mode -------------------------------------------
+      # design.md §7: without a connection "PARK ---", not "PARK AUS".
+      - lvgl.label.update:
+          id: lbl_power_1_park
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("PARK ---");
+            #endif
+            if (!id(s_power_1_park).has_state()) return std::string("PARK ---");
+            return id(s_power_1_park).state ? std::string("PARK EIN")
+                                    : std::string("PARK AUS");
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_power_1_park).has_state()) return lv_color_hex(0x555555);
+            return id(s_power_1_park).state ? lv_color_hex(0x2ECC71)
+                                    : lv_color_hex(0xBDC1C6);
+      - lvgl.widget.update:
+          id: btn_power_1_park
+          bg_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x202124);
+            #endif
+            if (!id(s_power_1_park).has_state()) return lv_color_hex(0x202124);
+            return id(s_power_1_park).state ? lv_color_hex(0x1B5E3A)
+                                    : lv_color_hex(0x202124);
+          border_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x3C4043);
+            #endif
+            if (!id(s_power_1_park).has_state()) return lv_color_hex(0x3C4043);
+            return id(s_power_1_park).state ? lv_color_hex(0x2ECC71)
+                                    : lv_color_hex(0x3C4043);
 
+      # ---- Status line: starter battery only in a warning state ------
+      # design.md §6: empty in normal operation.
+      - lvgl.label.update:
+          id: lbl_power_1_status
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("KEINE VERBINDUNG");
+            #endif
+            if (!id(s_power_1_starter).has_state()) return std::string("");
+            std::string v = id(s_power_1_starter).state;
+            if (v == "1" || v == "yellow") return std::string("START SCHWACH");
+            if (v == "0" || v == "green")  return std::string("");
+            // 2/3/4: vehicle resp. remote query unreachable
+            return std::string("START KEIN WERT");
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_power_1_starter).has_state()) return lv_color_hex(0x555555);
+            std::string v = id(s_power_1_starter).state;
+            if (v == "1" || v == "yellow") return lv_color_hex(0xF39C12);
+            return lv_color_hex(0x555555);
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - script.execute: draw_power_1
+
+# ---------------------------------------------------------------------
+#  D  Widgets
+# ---------------------------------------------------------------------
+lvgl:
   pages:
-    - id: page_battery
+    - id: page_power_1
+      # An LVGL page is by default an opaque WHITE object and sits over
+      # the bottom_layer from the header. Without these two lines
+      # everything sits on a white background (correction to design.md
+      # §8).
       bg_color: 0x000000
+      bg_opa: COVER
       widgets:
         - arc:
-            id: arc_soc
+            id: arc_power_1_soc
             align: CENTER
             width: 224
             height: 224
@@ -246,38 +216,33 @@ lvgl:
             end_angle: 45
             min_value: 0
             max_value: 100
-            value: 0
             adjustable: false
             arc_width: 10
             arc_color: 0x1A1C1E
             indicator:
               arc_width: 10
-              arc_color: 0x2ECC71
+              arc_color: 0x555555
             knob:
               bg_opa: TRANSP
 
-        # No title — the arc and the percentage say enough.
-        # The top slot stays free (reserve, e.g. an alarm icon).
-
         - label:
-            id: lbl_soc
+            id: lbl_power_1_soc
             align: CENTER
             y: ${y_main}
-            text: "---"
+            text: "---%"
             text_font: montserrat_40
-            text_color: 0xFFFFFF
+            text_color: 0x555555
 
-        # DC system below the SOC — voltage and charge/discharge current
         - label:
-            id: lbl_batt_dc
+            id: lbl_power_1_dc
             align: CENTER
             y: ${y_line2}
-            text: "---V   ---A"
+            text: "---V  ---A"
             text_font: montserrat_16
-            text_color: 0xBDC1C6
+            text_color: 0x555555
 
         - button:
-            id: btn_parkmode
+            id: btn_power_1_park
             align: CENTER
             y: ${y_row}
             width: 104
@@ -288,20 +253,18 @@ lvgl:
             border_color: 0x3C4043
             widgets:
               - label:
-                  id: lbl_parkmode
+                  id: lbl_power_1_park
                   align: CENTER
                   text: "PARK ---"
                   text_font: montserrat_16
-                  text_color: 0xE8EAED
+                  text_color: 0x555555
             on_click:
-              # SIM: only toggles the local global.
-              # DEVICE: homeassistant.service switch.toggle here instead
-              - lambda: 'id(g_sim_park) = !id(g_sim_park);'
+              - script.execute: act_power_1_park
 
         - label:
-            id: lbl_starter_v
+            id: lbl_power_1_status
             align: BOTTOM_MID
             y: ${y_footer}
-            text: "START ---V"
+            text: ""
             text_font: montserrat_12
-            text_color: 0x707070
+            text_color: 0x555555

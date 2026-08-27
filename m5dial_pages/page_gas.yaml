@@ -1,162 +1,59 @@
 # =====================================================================
-#  sim_03_gas.yaml — page 3: Gas (two bottles, duo changeover)
-#  FRAM M5Dial Cockpit · simulator version (SDL2)
+#  m5dial/gas.yaml — page: Gas (two bottles)
+#  FRAM M5Dial Cockpit · page package (block B + C + D)
 #
-#      esphome run sim_03_gas.yaml
 #
-#  Layout per design.md §3/§4 — double ring, no half arc:
-#    outer 224 x 224, arc_width 10  -> r 102..112   GAS A
-#    inner 200 x 200, arc_width 10  -> r  90..100   GAS I
-#    both 135 -> 45, gap at the bottom for the footer
+#  Double ring (design.md §4):
+#    outer 224 x 224, arc_width 10 -> r 102..112   GAS A (in use)
+#    inner 200 x 200, arc_width 10 -> r  90..100   GAS I (reserve)
+#    both 135 -> 45. Usable inner radius therefore 90 px.
 #
-#  Grid matches the current design.md §3 substitutions (this page was
-#  the reason for that correction — see the addendum at the top of
-#  design.md). y_row stays free: the page has no button.
+#  Two-value layout (design.md §3), both columns on x ±${x_col}:
+#    y_cap    GAS A / GAS I    montserrat_12, color of the ring
+#    y_main   72%              montserrat_24
+#    y_line2  7.6 kg           montserrat_16, 0xBDC1C6
+#    y_row    free (no button)
+#    y_footer status line
 #
-#  Line boxes (LVGL line heights m12 15, m16 20, m24 29, m40 49):
-#    y_cap   -42  m12  -49.5 .. -34.5
-#    y_main  -20  m24  -34.5 ..  -5.5   (m40 on page 1/2: -44.5 .. 4.5)
-#    y_line2  15  m16    5.0 ..  25.0   -> 8 px below the m24 box
-#    y_footer -32 m12   80.5 ..  95.5
+#  Width check: "GAS I" montserrat_12 ≈ 57.5 px, at y_cap -42 there's
+#  room up to x ±75. "100%" montserrat_24 ≈ 54 px, column ~82 px.
+#  Footer "GAS A LEER" (GAS A EMPTY) ≈ 66 px, in the gap at y 90 there's
+#  152 px.
 #
-#  Widths (design.md §4, inner radius 90 on double-ring pages):
-#    label top edge y -49.5 -> up to x ±75
-#      "GAS I" montserrat_12 ~35 px, column at x 40 has room to 57.5.
-#    value montserrat_24: "100%" ~54 px, column has ~82 px.
-#    footer in the gap (r 118): 152 px,
-#      longest text "KEINE VERBINDUNG" (NO CONNECTION) ~112 px.
-#
-#  Structure per design.md §2:
-#    A Scaffold       — dropped when merging
-#    B Data sources   — swap template -> homeassistant
-#    C Bindings       — carry over 1:1
-#    D Widgets        — carry over 1:1
+#  The label names the RING, not the mounting position: two bottles sit
+#  one behind the other, and concentric rings have no left and no right
+#  (design.md §3).
 # =====================================================================
 
-substitutions:
-  y_main:   "-20"
-  y_line2:  "15"
-  y_row:    "48"
-  y_footer: "-32"
-  y_cap:    "-42"
-  x_col:    "40"
-
-
-# =====================================================================
-# BLOCK A — Scaffold (simulator only)
-# =====================================================================
-
-esphome:
-  name: sim-03-gas
-  on_boot:
-    priority: -100
-    then:
-      - script.execute: draw_gas
-
-host:
-
-logger:
-  level: INFO
-
-# No api: block — otherwise the invalidity check kicks in (design.md §11)
-
-display:
-  - platform: sdl
-    id: sim_display
-    auto_clear_enabled: false
-    dimensions:
-      width: 240
-      height: 240
-    update_interval: 16ms
-
-touchscreen:
-  - platform: sdl
-    id: sim_touch
-    display: sim_display
-
-# No g_sim_ globals: the page has no button (design.md §3 — an empty
-# slot stays empty, nothing moves up).
-
-
-# =====================================================================
-# BLOCK B — Data sources
-#   Device: platform: template  ->  platform: homeassistant + entity_id
-#
-#   s_gas_a = bottle on the outer ring, s_gas_i = on the inner ring.
-#   Which bottle that physically is gets decided by the entity_id.
-#
-#   Different update_interval per design.md §11, otherwise the same
-#   combinations always occur and you never see the status-line
-#   precedence.
-# =====================================================================
-
+# ---------------------------------------------------------------------
+#  C  Bindings
+# ---------------------------------------------------------------------
+# Which bottle is physically connected to the outer ring is decided
+# solely by the entity_id (design.md §10).
 sensor:
-  - platform: template
-    id: s_gas_a                # outer ring, fill level %
-    update_interval: 800ms
-    lambda: |-
-      static float v = 100.0f;
-      v -= 4.0f;
-      if (v < 0.0f) v = 100.0f;
-      return v;
+  - platform: homeassistant
+    id: s_gas_a
+    entity_id: sensor.gas_1_stand
     on_value:
       - script.execute: draw_gas
-    # Device:
-    # - platform: homeassistant
-    #   id: s_gas_a
-    #   entity_id: sensor.gasflasche_a_prozent
-    #   on_value:
-    #     - script.execute: draw_gas
-
-  - platform: template
-    id: s_gas_i                # inner ring, fill level %
-    update_interval: 1300ms
-    lambda: |-
-      static float v = 100.0f;
-      v -= 3.0f;
-      if (v < 0.0f) v = 100.0f;
-      return v;
+  - platform: homeassistant
+    id: s_gas_i
+    entity_id: sensor.gas_2_stand
     on_value:
       - script.execute: draw_gas
-    # Device:
-    # - platform: homeassistant
-    #   id: s_gas_i
-    #   entity_id: sensor.gasflasche_i_prozent
-    #   on_value:
-    #     - script.execute: draw_gas
-
-
-# =====================================================================
-# BLOCK C — Bindings (page drawing script, design.md §9)
-#   Both fill levels are linked via the status line -> one script, the
-#   sensors only call script.execute.
-#
-#   Vehicle-fixed constant: bottle content 10.5 kg net (CH standard
-#   bottle). Change here for 11 kg (DE) or 5 kg — not in substitutions:,
-#   those must stay the same across all pages.
-#
-#   Thresholds per bottle: warning < 25 %, alarm < 10 %.
-#
-#   Footer precedence (duo changeover present):
-#     1  both < 10 %   GAS LEER (GAS EMPTY)  red    — no supply left
-#     2  both < 25 %   GAS KNAPP (GAS LOW)   orange — plan a refill
-#     3  one   < 10 %  GAS A/I LEER (A/I EMPTY) grey — heads-up, the duo
-#                                              has already switched over
-# =====================================================================
 
 script:
   - id: draw_gas
     mode: restart
     then:
-
-      # ---- Outer ring -----------------------------------------------
+      # ---- Outer ring: GAS A -----------------------------------------
       - lvgl.arc.update:
           id: arc_gas_a
           value: !lambda |-
             #ifdef USE_API
-            if (!api_is_connected()) return 0.0;
+            if (!api_is_connected()) return 0.0f;
             #endif
-            if (!id(s_gas_a).has_state()) return 0.0;
+            if (!id(s_gas_a).has_state()) return 0.0f;
             return id(s_gas_a).state;
           indicator:
             arc_color: !lambda |-
@@ -169,14 +66,14 @@ script:
               if (v < 25.0f) return lv_color_hex(0xF39C12);
               return lv_color_hex(0x4A9EFF);
 
-      # ---- Inner ring -------------------------------------------------
+      # ---- Inner ring: GAS I ------------------------------------------
       - lvgl.arc.update:
           id: arc_gas_i
           value: !lambda |-
             #ifdef USE_API
-            if (!api_is_connected()) return 0.0;
+            if (!api_is_connected()) return 0.0f;
             #endif
-            if (!id(s_gas_i).has_state()) return 0.0;
+            if (!id(s_gas_i).has_state()) return 0.0f;
             return id(s_gas_i).state;
           indicator:
             arc_color: !lambda |-
@@ -189,7 +86,7 @@ script:
               if (v < 25.0f) return lv_color_hex(0xF39C12);
               return lv_color_hex(0x9AA0A6);
 
-      # ---- Outer label (carries the outer ring's color) --------------
+      # ---- Column label, carries the ring color --------------------
       - lvgl.label.update:
           id: lbl_gas_cap_a
           text_color: !lambda |-
@@ -201,8 +98,6 @@ script:
             if (v < 10.0f) return lv_color_hex(0xE74C3C);
             if (v < 25.0f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0x4A9EFF);
-
-      # ---- Inner label (carries the inner ring's color) ---------------
       - lvgl.label.update:
           id: lbl_gas_cap_i
           text_color: !lambda |-
@@ -215,7 +110,7 @@ script:
             if (v < 25.0f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0x9AA0A6);
 
-      # ---- Outer value, % ----------------------------------------------
+      # ---- Percentage values -----------------------------------------
       - lvgl.label.update:
           id: lbl_gas_pct_a
           text: !lambda |-
@@ -233,8 +128,6 @@ script:
             if (v < 10.0f) return lv_color_hex(0xE74C3C);
             if (v < 25.0f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0xFFFFFF);
-
-      # ---- Inner value, % -----------------------------------------------
       - lvgl.label.update:
           id: lbl_gas_pct_i
           text: !lambda |-
@@ -253,7 +146,9 @@ script:
             if (v < 25.0f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0xFFFFFF);
 
-      # ---- Outer absolute value, kg -------------------------------------
+      # ---- Absolute values ---------------------------------------------
+      # Vehicle-fixed constant as a literal (design.md §9):
+      # gas bottle 10.5 kg net.
       - lvgl.label.update:
           id: lbl_gas_kg_a
           text: !lambda |-
@@ -268,8 +163,6 @@ script:
             #endif
             if (!id(s_gas_a).has_state()) return lv_color_hex(0x555555);
             return lv_color_hex(0xBDC1C6);
-
-      # ---- Inner absolute value, kg --------------------------------------
       - lvgl.label.update:
           id: lbl_gas_kg_i
           text: !lambda |-
@@ -285,9 +178,12 @@ script:
             if (!id(s_gas_i).has_state()) return lv_color_hex(0x555555);
             return lv_color_hex(0xBDC1C6);
 
-      # ---- Footer: exactly one message, empty in normal operation --------
+      # ---- Status line ---------------------------------------------
+      # design.md §6: two interchangeable containers, the combined
+      # supply counts. The grey case assumes automatic changeover
+      # (Truma Duo). Without changeover it belongs on orange.
       - lvgl.label.update:
-          id: lbl_gas_footer
+          id: lbl_gas_status
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("KEINE VERBINDUNG");
@@ -313,24 +209,25 @@ script:
             if (a < 25.0f && i < 25.0f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0x707070);
 
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - script.execute: draw_gas
 
-# =====================================================================
-# BLOCK D — Widgets
-# =====================================================================
-
+# ---------------------------------------------------------------------
+#  D  Widgets
+# ---------------------------------------------------------------------
 lvgl:
-  default_font: montserrat_16
-  bottom_layer:
-    bg_color: 0x000000
-    bg_opa: COVER
-
   pages:
     - id: page_gas
+      # An LVGL page is by default an opaque WHITE object and sits over
+      # the bottom_layer from the header. Without these two lines
+      # everything sits on a white background (correction to design.md
+      # §8).
       bg_color: 0x000000
       bg_opa: COVER
       widgets:
-
-        # --- Outer ring --------------------------------------------
         - arc:
             id: arc_gas_a
             align: CENTER
@@ -340,18 +237,15 @@ lvgl:
             end_angle: 45
             min_value: 0
             max_value: 100
-            value: 0
             adjustable: false
             arc_width: 10
             arc_color: 0x1A1C1E
             indicator:
               arc_width: 10
-              arc_color: 0x4A9EFF
+              arc_color: 0x555555
             knob:
               bg_opa: TRANSP
 
-        # --- Inner ring ----------------------------------------------
-        #     Same thickness, 2 px black between them (design.md §4).
         - arc:
             id: arc_gas_i
             align: CENTER
@@ -361,23 +255,16 @@ lvgl:
             end_angle: 45
             min_value: 0
             max_value: 100
-            value: 0
             adjustable: false
             arc_width: 10
             arc_color: 0x1A1C1E
             indicator:
               arc_width: 10
-              arc_color: 0x9AA0A6
+              arc_color: 0x555555
             knob:
               bg_opa: TRANSP
 
-        # --- TOP_MID / y 46: stays free (reserved for alarm icon)
-
-        # --- Label row -------------------------------------------
-        #     A = outer ring, I = inner ring. The bottles sit one
-        #     behind the other, left/right would be wrong.
-        #     Also the only mapping between column and ring, hence
-        #     carried in the ring's color.
+        # ---- Outer column -----------------------------------------
         - label:
             id: lbl_gas_cap_a
             align: CENTER
@@ -386,17 +273,6 @@ lvgl:
             text: "GAS A"
             text_font: montserrat_12
             text_color: 0x555555
-
-        - label:
-            id: lbl_gas_cap_i
-            align: CENTER
-            x: ${x_col}
-            y: ${y_cap}
-            text: "GAS I"
-            text_font: montserrat_12
-            text_color: 0x555555
-
-        # --- Value row, montserrat_24 (design.md §3/§5) ----------
         - label:
             id: lbl_gas_pct_a
             align: CENTER
@@ -405,17 +281,6 @@ lvgl:
             text: "---%"
             text_font: montserrat_24
             text_color: 0x555555
-
-        - label:
-            id: lbl_gas_pct_i
-            align: CENTER
-            x: ${x_col}
-            y: ${y_main}
-            text: "---%"
-            text_font: montserrat_24
-            text_color: 0x555555
-
-        # --- Absolute-value row ----------------------------------------
         - label:
             id: lbl_gas_kg_a
             align: CENTER
@@ -425,6 +290,23 @@ lvgl:
             text_font: montserrat_16
             text_color: 0x555555
 
+        # ---- Inner column ------------------------------------------
+        - label:
+            id: lbl_gas_cap_i
+            align: CENTER
+            x: ${x_col}
+            y: ${y_cap}
+            text: "GAS I"
+            text_font: montserrat_12
+            text_color: 0x555555
+        - label:
+            id: lbl_gas_pct_i
+            align: CENTER
+            x: ${x_col}
+            y: ${y_main}
+            text: "---%"
+            text_font: montserrat_24
+            text_color: 0x555555
         - label:
             id: lbl_gas_kg_i
             align: CENTER
@@ -434,14 +316,10 @@ lvgl:
             text_font: montserrat_16
             text_color: 0x555555
 
-        # --- y_row stays empty: the page has no button.
-        #     Don't let anything move up to fill it (design.md §3).
-
-        # --- Footer in the arc gap ------------------------
         - label:
-            id: lbl_gas_footer
+            id: lbl_gas_status
             align: BOTTOM_MID
             y: ${y_footer}
             text: ""
             text_font: montserrat_12
-            text_color: 0x707070
+            text_color: 0x555555
