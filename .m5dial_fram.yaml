@@ -35,6 +35,11 @@ substitutions:
   y_main: "-20"
   y_line2: "15"
   y_row: "48"
+  # Second button row, for pages that need two rows of buttons instead
+  # of one (page_entrance: step + lock, four momentary actions total).
+  # Tighter than y_row because the round display's r=120 limit (§1)
+  # bites at this radius -- unverified on the device, check visually.
+  y_row2: "78"
   y_footer: "-32"
   y_cap: "-42"
   x_col: "40"

@@ -31,6 +31,7 @@ doesn't exist. The simulator shows a square and lies at the corners.
 | `m5dial_fram_cockpit.yaml` | one specific dial (Device-specific: name, home page, which pages in which order) |
 | `m5dial_pages/` | all pages, one file each, reusable across every dial in the project |
 | `m5dial_pages/page_<name>.yaml` | one page, ready to `!include` as-is — no separate simulator variant, no merge step |
+| `m5dial_pages/overlay_<name>.yaml` | an overlay (§15) — adds to LVGL's `top_layer`, not `pages:`; no page order, no `p<n>` slot |
 
 One file per page, named `page_<name>.yaml`, `<name>` matching §10's
 page names (`clock`, `gas`, `power_1`, `power_2`, `water`). Each file
@@ -66,10 +67,16 @@ substitutions:
   y_main:   "-20"
   y_line2:  "15"
   y_row:    "48"
+  y_row2:   "78"
   y_footer: "-32"
   y_cap:    "-42"
   x_col:    "40"
 ```
+
+`y_row2` is a second button row, for the rare page that needs four
+buttons instead of two (`page_entrance`: step + lock, both two
+momentary actions). Tighter than `y_row` because it's further from
+center on a round display (§1) — check visually on the device.
 
 `y_cap` and `x_col` are only needed by the two-value layout further
 below. They still appear in every file, because otherwise the block
@@ -643,19 +650,23 @@ one line each) before relying on it.
 | 2 | `power_2` | Grid power: MultiPlus mode / current limit | implemented |
 | 3 | `gas` | Two gas bottles (double ring, §4) | implemented |
 | 4 | `water` | Fresh / grey water (double ring, §4) | implemented |
-| 5 | `levelling` | Spirit level — sensor is **external** hardware, not on the dial | draft |
+| 5 | `levelling` | Spirit level — sensor is **external** hardware, not on the dial | implemented |
 | 6 | `climate` | Truma Combi 4 (gas only) room-heating side + fan mode; AC not installed yet | draft |
 | 7 | `boiler` | Truma Combi 4 water-heating side: mode, actual temperature | draft |
 | 8 | `fans` | HVAC / fan board | draft |
 | 9 | `lights_outside` | Entrance light, awning light (dimmable; dial only does on/off, no brightness) | draft |
-| 10 | `entrance` | Step, door lock | draft |
+| 10 | `entrance` | Step, door lock | implemented |
 | 11 | `ipixel` | On/off and status only | draft |
 | reserved | `lights_inside` | — | reserved, not designed yet |
 
 Not pages — shown as an overlay on top of whatever page is current,
-per the `s_ignition` comment in `.m5dial_fram.yaml`:
+via LVGL's `top_layer` (`m5dial_pages/overlay_<name>.yaml`, §2), per
+the `s_ignition` comment in `.m5dial_fram.yaml`:
 
-| id | Content |
-|---|---|
-| `OV1` | Pre-flight check overlay |
-| `OV2` | Cat litter box overlay |
+| id | Content | Status |
+|---|---|---|
+| `OV1` | Pre-flight check overlay | not designed yet |
+| `OV2` | Cat litter box overlay: red while the light is on, green for 5s when the fan starts, then off | implemented (`overlay_litterbox.yaml`) — placeholder text label, no cat icon (no icon font set up in this repo yet) |
+
+Neither overlay is suppressed while driving yet — the `s_ignition`
+mechanism for that is still just the comment, not wired to anything.
