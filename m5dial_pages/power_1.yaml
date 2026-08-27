@@ -13,7 +13,8 @@
 
 # ---------------------------------------------------------------------------
 # LAYOUT GRID — identical on all pages, so nothing jumps while paging
-# through. Keep these four values the same in *every* page file.
+# through. Keep these four values the same in *every* page file. Matches
+# the current design.md §3 substitutions.
 #
 #   top            free (reserved)
 #   y_main         main value, large
@@ -22,9 +23,9 @@
 #   y_footer       status line at the bottom, in the gap of the arc
 # ---------------------------------------------------------------------------
 substitutions:
-  y_main: "-36"
-  y_line2: "6"
-  y_row: "44"
+  y_main: "-20"
+  y_line2: "15"
+  y_row: "48"
   y_footer: "-32"
 
 # ---------------------------------------------------------------------------
@@ -91,8 +92,6 @@ sensor:
       - lvgl.arc.update:
           id: arc_soc
           value: !lambda "return x;"
-      - lvgl.arc.update:
-          id: arc_soc
           indicator:
             arc_color: !lambda |-
               #ifdef USE_API

@@ -287,7 +287,7 @@ script:
             // is only an inconvenience).
             if (g >= 95.0f) return std::string("ABWASSER VOLL");
             if (f < 10.0f)  return std::string("FRISCHWASSER LEER");
-            if (g >= 80.0f) return std::string("ABWASSER FAST VOLL");
+            if (g >= 80.0f) return std::string("ABWASSER VOLL");
             if (f < 25.0f)  return std::string("FRISCHWASSER KNAPP");
             return std::string("");
           text_color: !lambda |-
