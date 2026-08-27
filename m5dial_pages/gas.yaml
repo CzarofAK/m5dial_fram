@@ -1,0 +1,449 @@
+# =====================================================================
+#  sim_03_gas.yaml — Seite 3: Gas (zwei Flaschen, Duo-Umschaltung)
+#  FRAM M5Dial Cockpit · Simulator-Fassung (SDL2)
+#
+#      esphome run sim_03_gas.yaml
+#
+#  Darstellung nach Design.md §3/§4 — Doppelring, kein Halbarc:
+#    aussen 224 x 224, arc_width 10  -> r 102..112   GAS A
+#    innen  200 x 200, arc_width 10  -> r  90..100   GAS I
+#    beide 135 -> 45, Luecke unten fuer die Fusszeile
+#
+#  ACHTUNG Rasteraenderung gegenueber Seite 1/2/4: der ganze Stapel
+#  liegt tiefer. Die Substitutions muessen laut §3 auf allen Seiten
+#  identisch sein -> Seiten 1, 2 und 4 nachziehen.
+#
+#  Zeilenkaesten (LVGL-Zeilenhoehen m12 15, m16 20, m24 29, m40 49):
+#    y_cap   -42  m12  -49.5 .. -34.5
+#    y_main  -20  m24  -34.5 ..  -5.5   (m40 auf Seite 1/2: -44.5 .. 4.5)
+#    y_line2  22  m16   12.0 ..  32.0   -> 7.5 px unter dem m40-Kasten
+#    y_row    54  Taster 39 .. 69       -> Eckenradius 86.4 < 90, passt
+#                                          auch auf Doppelring-Seiten
+#    y_footer -32 m12   80.5 ..  95.5   -> 11.5 px unter dem Taster
+#
+#  Breiten (Design.md §4, Innenradius 90 auf Doppelring-Seiten):
+#    Beschriftung Oberkante y -49.5 -> bis x +-75
+#      "GAS I" montserrat_12 ~35 px, Spalte bei x 40 reicht bis 57.5.
+#    Wert montserrat_24: "100%" ~54 px, Spalte hat ~82 px.
+#    Fusszeile in der Luecke (r 118): 152 px,
+#      laengster Text "KEINE VERBINDUNG" ~112 px.
+#
+#  Aufbau nach Design.md §2:
+#    A Geruest       — entfaellt beim Zusammenfuehren
+#    B Datenquellen  — template -> homeassistant tauschen
+#    C Bindings      — 1:1 uebernehmen
+#    D Widgets       — 1:1 uebernehmen
+# =====================================================================
+
+substitutions:
+  y_main:   "-20"
+  y_line2:  "22"
+  y_row:    "54"
+  y_footer: "-32"
+  y_cap:    "-42"
+  x_col:    "40"
+
+
+# =====================================================================
+# BLOCK A — Geruest (nur Simulator)
+# =====================================================================
+
+esphome:
+  name: sim-03-gas
+  on_boot:
+    priority: -100
+    then:
+      - script.execute: draw_gas
+
+host:
+
+logger:
+  level: INFO
+
+# Kein api:-Block — sonst greift die Ungueltigkeitspruefung (Design.md §11)
+
+display:
+  - platform: sdl
+    id: sim_display
+    auto_clear_enabled: false
+    dimensions:
+      width: 240
+      height: 240
+    update_interval: 16ms
+
+touchscreen:
+  - platform: sdl
+    id: sim_touch
+    display: sim_display
+
+# Keine g_sim_-Globals: die Seite hat keinen Taster (Design.md §3 —
+# leerer Slot bleibt leer, es rueckt nichts nach).
+
+
+# =====================================================================
+# BLOCK B — Datenquellen
+#   Geraet: platform: template  ->  platform: homeassistant + entity_id
+#
+#   s_gas_a = Flasche auf dem Aussenring, s_gas_i = auf dem Innenring.
+#   Welche Flasche das physisch ist, entscheidet die entity_id.
+#
+#   Unterschiedliche update_interval nach Design.md §11, sonst treten
+#   immer dieselben Kombinationen auf und man sieht die Rangfolge der
+#   Statuszeile nie.
+# =====================================================================
+
+sensor:
+  - platform: template
+    id: s_gas_a                # Aussenring, Fuellstand %
+    update_interval: 800ms
+    lambda: |-
+      static float v = 100.0f;
+      v -= 4.0f;
+      if (v < 0.0f) v = 100.0f;
+      return v;
+    on_value:
+      - script.execute: draw_gas
+    # Geraet:
+    # - platform: homeassistant
+    #   id: s_gas_a
+    #   entity_id: sensor.gasflasche_a_prozent
+    #   on_value:
+    #     - script.execute: draw_gas
+
+  - platform: template
+    id: s_gas_i                # Innenring, Fuellstand %
+    update_interval: 1300ms
+    lambda: |-
+      static float v = 100.0f;
+      v -= 3.0f;
+      if (v < 0.0f) v = 100.0f;
+      return v;
+    on_value:
+      - script.execute: draw_gas
+    # Geraet:
+    # - platform: homeassistant
+    #   id: s_gas_i
+    #   entity_id: sensor.gasflasche_i_prozent
+    #   on_value:
+    #     - script.execute: draw_gas
+
+
+# =====================================================================
+# BLOCK C — Bindings (Zeichenskript der Seite, Design.md §9)
+#   Beide Fuellstaende haengen ueber die Statuszeile zusammen -> ein
+#   Skript, die Sensoren rufen nur script.execute.
+#
+#   Fahrzeugfeste Konstante: Flascheninhalt 10.5 kg netto
+#   (CH-Standardflasche). Bei 11 kg (DE) oder 5 kg hier aendern —
+#   nicht in substitutions:, die muessen seitenuebergreifend gleich sein.
+#
+#   Schwellen je Flasche: Warnung < 25 %, Alarm < 10 %.
+#
+#   Rangfolge Fusszeile (Duo-Umschaltung vorhanden):
+#     1  beide < 10 %   GAS LEER     rot     — kein Vorrat mehr
+#     2  beide < 25 %   GAS KNAPP    orange  — nachfuellen einplanen
+#     3  eine  < 10 %   GAS A/I LEER grau    — Hinweis, die Duo hat
+#                                              bereits umgeschaltet
+# =====================================================================
+
+script:
+  - id: draw_gas
+    mode: restart
+    then:
+
+      # ---- Aussenring ---------------------------------------------
+      - lvgl.arc.update:
+          id: arc_gas_a
+          value: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return 0.0;
+            #endif
+            if (!id(s_gas_a).has_state()) return 0.0;
+            return id(s_gas_a).state;
+          indicator:
+            arc_color: !lambda |-
+              #ifdef USE_API
+              if (!api_is_connected()) return lv_color_hex(0x555555);
+              #endif
+              if (!id(s_gas_a).has_state()) return lv_color_hex(0x555555);
+              float v = id(s_gas_a).state;
+              if (v < 10.0f) return lv_color_hex(0xE74C3C);
+              if (v < 25.0f) return lv_color_hex(0xF39C12);
+              return lv_color_hex(0x4A9EFF);
+
+      # ---- Innenring ----------------------------------------------
+      - lvgl.arc.update:
+          id: arc_gas_i
+          value: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return 0.0;
+            #endif
+            if (!id(s_gas_i).has_state()) return 0.0;
+            return id(s_gas_i).state;
+          indicator:
+            arc_color: !lambda |-
+              #ifdef USE_API
+              if (!api_is_connected()) return lv_color_hex(0x555555);
+              #endif
+              if (!id(s_gas_i).has_state()) return lv_color_hex(0x555555);
+              float v = id(s_gas_i).state;
+              if (v < 10.0f) return lv_color_hex(0xE74C3C);
+              if (v < 25.0f) return lv_color_hex(0xF39C12);
+              return lv_color_hex(0x9AA0A6);
+
+      # ---- Beschriftung aussen (traegt die Farbe des Aussenrings) --
+      - lvgl.label.update:
+          id: lbl_gas_cap_a
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_gas_a).has_state()) return lv_color_hex(0x555555);
+            float v = id(s_gas_a).state;
+            if (v < 10.0f) return lv_color_hex(0xE74C3C);
+            if (v < 25.0f) return lv_color_hex(0xF39C12);
+            return lv_color_hex(0x4A9EFF);
+
+      # ---- Beschriftung innen (traegt die Farbe des Innenrings) ----
+      - lvgl.label.update:
+          id: lbl_gas_cap_i
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_gas_i).has_state()) return lv_color_hex(0x555555);
+            float v = id(s_gas_i).state;
+            if (v < 10.0f) return lv_color_hex(0xE74C3C);
+            if (v < 25.0f) return lv_color_hex(0xF39C12);
+            return lv_color_hex(0x9AA0A6);
+
+      # ---- Wert aussen, % -----------------------------------------
+      - lvgl.label.update:
+          id: lbl_gas_pct_a
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("---%");
+            #endif
+            if (!id(s_gas_a).has_state()) return std::string("---%");
+            return str_sprintf("%.0f%%", id(s_gas_a).state);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_gas_a).has_state()) return lv_color_hex(0x555555);
+            float v = id(s_gas_a).state;
+            if (v < 10.0f) return lv_color_hex(0xE74C3C);
+            if (v < 25.0f) return lv_color_hex(0xF39C12);
+            return lv_color_hex(0xFFFFFF);
+
+      # ---- Wert innen, % ------------------------------------------
+      - lvgl.label.update:
+          id: lbl_gas_pct_i
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("---%");
+            #endif
+            if (!id(s_gas_i).has_state()) return std::string("---%");
+            return str_sprintf("%.0f%%", id(s_gas_i).state);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_gas_i).has_state()) return lv_color_hex(0x555555);
+            float v = id(s_gas_i).state;
+            if (v < 10.0f) return lv_color_hex(0xE74C3C);
+            if (v < 25.0f) return lv_color_hex(0xF39C12);
+            return lv_color_hex(0xFFFFFF);
+
+      # ---- Absolutwert aussen, kg ---------------------------------
+      - lvgl.label.update:
+          id: lbl_gas_kg_a
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("--- kg");
+            #endif
+            if (!id(s_gas_a).has_state()) return std::string("--- kg");
+            return str_sprintf("%.1f kg", id(s_gas_a).state * 0.105f);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_gas_a).has_state()) return lv_color_hex(0x555555);
+            return lv_color_hex(0xBDC1C6);
+
+      # ---- Absolutwert innen, kg ----------------------------------
+      - lvgl.label.update:
+          id: lbl_gas_kg_i
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("--- kg");
+            #endif
+            if (!id(s_gas_i).has_state()) return std::string("--- kg");
+            return str_sprintf("%.1f kg", id(s_gas_i).state * 0.105f);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_gas_i).has_state()) return lv_color_hex(0x555555);
+            return lv_color_hex(0xBDC1C6);
+
+      # ---- Fusszeile: genau eine Meldung, im Normalfall leer -------
+      - lvgl.label.update:
+          id: lbl_gas_footer
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("KEINE VERBINDUNG");
+            #endif
+            if (!id(s_gas_a).has_state() || !id(s_gas_i).has_state())
+              return std::string("KEIN WERT");
+            float a = id(s_gas_a).state;
+            float i = id(s_gas_i).state;
+            if (a < 10.0f && i < 10.0f) return std::string("GAS LEER");
+            if (a < 25.0f && i < 25.0f) return std::string("GAS KNAPP");
+            if (a < 10.0f) return std::string("GAS A LEER");
+            if (i < 10.0f) return std::string("GAS I LEER");
+            return std::string("");
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_gas_a).has_state() || !id(s_gas_i).has_state())
+              return lv_color_hex(0x555555);
+            float a = id(s_gas_a).state;
+            float i = id(s_gas_i).state;
+            if (a < 10.0f && i < 10.0f) return lv_color_hex(0xE74C3C);
+            if (a < 25.0f && i < 25.0f) return lv_color_hex(0xF39C12);
+            return lv_color_hex(0x707070);
+
+
+# =====================================================================
+# BLOCK D — Widgets
+# =====================================================================
+
+lvgl:
+  default_font: montserrat_16
+  bottom_layer:
+    bg_color: 0x000000
+    bg_opa: COVER
+
+  pages:
+    - id: page_gas
+      bg_color: 0x000000
+      bg_opa: COVER
+      widgets:
+
+        # --- Aussenring ------------------------------------------
+        - arc:
+            id: arc_gas_a
+            align: CENTER
+            width: 224
+            height: 224
+            start_angle: 135
+            end_angle: 45
+            min_value: 0
+            max_value: 100
+            value: 0
+            adjustable: false
+            arc_width: 10
+            arc_color: 0x1A1C1E
+            indicator:
+              arc_width: 10
+              arc_color: 0x4A9EFF
+            knob:
+              bg_opa: TRANSP
+
+        # --- Innenring -------------------------------------------
+        #     Gleiche Dicke, 2 px Schwarz dazwischen (Design.md §4).
+        - arc:
+            id: arc_gas_i
+            align: CENTER
+            width: 200
+            height: 200
+            start_angle: 135
+            end_angle: 45
+            min_value: 0
+            max_value: 100
+            value: 0
+            adjustable: false
+            arc_width: 10
+            arc_color: 0x1A1C1E
+            indicator:
+              arc_width: 10
+              arc_color: 0x9AA0A6
+            knob:
+              bg_opa: TRANSP
+
+        # --- TOP_MID / y 46: bleibt frei (Reserve Alarm-Icon)
+
+        # --- Beschriftungszeile ----------------------------------
+        #     A = Aussenring, I = Innenring. Die Flaschen stehen
+        #     hintereinander, links/rechts waere falsch.
+        #     Zugleich einzige Zuordnung Spalte <-> Ring, deshalb
+        #     in Ringfarbe mitgefuehrt.
+        - label:
+            id: lbl_gas_cap_a
+            align: CENTER
+            x: -${x_col}
+            y: ${y_cap}
+            text: "GAS A"
+            text_font: montserrat_12
+            text_color: 0x555555
+
+        - label:
+            id: lbl_gas_cap_i
+            align: CENTER
+            x: ${x_col}
+            y: ${y_cap}
+            text: "GAS I"
+            text_font: montserrat_12
+            text_color: 0x555555
+
+        # --- Wertzeile, montserrat_24 (Design.md §3/§5) ----------
+        - label:
+            id: lbl_gas_pct_a
+            align: CENTER
+            x: -${x_col}
+            y: ${y_main}
+            text: "---%"
+            text_font: montserrat_24
+            text_color: 0x555555
+
+        - label:
+            id: lbl_gas_pct_i
+            align: CENTER
+            x: ${x_col}
+            y: ${y_main}
+            text: "---%"
+            text_font: montserrat_24
+            text_color: 0x555555
+
+        # --- Absolutzeile ----------------------------------------
+        - label:
+            id: lbl_gas_kg_a
+            align: CENTER
+            x: -${x_col}
+            y: ${y_line2}
+            text: "--- kg"
+            text_font: montserrat_16
+            text_color: 0x555555
+
+        - label:
+            id: lbl_gas_kg_i
+            align: CENTER
+            x: ${x_col}
+            y: ${y_line2}
+            text: "--- kg"
+            text_font: montserrat_16
+            text_color: 0x555555
+
+        # --- y_row bleibt leer: die Seite hat keinen Taster.
+        #     Nicht nachruecken lassen (Design.md §3).
+
+        # --- Fusszeile in der Bogenluecke ------------------------
+        - label:
+            id: lbl_gas_footer
+            align: BOTTOM_MID
+            y: ${y_footer}
+            text: ""
+            text_font: montserrat_12
+            text_color: 0x707070
