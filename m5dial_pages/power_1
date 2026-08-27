@@ -1,7 +1,0 @@
-#
-# Abweichung zu Seite 1: die Anzeigen haengen von mehreren Werten ab
-# (Eingangsleistung, Strombegrenzung, Modus). Darum zeichnet ein Skript
-# draw_grid die ganze Seite, und jeder Sensor ruft es nur auf.
-#
-# Layout: Hauptwert Eingangsleistung, Nebenzeile MP-Zustand, Tasterreihe
-# Modus | Strombegrenzung. Die Fusszeile (y_footer) bleibt hier frei.
