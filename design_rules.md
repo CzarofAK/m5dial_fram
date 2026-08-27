@@ -33,7 +33,7 @@ oder dieses Dokument veraltet — beides gehört korrigiert, nicht ignoriert.
 | Einbau | Armaturenbrett / Fahrerposition |
 | Bedienung | Drehencoder, Fronttaste, kapazitiver Touch (FT5x06) |
 | Flash | 8 MB (`flash_size: 8MB` unter `esp32:`) |
-| Rotation | `rotation: 180` |
+| Rotation | `rotation: 0` |
 
 Konsequenz aus „rund": alles jenseits von r = 120 px vom Mittelpunkt
 existiert nicht. Der Simulator zeigt ein Quadrat und lügt an den Ecken.
