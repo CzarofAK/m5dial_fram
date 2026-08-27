@@ -41,7 +41,12 @@ esphome:
         - script.execute: apply_daynight
 
 esp32:
-  board: esp32s3
+  # `board: esp32s3` isn't a real PlatformIO board id (it's the chip
+  # variant name, not a board) -- ESPHome rejects it as unknown and
+  # asks for `variant:` instead. Matches M5's own example config
+  # (docs.m5stack.com/en/homeassistant/kit/dial), which likewise has
+  # no `board:` key at all.
+  variant: esp32s3
   flash_size: 8MB
   framework:
     type: esp-idf
