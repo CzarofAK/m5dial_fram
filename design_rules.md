@@ -647,6 +647,16 @@ reusable by any dial in the project, not just this one.
   `page_power_2` (6) use it now — the dispatch in
   `encoder_adjust_up`/`_down` is hand-written per target, so each page
   adopting this needs a branch added there too.
+* **~~Double-click as a SET shortcut.~~** Built: on a page with a
+  primary settable value, double-clicking the physical front button
+  arms it (`LvPageType::is_showing()` picks the page, same
+  hand-written per-page dispatch as the encoder one above) instead of
+  jumping to the home page — home moves to long-press-only on those
+  pages. `page_fans` (`act_fans_arm_board` — the real FANBOARD column,
+  not the HVAC placeholder, since only one target fits one
+  double-click), `page_climate`, `page_boiler`, `page_power_2`. A page
+  with no settable value (or `page_fans`'s HVAC column specifically)
+  has no double-click shortcut; double-click there still goes home.
 * **Real integration behind `climate`/`boiler`.** Both originally
   assumed a `truma_inetbox` external ESPHome component talking LIN
   directly — wrong; the real path is a MQTT-based `womolin_controller`

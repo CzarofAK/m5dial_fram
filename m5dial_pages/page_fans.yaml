@@ -11,11 +11,17 @@
 #
 #  Interaction: tap a column's SET button to arm it (design.md §14,
 #  g_edit_target in .m5dial_fram.yaml) -- the encoder then adjusts
-#  that value in 5% steps instead of paging, until SET is tapped again
-#  (or double-click/long-press, which also exits to the home page).
-#  Armed is shown by the SET button's border lighting up, and by the
-#  footer hint. Both columns share the mechanism; only FANBOARD does
-#  anything real yet -- HVAC's adjust scripts are stubs (see below).
+#  that value in 5% steps instead of paging, until SET is tapped
+#  again. Armed is shown by the SET button's border lighting up, and
+#  by the footer hint. Both columns share the mechanism; only
+#  FANBOARD does anything real yet -- HVAC's adjust scripts are stubs
+#  (see below).
+#
+#  Double-clicking the physical front button on this page also arms
+#  FANBOARD (act_fans_arm_board), same as tapping its SET button --
+#  it does NOT exit to home here (that's long-press-only on this page
+#  now); see .m5dial_fram.yaml's double-click handler. HVAC has no
+#  double-click shortcut -- FANBOARD is the one real column.
 # =====================================================================
 
 # ---------------------------------------------------------------------
