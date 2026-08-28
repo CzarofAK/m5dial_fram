@@ -38,17 +38,24 @@
 #  the ESP-IDF toolchain download). On-device rendering itself
 #  (chroma-key correctness, whether the cat actually reads as a cat at
 #  128px) still needs a real flash to confirm.
+#
+#  `image:` entries need `platform: file` explicitly -- the bare
+#  `id:`/`file:` form (still what got validated above, against
+#  ESPHome 2026.6.5) is the old shorthand and warns as deprecated,
+#  removed in 2027.1.0, on a newer install.
 # =====================================================================
 
 # ---------------------------------------------------------------------
 #  B  Assets
 # ---------------------------------------------------------------------
 image:
-  - id: img_cat_1
+  - platform: file
+    id: img_cat_1
     file: m5dial_pages/assets/cat_1.png
     type: RGB565
     transparency: chroma_key
-  - id: img_cat_2
+  - platform: file
+    id: img_cat_2
     file: m5dial_pages/assets/cat_2.png
     type: RGB565
     transparency: chroma_key

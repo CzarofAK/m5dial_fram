@@ -113,6 +113,15 @@ output:
   - platform: ledc
     id: out_backlight
     pin: GPIO9
+  # ESPHome warns "GPIO3 is a strapping pin" here -- expected, not a
+  # bug: GPIO3 is where M5Stack's own hardware wires the buzzer on the
+  # M5StampS3 module (M5's reference config uses the same pin), so
+  # there's no other pin to move this to. Strapping only matters
+  # during the reset/boot sampling window; this pin is only ever
+  # driven afterward, as a plain ledc output, with nothing external
+  # pulling on it -- the failure mode the warning is about
+  # (mis-sampled boot straps from an external pull resistor) doesn't
+  # apply here.
   - platform: ledc
     id: out_buzzer
     pin: GPIO3
