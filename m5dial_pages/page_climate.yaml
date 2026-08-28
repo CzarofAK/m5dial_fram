@@ -13,15 +13,25 @@
 #
 #  Slots (design.md §3):
 #    y_main   21°C              montserrat_40 — current room temp
-#    y_line2  SOLL 22°C           montserrat_16 — target temperature
-#    y_row    two buttons       HEIZUNG on/off | FAN mode
-#    y_footer status line       montserrat_12 — heater error
+#    y_line2  SOLL 22°C         montserrat_16 — target temperature
+#    y_row    two buttons       HEIZUNG on/off | FAN mode (also its own SET)
+#    y_row2   one button        SET, arms room temp for the encoder
+#    y_footer status line       montserrat_12 — heater error, or a
+#                                "turn to adjust" hint while armed
 #
-#  Fan mode button: the Truma's HEATER_FAN_MODE_COMBI select's option
-#  list isn't documented anywhere I could check from here, so instead
-#  of a hand-written cycle (like power_2's MultiPlus mode, where the
-#  four options are known) this uses select.select_next — a generic
-#  HA service that advances any select entity to its next option
+#  Room temp and fan mode are both encoder-adjustable (design.md §14,
+#  g_edit_target in .m5dial_fram.yaml) -- temp via its own SET button,
+#  fan mode via tapping the fan button itself (it already shows the
+#  current mode, no separate SET needed there). Both refuse to arm
+#  while HEIZUNG is off: per Truma, a target set while off doesn't
+#  take effect, so this blocks arming rather than letting the encoder
+#  silently do nothing.
+#
+#  Fan mode uses select.select_next/_previous -- the Truma's
+#  HEATER_FAN_MODE_COMBI select's option list isn't documented
+#  anywhere I could check from here, so instead of a hand-written
+#  cycle (like power_2's MultiPlus mode, where the four options are
+#  known) these are generic HA services that step any select entity
 #  without the caller needing to know what the options are.
 # =====================================================================
 
@@ -77,16 +87,82 @@ script:
           data:
             entity_id: switch.activate_room_heater
 
-  - id: act_climate_fan
+  # Room temp (target 3) and fan mode (target 4) both refuse to arm
+  # while the heater's off -- per Truma, a target/mode set while off
+  # doesn't take (nothing rejects the HA call, it just has no effect
+  # on the device), so arming is blocked here rather than letting the
+  # encoder silently do nothing once armed.
+  - id: act_climate_arm_temp
+    then:
+      - if:
+          condition:
+            lambda: return id(s_climate_heater_on).has_state() && id(s_climate_heater_on).state;
+          then:
+            - globals.set:
+                id: g_edit_target
+                value: !lambda "return (id(g_edit_target) == 3) ? 0 : 3;"
+      - script.execute: draw_climate
+
+  - id: act_climate_arm_fan
+    then:
+      - if:
+          condition:
+            lambda: return id(s_climate_heater_on).has_state() && id(s_climate_heater_on).state;
+          then:
+            - globals.set:
+                id: g_edit_target
+                value: !lambda "return (id(g_edit_target) == 4) ? 0 : 4;"
+      - script.execute: draw_climate
+
+  # 1°C step, clamped 5-30 (a guess at a sane range, not the Truma's
+  # actual documented min/max -- verify on the device).
+  - id: act_climate_temp_up
+    then:
+      - homeassistant.service:
+          service: number.set_value
+          data:
+            entity_id: number.target_room_temperature
+          data_template:
+            value: "{{ val }}"
+          variables:
+            val: !lambda |-
+              float cur = id(s_climate_target).has_state() ? id(s_climate_target).state : 20.0f;
+              float v = cur + 1.0f;
+              if (v > 30.0f) v = 30.0f;
+              return str_sprintf("%.0f", v);
+
+  - id: act_climate_temp_down
+    then:
+      - homeassistant.service:
+          service: number.set_value
+          data:
+            entity_id: number.target_room_temperature
+          data_template:
+            value: "{{ val }}"
+          variables:
+            val: !lambda |-
+              float cur = id(s_climate_target).has_state() ? id(s_climate_target).state : 20.0f;
+              float v = cur - 1.0f;
+              if (v < 5.0f) v = 5.0f;
+              return str_sprintf("%.0f", v);
+
+  # select.select_next/_previous: generic HA services, cycle any
+  # select entity without needing to know its option list (same
+  # reasoning as the old act_climate_fan this replaces).
+  - id: act_climate_fan_up
     then:
       - homeassistant.service:
           service: select.select_next
           data:
             entity_id: select.fan_mode
-            # homeassistant.service's data: values are all strings
-            # (ESPHome templates them, then HA coerces) -- unquoted
-            # `true` parses as a YAML/Python bool, and the validator
-            # rejects that: "Must be string, got <class 'bool'>."
+            cycle: "true"
+
+  - id: act_climate_fan_down
+    then:
+      - homeassistant.service:
+          service: select.select_previous
+          data:
+            entity_id: select.fan_mode
             cycle: "true"
 
   - id: draw_climate
@@ -159,7 +235,7 @@ script:
             return id(s_climate_heater_on).state ? lv_color_hex(0x2ECC71)
                                           : lv_color_hex(0x3C4043);
 
-      # ---- Right button: fan mode --------------------------------------
+      # ---- Right button: fan mode, doubles as its own SET (target 4) --
       - lvgl.label.update:
           id: lbl_climate_fan
           text: !lambda |-
@@ -174,22 +250,38 @@ script:
             #endif
             if (!id(s_climate_fan_mode).has_state()) return lv_color_hex(0x555555);
             return lv_color_hex(0xBDC1C6);
+      - lvgl.widget.update:
+          id: btn_climate_fan
+          border_color: !lambda |-
+            if (id(g_edit_target) == 4) return lv_color_hex(0x4A9EFF);
+            return lv_color_hex(0x3C4043);
 
-      # ---- Status line: error only -------------------------------------
+      # ---- Row 2: SET button, arms room temp (target 3) ----------------
+      - lvgl.widget.update:
+          id: btn_climate_temp_set
+          border_color: !lambda |-
+            if (id(g_edit_target) == 3) return lv_color_hex(0x4A9EFF);
+            return lv_color_hex(0x3C4043);
+
+      # ---- Footer: error, or the edit-mode hint if nothing's wrong -----
       - lvgl.label.update:
           id: lbl_climate_status
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("KEINE VERBINDUNG");
             #endif
-            if (!id(s_climate_error).has_state()) return std::string("");
-            return id(s_climate_error).state ? std::string("HEIZUNG FEHLER")
-                                      : std::string("");
+            if (id(s_climate_error).has_state() && id(s_climate_error).state)
+              return std::string("HEIZUNG FEHLER");
+            if (id(g_edit_target) == 3 || id(g_edit_target) == 4)
+              return std::string("DREHEN ZUM ÄNDERN");
+            return std::string("");
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            return lv_color_hex(0xE74C3C);
+            if (id(s_climate_error).has_state() && id(s_climate_error).state)
+              return lv_color_hex(0xE74C3C);
+            return lv_color_hex(0x4A9EFF);
 
 esphome:
   on_boot:
@@ -211,7 +303,7 @@ lvgl:
             align: CENTER
             y: ${y_main}
             text: "---°C"
-            text_font: montserrat_40
+            text_font: font_40
             text_color: 0x555555
 
         - label:
@@ -219,7 +311,7 @@ lvgl:
             align: CENTER
             y: ${y_line2}
             text: "SOLL ---°C"
-            text_font: montserrat_16
+            text_font: font_16
             text_color: 0x555555
 
         - button:
@@ -238,7 +330,7 @@ lvgl:
                   id: lbl_climate_heater
                   align: CENTER
                   text: "HEIZ ---"
-                  text_font: montserrat_16
+                  text_font: font_16
                   text_color: 0x555555
             on_click:
               - script.execute: act_climate_heater
@@ -259,15 +351,35 @@ lvgl:
                   id: lbl_climate_fan
                   align: CENTER
                   text: "---"
-                  text_font: montserrat_16
+                  text_font: font_16
                   text_color: 0x555555
             on_click:
-              - script.execute: act_climate_fan
+              - script.execute: act_climate_arm_fan
+
+        # ---- Row 2: SET, arms room temp (target 3) -----------------------
+        - button:
+            id: btn_climate_temp_set
+            align: CENTER
+            y: ${y_row2}
+            width: 68
+            height: 26
+            radius: 13
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  align: CENTER
+                  text: "SET"
+                  text_font: font_16
+                  text_color: 0xBDC1C6
+            on_click:
+              - script.execute: act_climate_arm_temp
 
         - label:
             id: lbl_climate_status
             align: BOTTOM_MID
             y: ${y_footer}
             text: ""
-            text_font: montserrat_12
+            text_font: font_12
             text_color: 0x555555

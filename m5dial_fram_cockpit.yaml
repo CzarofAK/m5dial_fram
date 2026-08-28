@@ -40,19 +40,20 @@ packages:
   p0: !include m5dial_pages/page_clock.yaml
   p1: !include m5dial_pages/page_power_1.yaml
   p2: !include m5dial_pages/page_power_2.yaml
-  p3: !include m5dial_pages/page_gas.yaml
-  p4: !include m5dial_pages/page_water.yaml
-  # p5-p11: draft pages, most with placeholder entity_ids that don't
+  p3: !include m5dial_pages/page_power_3.yaml
+  p4: !include m5dial_pages/page_gas.yaml
+  p5: !include m5dial_pages/page_water.yaml
+  # p6-p12: draft pages, most with placeholder entity_ids that don't
   # point at anything real yet (design.md §15) -- they'll compile and
   # show "---" everywhere rather than break the build, but check each
   # one's entity_ids before relying on it.
-  p5: !include m5dial_pages/page_levelling.yaml
-  p6: !include m5dial_pages/page_climate.yaml
-  p7: !include m5dial_pages/page_boiler.yaml
-  p8: !include m5dial_pages/page_fans.yaml
-  p9: !include m5dial_pages/page_lights_outside.yaml
-  p10: !include m5dial_pages/page_entrance.yaml
-  p11: !include m5dial_pages/page_ipixel.yaml
+  p6: !include m5dial_pages/page_levelling.yaml
+  p7: !include m5dial_pages/page_climate.yaml
+  p8: !include m5dial_pages/page_boiler.yaml
+  p9: !include m5dial_pages/page_fans.yaml
+  p10: !include m5dial_pages/page_lights_outside.yaml
+  p11: !include m5dial_pages/page_entrance.yaml
+  p12: !include m5dial_pages/page_ipixel.yaml
 
   # Overlays (design.md §15): not pages, no p<n> slot, no page order --
   # they add to LVGL's top_layer instead of pages:, shown over whatever

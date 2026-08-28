@@ -228,7 +228,7 @@ lvgl:
             align: CENTER
             y: ${y_main}
             text: "---%"
-            text_font: montserrat_40
+            text_font: font_40
             text_color: 0x555555
 
         - label:
@@ -236,7 +236,7 @@ lvgl:
             align: CENTER
             y: ${y_line2}
             text: "---V  ---A"
-            text_font: montserrat_16
+            text_font: font_16
             text_color: 0x555555
 
         - button:
@@ -254,7 +254,7 @@ lvgl:
                   id: lbl_power_1_park
                   align: CENTER
                   text: "PARK ---"
-                  text_font: montserrat_16
+                  text_font: font_16
                   text_color: 0x555555
             on_click:
               - script.execute: act_power_1_park
@@ -264,5 +264,5 @@ lvgl:
             align: BOTTOM_MID
             y: ${y_footer}
             text: ""
-            text_font: montserrat_12
+            text_font: font_12
             text_color: 0x555555

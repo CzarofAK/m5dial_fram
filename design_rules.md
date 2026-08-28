@@ -34,7 +34,7 @@ doesn't exist. The simulator shows a square and lies at the corners.
 | `m5dial_pages/overlay_<name>.yaml` | an overlay (§15) — adds to LVGL's `top_layer`, not `pages:`; no page order, no `p<n>` slot |
 
 One file per page, named `page_<name>.yaml`, `<name>` matching §10's
-page names (`clock`, `gas`, `power_1`, `power_2`, `water`). Each file
+page names (`clock`, `gas`, `power_1`, `power_2`, `power_3`, `water`). Each file
 directly contains its data sources (`sensor:` / `text_sensor:` on
 `platform: homeassistant`), its bindings, and its widgets — this is
 what actually runs on the device, not an intermediate form.
@@ -510,7 +510,7 @@ bottle 10.5 kg net.
 ## 10. Naming scheme
 
 The short page name is the yaml file's own name (`m5dial_pages/<name>.yaml`):
-`clock`, `gas`, `power_1`, `power_2`, `water`. All page-prefixed IDs use it,
+`clock`, `gas`, `power_1`, `power_2`, `power_3`, `water`. All page-prefixed IDs use it,
 e.g. `s_power_1_soc`, `page_power_2`, `draw_water`.
 
 | Prefix | For |
@@ -622,10 +622,16 @@ reusable by any dial in the project, not just this one.
   `page_fans` uses it so far (2 targets) — the dispatch in
   `encoder_adjust_up`/`_down` is hand-written per target, so a third
   page adopting this needs a branch added there too.
-* **Special characters.** `°` is needed on the temperature and boiler
-  pages; it's included in the built-in montserrat fonts, but with a
-  custom font it would need to go into the glyph list. The middle dot
-  `·` is untested and avoided until then.
+* **~~Special characters.~~** Turned out to be a real bug, not a
+  someday concern: every Ä/Ö/Ü/ä/ö/ü/ß on the device showed as a tofu
+  box — LVGL's built-in `montserrat_NN` fonts are ASCII-only, no
+  Latin-1, and ESPHome can't add glyphs to an already-compiled font.
+  Fixed by switching to custom-rasterized fonts (`.m5dial_fram.yaml`'s
+  `font:` block, `font_12`/`_16`/`_24`/`_40`) with an explicit glyph
+  list covering what's actually used, umlauts included. Not yet
+  confirmed on the device — next flash should show it either fixed or
+  not. The middle dot `·` is still untested and still avoided; add it
+  to the glyph list first if it's ever needed.
 * **Visual height of the main value.** `72%` and `540 W` sit on the
   same `y_main` but appear to be at different heights, because the
   percent sign reaches further up. Only decide whether this is a
@@ -651,16 +657,17 @@ one line each) before relying on it.
 |---|---|---|---|
 | 0 | `clock` | Clock + outdoor temperature and date/weekday | implemented |
 | 1 | `power_1` | Battery: SOC, park mode, starter voltage | implemented |
-| 2 | `power_2` | Grid power: MultiPlus mode / current limit | implemented |
-| 3 | `gas` | Two gas bottles (double ring, §4) | implemented |
-| 4 | `water` | Fresh / grey water (double ring, §4) | implemented |
-| 5 | `levelling` | Spirit level — sensor is **external** hardware, not on the dial | implemented |
-| 6 | `climate` | Truma Combi 4 (gas only) room-heating side + fan mode; AC not installed yet | draft |
-| 7 | `boiler` | Truma Combi 4 water-heating side: mode, actual temperature | draft |
-| 8 | `fans` | Fan board (real) + Sprinter HVAC fan (**placeholder** — that PCB doesn't exist yet) | implemented |
-| 9 | `lights_outside` | Entrance light, awning light (dimmable; dial only does on/off, no brightness) | draft |
-| 10 | `entrance` | Step, door lock | implemented |
-| 11 | `ipixel` | On/off and status only | draft |
+| 2 | `power_2` | Grid power: input power (arc, read-only), PowerAssist current limit (arc, encoder-adjustable) | implemented |
+| 3 | `power_3` | Grid power, WR side: inverter load (arc, computed against the installed model's nominal rating), MultiPlus mode | implemented |
+| 4 | `gas` | Two gas bottles (double ring, §4) | implemented |
+| 5 | `water` | Fresh / grey water (double ring, §4) | implemented |
+| 6 | `levelling` | Spirit level — sensor is **external** hardware, not on the dial | implemented |
+| 7 | `climate` | Truma Combi 4 (gas only) room-heating side + fan mode; AC not installed yet | draft |
+| 8 | `boiler` | Truma Combi 4 water-heating side: mode, actual temperature | draft |
+| 9 | `fans` | Fan board (real) + Sprinter HVAC fan (**placeholder** — that PCB doesn't exist yet) | implemented |
+| 10 | `lights_outside` | Entrance light, awning light (dimmable; dial only does on/off, no brightness) | draft |
+| 11 | `entrance` | Step, door lock | implemented |
+| 12 | `ipixel` | On/off and status only | draft |
 | reserved | `lights_inside` | — | reserved, not designed yet |
 
 Not pages — shown as an overlay on top of whatever page is current,

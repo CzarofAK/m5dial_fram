@@ -232,7 +232,7 @@ lvgl:
             x: -${x_col}
             y: ${y_cap}
             text: "FANBOARD"
-            text_font: montserrat_12
+            text_font: font_12
             text_color: 0x555555
         - label:
             id: lbl_fans_pct_board
@@ -240,7 +240,7 @@ lvgl:
             x: -${x_col}
             y: ${y_main}
             text: "---%"
-            text_font: montserrat_24
+            text_font: font_24
             text_color: 0x555555
         - button:
             id: btn_fans_set_board
@@ -257,7 +257,7 @@ lvgl:
               - label:
                   align: CENTER
                   text: "SET"
-                  text_font: montserrat_16
+                  text_font: font_16
                   text_color: 0xBDC1C6
             on_click:
               - script.execute: act_fans_arm_board
@@ -269,7 +269,7 @@ lvgl:
             x: ${x_col}
             y: ${y_cap}
             text: "HVAC"
-            text_font: montserrat_12
+            text_font: font_12
             text_color: 0x555555
         - label:
             id: lbl_fans_pct_hvac
@@ -277,7 +277,7 @@ lvgl:
             x: ${x_col}
             y: ${y_main}
             text: "---%"
-            text_font: montserrat_24
+            text_font: font_24
             text_color: 0x555555
         - button:
             id: btn_fans_set_hvac
@@ -294,7 +294,7 @@ lvgl:
               - label:
                   align: CENTER
                   text: "SET"
-                  text_font: montserrat_16
+                  text_font: font_16
                   text_color: 0xBDC1C6
             on_click:
               - script.execute: act_fans_arm_hvac
@@ -304,5 +304,5 @@ lvgl:
             align: BOTTOM_MID
             y: ${y_footer}
             text: ""
-            text_font: montserrat_12
+            text_font: font_12
             text_color: 0x4A9EFF

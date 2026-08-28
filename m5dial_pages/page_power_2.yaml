@@ -1,18 +1,26 @@
 # =====================================================================
-#  m5dial_pages/page_power_2.yaml — page: Power / Grid (MultiPlus)
+#  m5dial_pages/page_power_2.yaml — page: Power / Grid (input, PowerAssist)
 #  FRAM M5Dial Cockpit · page package
 #
-#  Slots (design.md §3):
-#    y_main   1240W            montserrat_40
-#    y_line2  ABSORPTION       montserrat_16
-#    y_row    two buttons      76 x 30 each, x ±${x_col}
-#    y_footer status line      montserrat_12
+#  Split from what used to be here (which covered WR load and mode
+#  too) once that got too full. This half: grid input power, and the
+#  PowerAssist current limit. The other half moved to
+#  page_power_3.yaml.
 #
-#  The arc shows the load as a percentage of the configured current
-#  limit (design.md §8: never a physical quantity).
-#  Width check y_line2: "ABSORPTION" montserrat_16 ≈ 92 px, about 197 px
-#  available at y 25. Fits.
-#  Button: 3–4 characters (design.md §8) — ON / CHG / INV / OFF, "16 A".
+#  Double ring (design.md §4), same geometry as page_gas.yaml:
+#    outer 224 x 224   EINGANG      -- input power, read-only
+#    inner 200 x 200   ASSIST       -- PowerAssist limit, adjustable
+#
+#  Both arcs are percentages (design.md §8), not the raw values:
+#    EINGANG = current draw as % of the PowerAssist limit (same
+#      calculation this page always used for its one arc).
+#    ASSIST  = the limit itself as % of 16A -- not the entity's own
+#      0-63A range, but this installation's real ceiling (2.5mm² wiring).
+#
+#  PowerAssist (number.multiplus_strombegrenzung) is encoder-adjustable
+#  (design.md §14, g_edit_target target 6) via the SET button under its
+#  column: 0.1A steps, clamped 0-16A. Always armable -- unlike
+#  climate/boiler, there's no "must be on first" gate here.
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -35,52 +43,17 @@ sensor:
     on_value:
       - script.execute: draw_power_2
 
-text_sensor:
-  - platform: homeassistant
-    id: s_power_2_state
-    entity_id: sensor.multiplus_zustand
-    on_value:
-      - script.execute: draw_power_2
-
-  - platform: homeassistant
-    id: s_power_2_mode
-    entity_id: select.multiplus
-    # The button shows three characters (design.md §8). The shortening
-    # lives here as a filter, so blocks C and D don't need to know
-    # about it.
-    filters:
-      - lambda: |-
-          // Options of select.multiplus:
-          //   charger_only · inverter_only · on · off
-          std::string s = x;
-          if (s == "on") return std::string("ON");
-          if (s == "charger_only") return std::string("CHG");
-          if (s == "inverter_only") return std::string("INV");
-          return std::string("OFF");
-    on_value:
-      - script.execute: draw_power_2
-
 script:
-  # OPEN ITEM (design.md §13): the jump to OFF takes away shore power,
-  # charging, and 230 V, and should require a long press.
-  - id: act_power_2_mode
+  - id: act_power_2_arm_assist
     then:
-      - homeassistant.service:
-          service: select.select_option
-          data:
-            entity_id: select.multiplus
-          data_template:
-            option: "{{ opt }}"
-          variables:
-            opt: !lambda |-
-              // ON -> CHG -> INV -> OFF -> ON
-              std::string m = id(s_power_2_mode).state;
-              if (m == "ON")  return std::string("charger_only");
-              if (m == "CHG") return std::string("inverter_only");
-              if (m == "INV") return std::string("off");
-              return std::string("on");
+      - globals.set:
+          id: g_edit_target
+          value: !lambda "return (id(g_edit_target) == 6) ? 0 : 6;"
+      - script.execute: draw_power_2
 
-  - id: act_power_2_limit
+  # 0.1A step, clamped 0-16 -- this installation's real ceiling (2.5mm²
+  # wiring), not the entity's own 0-63A range.
+  - id: act_power_2_assist_up
     then:
       - homeassistant.service:
           service: number.set_value
@@ -90,20 +63,32 @@ script:
             value: "{{ val }}"
           variables:
             val: !lambda |-
-              // next value up, snapping to the list in case HA
-              // returns an in-between value (e.g. 10.5)
-              static const float t[] = {4.0f, 6.0f, 8.0f, 10.0f, 13.0f, 16.0f};
-              float cur = id(s_power_2_limit).has_state() ? id(s_power_2_limit).state : 4.0f;
-              for (int i = 0; i < 6; i++)
-                if (t[i] > cur + 0.1f) return str_sprintf("%.0f", t[i]);
-              return std::string("4");
+              float cur = id(s_power_2_limit).has_state() ? id(s_power_2_limit).state : 0.0f;
+              float v = cur + 0.1f;
+              if (v > 16.0f) v = 16.0f;
+              return str_sprintf("%.1f", v);
+
+  - id: act_power_2_assist_down
+    then:
+      - homeassistant.service:
+          service: number.set_value
+          data:
+            entity_id: number.multiplus_strombegrenzung
+          data_template:
+            value: "{{ val }}"
+          variables:
+            val: !lambda |-
+              float cur = id(s_power_2_limit).has_state() ? id(s_power_2_limit).state : 0.0f;
+              float v = cur - 0.1f;
+              if (v < 0.0f) v = 0.0f;
+              return str_sprintf("%.1f", v);
 
   - id: draw_power_2
     mode: restart
     then:
-      # ---- Arc: load as % of the limit -------------------------------
+      # ---- Outer ring: EINGANG, % of the PowerAssist limit ------------
       - lvgl.arc.update:
-          id: arc_power_2
+          id: arc_power_2_in
           value: !lambda |-
             if (!id(s_power_2_a).has_state() || !id(s_power_2_limit).has_state())
               return 0.0f;
@@ -127,7 +112,24 @@ script:
               if (p >= 80.0f) return lv_color_hex(0xF39C12);
               return lv_color_hex(0x4A9EFF);
 
-      # ---- Main value: input power -----------------------------------
+      # ---- Inner ring: ASSIST, % of the 16A cable ceiling --------------
+      - lvgl.arc.update:
+          id: arc_power_2_assist
+          value: !lambda |-
+            if (!id(s_power_2_limit).has_state()) return 0.0f;
+            float p = id(s_power_2_limit).state / 16.0f * 100.0f;
+            if (p > 100.0f) p = 100.0f;
+            if (p < 0.0f) p = 0.0f;
+            return p;
+          indicator:
+            arc_color: !lambda |-
+              #ifdef USE_API
+              if (!api_is_connected()) return lv_color_hex(0x555555);
+              #endif
+              if (!id(s_power_2_limit).has_state()) return lv_color_hex(0x555555);
+              return lv_color_hex(0x9AA0A6);
+
+      # ---- Outer column: EINGANG ----------------------------------------
       - lvgl.label.update:
           id: lbl_power_2_w
           text: !lambda |-
@@ -150,74 +152,7 @@ script:
             if (p >= 80.0f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0xFFFFFF);
 
-      # ---- Secondary line: MP state ------------------------------------
-      - lvgl.label.update:
-          id: lbl_power_2_state
-          text: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return std::string("---");
-            #endif
-            if (!id(s_power_2_state).has_state()) return std::string("---");
-            // Options come as snake_case: bulk, absorption, float,
-            // inverting, fault, power_assist, scheduled_recharging, ...
-            // Longest case "SCHEDULED RECHARGING" = 20 characters ~184 px,
-            // 197 px are available at y_line2 (design.md §4).
-            std::string s = id(s_power_2_state).state;
-            for (auto &c : s) { if (c == '_') c = ' '; else c = ::toupper(c); }
-            return s;
-          text_color: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return lv_color_hex(0x555555);
-            #endif
-            if (!id(s_power_2_state).has_state()) return lv_color_hex(0x555555);
-            std::string s = id(s_power_2_state).state;
-            if (s == "fault") return lv_color_hex(0xE74C3C);
-            if (s == "off" || s == "low_power") return lv_color_hex(0x707070);
-            return lv_color_hex(0xBDC1C6);
-
-      # ---- Left button: mode -------------------------------------------
-      - lvgl.label.update:
-          id: lbl_power_2_mode
-          text: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return std::string("---");
-            #endif
-            if (!id(s_power_2_mode).has_state()) return std::string("---");
-            return id(s_power_2_mode).state;
-          text_color: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return lv_color_hex(0x555555);
-            #endif
-            if (!id(s_power_2_mode).has_state()) return lv_color_hex(0x555555);
-            std::string m = id(s_power_2_mode).state;
-            if (m == "ON")  return lv_color_hex(0x2ECC71);
-            if (m == "CHG") return lv_color_hex(0x4A9EFF);
-            if (m == "INV") return lv_color_hex(0xF39C12);
-            return lv_color_hex(0xBDC1C6);
-      - lvgl.widget.update:
-          id: btn_power_2_mode
-          bg_color: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return lv_color_hex(0x202124);
-            #endif
-            if (!id(s_power_2_mode).has_state()) return lv_color_hex(0x202124);
-            std::string m = id(s_power_2_mode).state;
-            if (m == "ON")  return lv_color_hex(0x1B5E3A);
-            if (m == "CHG") return lv_color_hex(0x14324F);
-            if (m == "INV") return lv_color_hex(0x4F3814);
-            return lv_color_hex(0x202124);
-          border_color: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return lv_color_hex(0x3C4043);
-            #endif
-            if (!id(s_power_2_mode).has_state()) return lv_color_hex(0x3C4043);
-            std::string m = id(s_power_2_mode).state;
-            if (m == "ON")  return lv_color_hex(0x2ECC71);
-            if (m == "CHG") return lv_color_hex(0x4A9EFF);
-            if (m == "INV") return lv_color_hex(0xF39C12);
-            return lv_color_hex(0x3C4043);
-
-      # ---- Right button: current limit ----------------------------------
+      # ---- Inner column: ASSIST -----------------------------------------
       - lvgl.label.update:
           id: lbl_power_2_limit
           text: !lambda |-
@@ -225,35 +160,27 @@ script:
             if (!api_is_connected()) return std::string("--A");
             #endif
             if (!id(s_power_2_limit).has_state()) return std::string("--A");
-            return str_sprintf("%.0fA", id(s_power_2_limit).state);
+            return str_sprintf("%.1fA", id(s_power_2_limit).state);
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
             if (!id(s_power_2_limit).has_state()) return lv_color_hex(0x555555);
-            return lv_color_hex(0x4A9EFF);
+            return lv_color_hex(0xBDC1C6);
       - lvgl.widget.update:
-          id: btn_power_2_limit
-          bg_color: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return lv_color_hex(0x202124);
-            #endif
-            if (!id(s_power_2_limit).has_state()) return lv_color_hex(0x202124);
-            return lv_color_hex(0x14324F);
+          id: btn_power_2_assist_set
           border_color: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return lv_color_hex(0x3C4043);
-            #endif
-            if (!id(s_power_2_limit).has_state()) return lv_color_hex(0x3C4043);
-            return lv_color_hex(0x4A9EFF);
+            if (id(g_edit_target) == 6) return lv_color_hex(0x4A9EFF);
+            return lv_color_hex(0x3C4043);
 
-      # ---- Status line ---------------------------------------------
+      # ---- Footer: high-load hint, or the edit-mode hint ----------------
       - lvgl.label.update:
           id: lbl_power_2_status
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("KEINE VERBINDUNG");
             #endif
+            if (id(g_edit_target) == 6) return std::string("DREHEN ZUM ÄNDERN");
             if (!id(s_power_2_a).has_state() || !id(s_power_2_limit).has_state())
               return std::string("");
             float lim = id(s_power_2_limit).state;
@@ -266,6 +193,7 @@ script:
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
+            if (id(g_edit_target) == 6) return lv_color_hex(0x4A9EFF);
             if (!id(s_power_2_a).has_state() || !id(s_power_2_limit).has_state())
               return lv_color_hex(0x555555);
             float lim = id(s_power_2_limit).state;
@@ -286,15 +214,11 @@ esphome:
 lvgl:
   pages:
     - id: page_power_2
-      # An LVGL page is by default an opaque WHITE object and sits over
-      # the bottom_layer from the header. Without these two lines
-      # everything sits on a white background (correction to design.md
-      # §8).
       bg_color: 0x000000
       bg_opa: COVER
       widgets:
         - arc:
-            id: arc_power_2
+            id: arc_power_2_in
             align: CENTER
             width: 224
             height: 224
@@ -311,68 +235,83 @@ lvgl:
             knob:
               bg_opa: TRANSP
 
+        - arc:
+            id: arc_power_2_assist
+            align: CENTER
+            width: 200
+            height: 200
+            start_angle: 135
+            end_angle: 45
+            min_value: 0
+            max_value: 100
+            adjustable: false
+            arc_width: 10
+            arc_color: 0x1A1C1E
+            indicator:
+              arc_width: 10
+              arc_color: 0x9AA0A6
+            knob:
+              bg_opa: TRANSP
+
+        # ---- Outer column: EINGANG ----------------------------------
+        - label:
+            id: lbl_power_2_cap_w
+            align: CENTER
+            x: -${x_col}
+            y: ${y_cap}
+            text: "EINGANG"
+            text_font: font_12
+            text_color: 0x555555
         - label:
             id: lbl_power_2_w
             align: CENTER
+            x: -${x_col}
             y: ${y_main}
             text: "---W"
-            text_font: montserrat_40
+            text_font: font_16
             text_color: 0x555555
 
+        # ---- Inner column: ASSIST ------------------------------------
         - label:
-            id: lbl_power_2_state
+            id: lbl_power_2_cap_assist
             align: CENTER
-            y: ${y_line2}
-            text: "---"
-            text_font: montserrat_16
+            x: ${x_col}
+            y: ${y_cap}
+            text: "ASSIST"
+            text_font: font_12
             text_color: 0x555555
-
-        - button:
-            id: btn_power_2_mode
+        - label:
+            id: lbl_power_2_limit
             align: CENTER
-            x: -${x_col}
-            y: ${y_row}
-            width: 76
-            height: 30
-            radius: 15
-            bg_color: 0x202124
-            border_width: 1
-            border_color: 0x3C4043
-            widgets:
-              - label:
-                  id: lbl_power_2_mode
-                  align: CENTER
-                  text: "---"
-                  text_font: montserrat_16
-                  text_color: 0x555555
-            on_click:
-              - script.execute: act_power_2_mode
-
+            x: ${x_col}
+            y: ${y_main}
+            text: "--A"
+            text_font: font_16
+            text_color: 0x555555
         - button:
-            id: btn_power_2_limit
+            id: btn_power_2_assist_set
             align: CENTER
             x: ${x_col}
             y: ${y_row}
-            width: 76
-            height: 30
-            radius: 15
+            width: 68
+            height: 26
+            radius: 13
             bg_color: 0x202124
             border_width: 1
             border_color: 0x3C4043
             widgets:
               - label:
-                  id: lbl_power_2_limit
                   align: CENTER
-                  text: "--A"
-                  text_font: montserrat_16
-                  text_color: 0x555555
+                  text: "SET"
+                  text_font: font_16
+                  text_color: 0xBDC1C6
             on_click:
-              - script.execute: act_power_2_limit
+              - script.execute: act_power_2_arm_assist
 
         - label:
             id: lbl_power_2_status
             align: BOTTOM_MID
             y: ${y_footer}
             text: ""
-            text_font: montserrat_12
+            text_font: font_12
             text_color: 0x555555

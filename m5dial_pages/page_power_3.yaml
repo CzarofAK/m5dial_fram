@@ -1,0 +1,281 @@
+# =====================================================================
+#  m5dial_pages/page_power_3.yaml — page: Power / Grid (MultiPlus, WR side)
+#  FRAM M5Dial Cockpit · page package
+#
+#  Split off page_power_2.yaml (which used to cover all of this) once
+#  that page got too full. This half: inverter (WR) load and operating
+#  mode. The other half (input power, PowerAssist limit) stays on
+#  page_power_2.yaml.
+#
+#  Slots (design.md §3):
+#    y_main   1240W            montserrat_40 — WR output power
+#    y_line2  ABSORPTION       montserrat_16 — MultiPlus state
+#    y_row    one button       76 x 30 — MODE (ON/CHG/INV/OFF cycle)
+#    y_footer status line      montserrat_12
+#
+#  The arc is WR AUSLASTUNG (design.md §8: an arc is always a
+#  percentage). There's no direct utilization-% entity -- HA only has
+#  raw WR power (sensor.multiplus_0_wr_leistung, W). Computed against
+#  1600 W, the nominal rating of the installed model (a Multiplus
+#  12/1600) — NOT a precise figure: real max capacity also depends on
+#  temperature (thermal derating) and isn't tracked here. Good enough
+#  for "getting close", not exact.
+# =====================================================================
+
+# ---------------------------------------------------------------------
+#  C  Bindings
+# ---------------------------------------------------------------------
+sensor:
+  - platform: homeassistant
+    id: s_power_3_wr
+    entity_id: sensor.multiplus_0_wr_leistung
+    on_value:
+      - script.execute: draw_power_3
+
+text_sensor:
+  - platform: homeassistant
+    id: s_power_3_state
+    entity_id: sensor.multiplus_zustand
+    on_value:
+      - script.execute: draw_power_3
+
+  - platform: homeassistant
+    id: s_power_3_mode
+    entity_id: select.multiplus
+    # Same filter as before: shorten to 3 characters (design.md §8).
+    filters:
+      - lambda: |-
+          // Options of select.multiplus:
+          //   charger_only · inverter_only · on · off
+          std::string s = x;
+          if (s == "on") return std::string("ON");
+          if (s == "charger_only") return std::string("CHG");
+          if (s == "inverter_only") return std::string("INV");
+          return std::string("OFF");
+    on_value:
+      - script.execute: draw_power_3
+
+script:
+  # OPEN ITEM (design.md §14): the jump to OFF takes away shore power,
+  # charging, and 230 V, and should require a long press.
+  - id: act_power_3_mode
+    then:
+      - homeassistant.service:
+          service: select.select_option
+          data:
+            entity_id: select.multiplus
+          data_template:
+            option: "{{ opt }}"
+          variables:
+            opt: !lambda |-
+              // ON -> CHG -> INV -> OFF -> ON
+              std::string m = id(s_power_3_mode).state;
+              if (m == "ON")  return std::string("charger_only");
+              if (m == "CHG") return std::string("inverter_only");
+              if (m == "INV") return std::string("off");
+              return std::string("on");
+
+  - id: draw_power_3
+    mode: restart
+    then:
+      # ---- Arc: WR AUSLASTUNG, % of the 1600W nominal rating ---------
+      - lvgl.arc.update:
+          id: arc_power_3
+          value: !lambda |-
+            if (!id(s_power_3_wr).has_state()) return 0.0f;
+            float p = id(s_power_3_wr).state / 1600.0f * 100.0f;
+            if (p > 100.0f) p = 100.0f;
+            if (p < 0.0f) p = 0.0f;
+            return p;
+          indicator:
+            arc_color: !lambda |-
+              #ifdef USE_API
+              if (!api_is_connected()) return lv_color_hex(0x555555);
+              #endif
+              if (!id(s_power_3_wr).has_state()) return lv_color_hex(0x555555);
+              float p = id(s_power_3_wr).state / 1600.0f * 100.0f;
+              if (p >= 95.0f) return lv_color_hex(0xE74C3C);
+              if (p >= 80.0f) return lv_color_hex(0xF39C12);
+              return lv_color_hex(0x4A9EFF);
+
+      # ---- Main value: WR output power ---------------------------------
+      - lvgl.label.update:
+          id: lbl_power_3_wr
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("---W");
+            #endif
+            if (!id(s_power_3_wr).has_state()) return std::string("---W");
+            return str_sprintf("%.0fW", id(s_power_3_wr).state);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_power_3_wr).has_state()) return lv_color_hex(0x555555);
+            float p = id(s_power_3_wr).state / 1600.0f * 100.0f;
+            if (p >= 95.0f) return lv_color_hex(0xE74C3C);
+            if (p >= 80.0f) return lv_color_hex(0xF39C12);
+            return lv_color_hex(0xFFFFFF);
+
+      # ---- Secondary line: MP state ------------------------------------
+      - lvgl.label.update:
+          id: lbl_power_3_state
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("---");
+            #endif
+            if (!id(s_power_3_state).has_state()) return std::string("---");
+            // Options come as snake_case: bulk, absorption, float,
+            // inverting, fault, power_assist, scheduled_recharging, ...
+            std::string s = id(s_power_3_state).state;
+            for (auto &c : s) { if (c == '_') c = ' '; else c = ::toupper(c); }
+            return s;
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_power_3_state).has_state()) return lv_color_hex(0x555555);
+            std::string s = id(s_power_3_state).state;
+            if (s == "fault") return lv_color_hex(0xE74C3C);
+            if (s == "off" || s == "low_power") return lv_color_hex(0x707070);
+            return lv_color_hex(0xBDC1C6);
+
+      # ---- Button: mode --------------------------------------------------
+      - lvgl.label.update:
+          id: lbl_power_3_mode
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("---");
+            #endif
+            if (!id(s_power_3_mode).has_state()) return std::string("---");
+            return id(s_power_3_mode).state;
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_power_3_mode).has_state()) return lv_color_hex(0x555555);
+            std::string m = id(s_power_3_mode).state;
+            if (m == "ON")  return lv_color_hex(0x2ECC71);
+            if (m == "CHG") return lv_color_hex(0x4A9EFF);
+            if (m == "INV") return lv_color_hex(0xF39C12);
+            return lv_color_hex(0xBDC1C6);
+      - lvgl.widget.update:
+          id: btn_power_3_mode
+          bg_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x202124);
+            #endif
+            if (!id(s_power_3_mode).has_state()) return lv_color_hex(0x202124);
+            std::string m = id(s_power_3_mode).state;
+            if (m == "ON")  return lv_color_hex(0x1B5E3A);
+            if (m == "CHG") return lv_color_hex(0x14324F);
+            if (m == "INV") return lv_color_hex(0x4F3814);
+            return lv_color_hex(0x202124);
+          border_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x3C4043);
+            #endif
+            if (!id(s_power_3_mode).has_state()) return lv_color_hex(0x3C4043);
+            std::string m = id(s_power_3_mode).state;
+            if (m == "ON")  return lv_color_hex(0x2ECC71);
+            if (m == "CHG") return lv_color_hex(0x4A9EFF);
+            if (m == "INV") return lv_color_hex(0xF39C12);
+            return lv_color_hex(0x3C4043);
+
+      # ---- Status line ---------------------------------------------
+      - lvgl.label.update:
+          id: lbl_power_3_status
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("KEINE VERBINDUNG");
+            #endif
+            if (!id(s_power_3_wr).has_state()) return std::string("");
+            float p = id(s_power_3_wr).state / 1600.0f * 100.0f;
+            if (p >= 95.0f) return std::string("WR AM LIMIT");
+            if (p >= 80.0f) return std::string("WR HOCH");
+            return std::string("");
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_power_3_wr).has_state()) return lv_color_hex(0x555555);
+            float p = id(s_power_3_wr).state / 1600.0f * 100.0f;
+            if (p >= 95.0f) return lv_color_hex(0xE74C3C);
+            return lv_color_hex(0xF39C12);
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - script.execute: draw_power_3
+
+# ---------------------------------------------------------------------
+#  D  Widgets
+# ---------------------------------------------------------------------
+lvgl:
+  pages:
+    - id: page_power_3
+      bg_color: 0x000000
+      bg_opa: COVER
+      widgets:
+        - arc:
+            id: arc_power_3
+            align: CENTER
+            width: 224
+            height: 224
+            start_angle: 135
+            end_angle: 45
+            min_value: 0
+            max_value: 100
+            adjustable: false
+            arc_width: 10
+            arc_color: 0x1A1C1E
+            indicator:
+              arc_width: 10
+              arc_color: 0x555555
+            knob:
+              bg_opa: TRANSP
+
+        - label:
+            id: lbl_power_3_wr
+            align: CENTER
+            y: ${y_main}
+            text: "---W"
+            text_font: font_40
+            text_color: 0x555555
+
+        - label:
+            id: lbl_power_3_state
+            align: CENTER
+            y: ${y_line2}
+            text: "---"
+            text_font: font_16
+            text_color: 0x555555
+
+        - button:
+            id: btn_power_3_mode
+            align: CENTER
+            y: ${y_row}
+            width: 76
+            height: 30
+            radius: 15
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  id: lbl_power_3_mode
+                  align: CENTER
+                  text: "---"
+                  text_font: font_16
+                  text_color: 0x555555
+            on_click:
+              - script.execute: act_power_3_mode
+
+        - label:
+            id: lbl_power_3_status
+            align: BOTTOM_MID
+            y: ${y_footer}
+            text: ""
+            text_font: font_12
+            text_color: 0x555555

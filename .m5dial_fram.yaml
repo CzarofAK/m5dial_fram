@@ -296,7 +296,7 @@ globals:
   - id: g_edit_target
     type: int
     restore_value: false
-    initial_value: "0" # 0 = navigate. 1/2 = page_fans's two targets.
+    initial_value: "0" # 0 = navigate. 1/2 = page_fans, 3/4 = page_climate, 5 = page_boiler, 6 = page_power_2.
 
 script:
   - id: beep_confirm
@@ -308,8 +308,9 @@ script:
   # Dispatch for g_edit_target (rotary_encoder above). Same kind of
   # hard-coded, page-specific reference as apply_daynight's clock_face
   # below -- add a branch here for each new target a page introduces,
-  # remove it if that page drops the target. Only page_fans.yaml (1/2)
-  # exists so far.
+  # remove it if that page drops the target. page_fans.yaml (1/2),
+  # page_climate.yaml (3/4), page_boiler.yaml (5), page_power_2.yaml
+  # (6) so far.
   - id: encoder_adjust_up
     then:
       - if:
@@ -322,6 +323,26 @@ script:
             lambda: return id(g_edit_target) == 2;
           then:
             - script.execute: act_fans_hvac_up
+      - if:
+          condition:
+            lambda: return id(g_edit_target) == 3;
+          then:
+            - script.execute: act_climate_temp_up
+      - if:
+          condition:
+            lambda: return id(g_edit_target) == 4;
+          then:
+            - script.execute: act_climate_fan_up
+      - if:
+          condition:
+            lambda: return id(g_edit_target) == 5;
+          then:
+            - script.execute: act_boiler_temp_up
+      - if:
+          condition:
+            lambda: return id(g_edit_target) == 6;
+          then:
+            - script.execute: act_power_2_assist_up
 
   - id: encoder_adjust_down
     then:
@@ -330,6 +351,26 @@ script:
             lambda: return id(g_edit_target) == 1;
           then:
             - script.execute: act_fans_speed_down
+      - if:
+          condition:
+            lambda: return id(g_edit_target) == 3;
+          then:
+            - script.execute: act_climate_temp_down
+      - if:
+          condition:
+            lambda: return id(g_edit_target) == 4;
+          then:
+            - script.execute: act_climate_fan_down
+      - if:
+          condition:
+            lambda: return id(g_edit_target) == 5;
+          then:
+            - script.execute: act_boiler_temp_down
+      - if:
+          condition:
+            lambda: return id(g_edit_target) == 6;
+          then:
+            - script.execute: act_power_2_assist_down
       - if:
           condition:
             lambda: return id(g_edit_target) == 2;
@@ -355,6 +396,51 @@ script:
           id(clock_face).set_night_mode(night);
 
 # =====================================================================
+#  Fonts
+# =====================================================================
+#  Custom, not the `montserrat_NN` names used everywhere before --
+#  those are LVGL's own precompiled fonts, ASCII-only (no Latin-1),
+#  which is why every Ä/Ö/Ü/ä/ö/ü/ß on the device showed as a tofu
+#  box: LVGL doesn't have the glyph, full stop, and ESPHome can't add
+#  one to an already-compiled font. This pulls the real Montserrat TTF
+#  and rasterizes it ourselves instead, with the glyphs we actually
+#  need spelled out explicitly. `glyphs:` REPLACES ESPHome's default
+#  auto-detected list rather than adding to it, so every character
+#  used anywhere in any page's `text:` or lambda strings needs to be
+#  in this set — including ° (already relied on everywhere) — or it
+#  silently goes back to a tofu box.
+#
+#  One entry per size, same four sizes as before (design.md §3), same
+#  naming pattern minus the reserved word: font_12/16/24/40 instead of
+#  montserrat_12/16/24/40. Every page's `text_font:` (and this block's
+#  own `default_font:` below) needs to say font_NN now, not
+#  montserrat_NN -- montserrat_NN still exists as LVGL's own font and
+#  still compiles, it just silently opts back out of umlaut support if
+#  anything ever reintroduces it.
+#
+#  NOT covered: page_clock.yaml's `date_font`/`temperature_font`,
+#  which are sbb_clock's own config (a separate external component) --
+#  still on montserrat_16. Revisit only if that text ever shows a tofu
+#  box too; nothing it renders needs a German umlaut right now.
+font:
+  - file: "gfonts://Montserrat"
+    id: font_12
+    size: 12
+    glyphs: " !%(),.+-/0123456789:;ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°ÄÖÜäöüß"
+  - file: "gfonts://Montserrat"
+    id: font_16
+    size: 16
+    glyphs: " !%(),.+-/0123456789:;ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°ÄÖÜäöüß"
+  - file: "gfonts://Montserrat"
+    id: font_24
+    size: 24
+    glyphs: " !%(),.+-/0123456789:;ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°ÄÖÜäöüß"
+  - file: "gfonts://Montserrat"
+    id: font_40
+    size: 40
+    glyphs: " !%(),.+-/0123456789:;ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°ÄÖÜäöüß"
+
+# =====================================================================
 #  LVGL frame
 # =====================================================================
 #  Only the frame. The pages: come from the page packages.
@@ -364,7 +450,7 @@ lvgl:
     - disp_main
   touchscreens:
     - touch_main
-  default_font: montserrat_16
+  default_font: font_16
   # Measured on the device: 0 is correct, not 180 (design.md §1 was
   # wrong). If a rotation is ever needed again: it goes here, not under
   # display: — with LVGL active, validation aborts otherwise.
