@@ -34,7 +34,7 @@ doesn't exist. The simulator shows a square and lies at the corners.
 | `m5dial_pages/overlay_<name>.yaml` | an overlay (§15) — adds to LVGL's `top_layer`, not `pages:`; no page order, no `p<n>` slot |
 
 One file per page, named `page_<name>.yaml`, `<name>` matching §10's
-page names (`clock`, `gas`, `power_1`, `power_2`, `water`). Each file
+page names (`clock`, `gas`, `power_1`, `power_2`, `power_3`, `water`). Each file
 directly contains its data sources (`sensor:` / `text_sensor:` on
 `platform: homeassistant`), its bindings, and its widgets — this is
 what actually runs on the device, not an intermediate form.
@@ -510,7 +510,7 @@ bottle 10.5 kg net.
 ## 10. Naming scheme
 
 The short page name is the yaml file's own name (`m5dial_pages/<name>.yaml`):
-`clock`, `gas`, `power_1`, `power_2`, `water`. All page-prefixed IDs use it,
+`clock`, `gas`, `power_1`, `power_2`, `power_3`, `water`. All page-prefixed IDs use it,
 e.g. `s_power_1_soc`, `page_power_2`, `draw_water`.
 
 | Prefix | For |
@@ -657,16 +657,17 @@ one line each) before relying on it.
 |---|---|---|---|
 | 0 | `clock` | Clock + outdoor temperature and date/weekday | implemented |
 | 1 | `power_1` | Battery: SOC, park mode, starter voltage | implemented |
-| 2 | `power_2` | Grid power: MultiPlus mode / current limit | implemented |
-| 3 | `gas` | Two gas bottles (double ring, §4) | implemented |
-| 4 | `water` | Fresh / grey water (double ring, §4) | implemented |
-| 5 | `levelling` | Spirit level — sensor is **external** hardware, not on the dial | implemented |
-| 6 | `climate` | Truma Combi 4 (gas only) room-heating side + fan mode; AC not installed yet | draft |
-| 7 | `boiler` | Truma Combi 4 water-heating side: mode, actual temperature | draft |
-| 8 | `fans` | Fan board (real) + Sprinter HVAC fan (**placeholder** — that PCB doesn't exist yet) | implemented |
-| 9 | `lights_outside` | Entrance light, awning light (dimmable; dial only does on/off, no brightness) | draft |
-| 10 | `entrance` | Step, door lock | implemented |
-| 11 | `ipixel` | On/off and status only | draft |
+| 2 | `power_2` | Grid power: input power (arc, read-only), PowerAssist current limit (arc, encoder-adjustable) | implemented |
+| 3 | `power_3` | Grid power, WR side: inverter load (arc, computed against the installed model's nominal rating), MultiPlus mode | implemented |
+| 4 | `gas` | Two gas bottles (double ring, §4) | implemented |
+| 5 | `water` | Fresh / grey water (double ring, §4) | implemented |
+| 6 | `levelling` | Spirit level — sensor is **external** hardware, not on the dial | implemented |
+| 7 | `climate` | Truma Combi 4 (gas only) room-heating side + fan mode; AC not installed yet | draft |
+| 8 | `boiler` | Truma Combi 4 water-heating side: mode, actual temperature | draft |
+| 9 | `fans` | Fan board (real) + Sprinter HVAC fan (**placeholder** — that PCB doesn't exist yet) | implemented |
+| 10 | `lights_outside` | Entrance light, awning light (dimmable; dial only does on/off, no brightness) | draft |
+| 11 | `entrance` | Step, door lock | implemented |
+| 12 | `ipixel` | On/off and status only | draft |
 | reserved | `lights_inside` | — | reserved, not designed yet |
 
 Not pages — shown as an overlay on top of whatever page is current,

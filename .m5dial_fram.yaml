@@ -296,7 +296,7 @@ globals:
   - id: g_edit_target
     type: int
     restore_value: false
-    initial_value: "0" # 0 = navigate. 1/2 = page_fans, 3/4 = page_climate, 5 = page_boiler.
+    initial_value: "0" # 0 = navigate. 1/2 = page_fans, 3/4 = page_climate, 5 = page_boiler, 6 = page_power_2.
 
 script:
   - id: beep_confirm
@@ -309,7 +309,8 @@ script:
   # hard-coded, page-specific reference as apply_daynight's clock_face
   # below -- add a branch here for each new target a page introduces,
   # remove it if that page drops the target. page_fans.yaml (1/2),
-  # page_climate.yaml (3/4), page_boiler.yaml (5) so far.
+  # page_climate.yaml (3/4), page_boiler.yaml (5), page_power_2.yaml
+  # (6) so far.
   - id: encoder_adjust_up
     then:
       - if:
@@ -337,6 +338,11 @@ script:
             lambda: return id(g_edit_target) == 5;
           then:
             - script.execute: act_boiler_temp_up
+      - if:
+          condition:
+            lambda: return id(g_edit_target) == 6;
+          then:
+            - script.execute: act_power_2_assist_up
 
   - id: encoder_adjust_down
     then:
@@ -360,6 +366,11 @@ script:
             lambda: return id(g_edit_target) == 5;
           then:
             - script.execute: act_boiler_temp_down
+      - if:
+          condition:
+            lambda: return id(g_edit_target) == 6;
+          then:
+            - script.execute: act_power_2_assist_down
       - if:
           condition:
             lambda: return id(g_edit_target) == 2;
