@@ -2,35 +2,53 @@
 #  m5dial_pages/page_levelling.yaml — page: Levelling (spirit level)
 #  FRAM M5Dial Cockpit · page package
 #
-#  Real entities: an MPU6050 tilt sensor (external hardware, own
-#  ESPHome device "mpu6050"). LÄNGS (front/back) = its Pitch sensor,
-#  QUER (left/right) = its Roll sensor -- matches that device's own
-#  sign convention (pitch: front down = +, roll: right down = +).
+#  Real entities:
+#  - Bubble position: an MPU6050 tilt sensor (external hardware, own
+#    ESPHome device "mpu6050"). LÄNGS (front/back) = its Pitch sensor,
+#    QUER (left/right) = its Roll sensor -- matches that device's own
+#    sign convention (pitch: front down = +, roll: right down = +).
+#    Degrees only drive the bubble's on-screen position now -- see
+#    below for why they're no longer shown as numbers.
+#  - Corner readout: four sensors that already report how many
+#    centimeters need adding at each corner (sensor.mpu6050_womo_vl_cm
+#    / _vr_cm / _hl_cm / _hr_cm -- VL/VR/HL/HR = vorne links/rechts,
+#    hinten links/rechts). These come pre-computed from elsewhere (the
+#    mpu6050 device or a Node-RED flow) -- this page doesn't do its own
+#    degrees-to-cm conversion, and doesn't know or need the vehicle's
+#    track width/wheelbase to get there.
 #
-#  Bubble level, not just numbers (readability follow-up): three
-#  static rings as a target, a bubble that moves off-center with tilt
-#  -- the physical spirit-level metaphor, not the insect. LÄNGS/QUER
-#  stay as compact numeric readouts above/below the rings, since the
-#  bubble alone doesn't say "how many degrees."
+#  cm replaces ° for the numeric readout (readability follow-up): "how
+#  many degrees" doesn't tell you what to actually do with a leveling
+#  block, "how many cm at this corner" does. Four corners instead of
+#  two axes because that's what the source sensors give -- LÄNGS/QUER
+#  were a LIN-style axis pair, VL/VR/HL/HR is a per-wheel pair.
 #
-#  Bubble travel: R_MAX = 85px maps to DEG_MAX = 4° (the alarm
-#  threshold) on each axis independently, clamped beyond that so it
-#  can't leave the outer ring. Direction convention -- UNVERIFIED,
+#  Bubble level, not just numbers (earlier readability follow-up):
+#  three static rings as a target, a bubble that moves off-center with
+#  tilt -- the physical spirit-level metaphor, not the insect.
+#
+#  Bubble travel: R_MAX = 85px maps to DEG_MAX = 4° (matches the old
+#  alarm threshold) on each axis independently, clamped beyond that so
+#  it can't leave the outer ring. Direction convention -- UNVERIFIED,
 #  there's no established "which way is screen-up vs. vehicle-front"
 #  for this page yet: a real bubble floats toward the HIGH side, so
 #  QUER positive (right-down) moves it left, LÄNGS positive
 #  (front-down) moves it toward the back (down on screen, assuming the
 #  dial's "up" faces the front). If that reads backwards on the actual
 #  device, flip the sign in draw_levelling's ox/oy lambdas -- one line
-#  each, not a redesign.
+#  each, not a redesign. Bubble COLOR now follows the cm readout
+#  instead (below), so a wrong bubble direction wouldn't show as a
+#  wrong color, only a wrong position.
 #
-#  No arc: a tilt angle isn't a 0-100% quantity (design.md §8), and
-#  the rings aren't arcs either -- full circles via LVGL's
-#  radius = width/2 trick, not the gas/water double-ring pattern.
+#  No arc: a tilt isn't a 0-100% quantity (design.md §8), and the
+#  rings aren't arcs either -- full circles via LVGL's radius = width/2
+#  trick, not the gas/water double-ring pattern.
 #
-#  Thresholds (< 2° ok, 2-4° warning, >= 4° alarm) are a GUESS, not
-#  measured against a real leveling requirement (fridge compressor
-#  tolerance etc.) — confirm and adjust.
+#  Thresholds (< 1.5cm ok, 1.5-3cm warning, >= 3cm alarm) are a GUESS,
+#  same status as the old 2°/4° ones -- not measured against a real
+#  leveling requirement (fridge compressor tolerance etc.), confirm
+#  and adjust. Values round to whole cm for legibility at four labels
+#  and font_12 -- revisit if that's not enough precision in practice.
 #
 #  No button: reading only, nothing to act on from the dial.
 # =====================================================================
@@ -47,6 +65,28 @@ sensor:
   - platform: homeassistant
     id: s_levelling_lat
     entity_id: sensor.mpu6050_roll
+    on_value:
+      - script.execute: draw_levelling
+
+  # ---- Per-corner cm-to-add, already computed upstream ---------------
+  - platform: homeassistant
+    id: s_levelling_vl
+    entity_id: sensor.mpu6050_womo_vl_cm
+    on_value:
+      - script.execute: draw_levelling
+  - platform: homeassistant
+    id: s_levelling_vr
+    entity_id: sensor.mpu6050_womo_vr_cm
+    on_value:
+      - script.execute: draw_levelling
+  - platform: homeassistant
+    id: s_levelling_hl
+    entity_id: sensor.mpu6050_womo_hl_cm
+    on_value:
+      - script.execute: draw_levelling
+  - platform: homeassistant
+    id: s_levelling_hr
+    entity_id: sensor.mpu6050_womo_hr_cm
     on_value:
       - script.execute: draw_levelling
 
@@ -71,52 +111,96 @@ script:
             if (oy > R_MAX) oy = R_MAX;
             if (oy < -R_MAX) oy = -R_MAX;
             return (int) oy;
+          # Color now follows the worst corner (cm), not the raw degrees
+          # -- same quantity the four labels show, so the bubble and the
+          # numbers never disagree about how bad it is.
           bg_color: !lambda |-
-            if (!id(s_levelling_lon).has_state() || !id(s_levelling_lat).has_state())
+            if (!id(s_levelling_vl).has_state() || !id(s_levelling_vr).has_state() ||
+                !id(s_levelling_hl).has_state() || !id(s_levelling_hr).has_state())
               return lv_color_hex(0x555555);
-            float lon = fabsf(id(s_levelling_lon).state);
-            float lat = fabsf(id(s_levelling_lat).state);
-            float v = lon > lat ? lon : lat;
-            if (v >= 4.0f) return lv_color_hex(0xE74C3C);
-            if (v >= 2.0f) return lv_color_hex(0xF39C12);
+            float v = fabsf(id(s_levelling_vl).state);
+            float t;
+            t = fabsf(id(s_levelling_vr).state); if (t > v) v = t;
+            t = fabsf(id(s_levelling_hl).state); if (t > v) v = t;
+            t = fabsf(id(s_levelling_hr).state); if (t > v) v = t;
+            if (v >= 3.0f) return lv_color_hex(0xE74C3C);
+            if (v >= 1.5f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0xFFFFFF);
 
-      # ---- LÄNGS (front/back tilt) ------------------------------------
+      # ---- VL: vorne links (top left) ----------------------------------
       - lvgl.label.update:
-          id: lbl_levelling_lon
+          id: lbl_levelling_vl
           text: !lambda |-
             #ifdef USE_API
-            if (!api_is_connected()) return std::string("LÄNGS ---°");
+            if (!api_is_connected()) return std::string("VL --cm");
             #endif
-            if (!id(s_levelling_lon).has_state()) return std::string("LÄNGS ---°");
-            return str_sprintf("LÄNGS %+.1f°", id(s_levelling_lon).state);
+            if (!id(s_levelling_vl).has_state()) return std::string("VL --cm");
+            return str_sprintf("VL %+.0fcm", id(s_levelling_vl).state);
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_levelling_lon).has_state()) return lv_color_hex(0x555555);
-            float v = fabsf(id(s_levelling_lon).state);
-            if (v >= 4.0f) return lv_color_hex(0xE74C3C);
-            if (v >= 2.0f) return lv_color_hex(0xF39C12);
+            if (!id(s_levelling_vl).has_state()) return lv_color_hex(0x555555);
+            float v = fabsf(id(s_levelling_vl).state);
+            if (v >= 3.0f) return lv_color_hex(0xE74C3C);
+            if (v >= 1.5f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0xBDC1C6);
 
-      # ---- QUER (left/right tilt) --------------------------------------
+      # ---- VR: vorne rechts (top right) ---------------------------------
       - lvgl.label.update:
-          id: lbl_levelling_lat
+          id: lbl_levelling_vr
           text: !lambda |-
             #ifdef USE_API
-            if (!api_is_connected()) return std::string("QUER ---°");
+            if (!api_is_connected()) return std::string("VR --cm");
             #endif
-            if (!id(s_levelling_lat).has_state()) return std::string("QUER ---°");
-            return str_sprintf("QUER %+.1f°", id(s_levelling_lat).state);
+            if (!id(s_levelling_vr).has_state()) return std::string("VR --cm");
+            return str_sprintf("VR %+.0fcm", id(s_levelling_vr).state);
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_levelling_lat).has_state()) return lv_color_hex(0x555555);
-            float v = fabsf(id(s_levelling_lat).state);
-            if (v >= 4.0f) return lv_color_hex(0xE74C3C);
-            if (v >= 2.0f) return lv_color_hex(0xF39C12);
+            if (!id(s_levelling_vr).has_state()) return lv_color_hex(0x555555);
+            float v = fabsf(id(s_levelling_vr).state);
+            if (v >= 3.0f) return lv_color_hex(0xE74C3C);
+            if (v >= 1.5f) return lv_color_hex(0xF39C12);
+            return lv_color_hex(0xBDC1C6);
+
+      # ---- HL: hinten links (bottom left) --------------------------------
+      - lvgl.label.update:
+          id: lbl_levelling_hl
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("HL --cm");
+            #endif
+            if (!id(s_levelling_hl).has_state()) return std::string("HL --cm");
+            return str_sprintf("HL %+.0fcm", id(s_levelling_hl).state);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_levelling_hl).has_state()) return lv_color_hex(0x555555);
+            float v = fabsf(id(s_levelling_hl).state);
+            if (v >= 3.0f) return lv_color_hex(0xE74C3C);
+            if (v >= 1.5f) return lv_color_hex(0xF39C12);
+            return lv_color_hex(0xBDC1C6);
+
+      # ---- HR: hinten rechts (bottom right) -------------------------------
+      - lvgl.label.update:
+          id: lbl_levelling_hr
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("HR --cm");
+            #endif
+            if (!id(s_levelling_hr).has_state()) return std::string("HR --cm");
+            return str_sprintf("HR %+.0fcm", id(s_levelling_hr).state);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_levelling_hr).has_state()) return lv_color_hex(0x555555);
+            float v = fabsf(id(s_levelling_hr).state);
+            if (v >= 3.0f) return lv_color_hex(0xE74C3C);
+            if (v >= 1.5f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0xBDC1C6);
 
 esphome:
@@ -171,17 +255,36 @@ lvgl:
             bg_opa: COVER
             border_width: 0
 
+        # ---- Four corners: cm to add, VL/VR top, HL/HR bottom ------------
         - label:
-            id: lbl_levelling_lon
+            id: lbl_levelling_vl
             align: CENTER
+            x: -${x_col}
             y: ${y_cap}
-            text: "LÄNGS ---°"
-            text_font: font_16
+            text: "VL --cm"
+            text_font: font_12
             text_color: 0x555555
         - label:
-            id: lbl_levelling_lat
-            align: BOTTOM_MID
-            y: ${y_footer}
-            text: "QUER ---°"
-            text_font: font_16
+            id: lbl_levelling_vr
+            align: CENTER
+            x: ${x_col}
+            y: ${y_cap}
+            text: "VR --cm"
+            text_font: font_12
+            text_color: 0x555555
+        - label:
+            id: lbl_levelling_hl
+            align: CENTER
+            x: -${x_col}
+            y: 42
+            text: "HL --cm"
+            text_font: font_12
+            text_color: 0x555555
+        - label:
+            id: lbl_levelling_hr
+            align: CENTER
+            x: ${x_col}
+            y: 42
+            text: "HR --cm"
+            text_font: font_12
             text_color: 0x555555

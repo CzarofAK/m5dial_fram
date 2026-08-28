@@ -2,16 +2,23 @@
 #  m5dial_pages/page_ipixel.yaml — page: iPixel
 #  FRAM M5Dial Cockpit · page package
 #
-#  PLACEHOLDER ENTITIES — "nur ein/aus und status" (design.md §15):
-#  on/off plus a status readout, nothing else. Guessed as a plain
-#  switch (not a light -- "on/off only" is exactly what switch is for)
-#  plus a text status sensor of unknown content.
+#  Real entities, not the placeholders originally guessed:
+#
+#  On/off: input_boolean.ipixel -- a scene/automation trigger, not the
+#  iPixel's own hardware switch, so it's driven with input_boolean.*
+#  services rather than switch.*.
+#
+#  Status: two real per-side switches, not one text status sensor --
+#  switch.ipixel_front_left_led_left and
+#  switch.ipixel_front_right_led_right. Shown as a compact L/R split
+#  on y_line2 (design.md §3's "context for the main value" slot),
+#  since there's no single combined status string to read anymore.
 #
 #  Slots (design.md §3):
-#    y_main   AN / AUS          montserrat_40 — power state, big
-#    y_line2  status text       montserrat_16 — whatever the status
-#                                sensor reports
-#    y_row    one button        toggle
+#    y_main   AN / AUS          montserrat_40 — input_boolean.ipixel
+#    y_line2  L EIN · R AUS     montserrat_16 — the two LED switches,
+#                                split across x: ±${x_col}
+#    y_row    one button        76 x 30 — toggle input_boolean.ipixel
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -20,24 +27,27 @@
 binary_sensor:
   - platform: homeassistant
     id: s_ipixel_power
-    entity_id: switch.PLACEHOLDER_ipixel
+    entity_id: input_boolean.ipixel
     on_state:
       - script.execute: draw_ipixel
-
-text_sensor:
   - platform: homeassistant
-    id: s_ipixel_status
-    entity_id: sensor.PLACEHOLDER_ipixel_status
-    on_value:
+    id: s_ipixel_led_left
+    entity_id: switch.ipixel_front_left_led_left
+    on_state:
+      - script.execute: draw_ipixel
+  - platform: homeassistant
+    id: s_ipixel_led_right
+    entity_id: switch.ipixel_front_right_led_right
+    on_state:
       - script.execute: draw_ipixel
 
 script:
   - id: act_ipixel_power
     then:
       - homeassistant.service:
-          service: switch.toggle
+          service: input_boolean.toggle
           data:
-            entity_id: switch.PLACEHOLDER_ipixel
+            entity_id: input_boolean.ipixel
 
   - id: draw_ipixel
     mode: restart
@@ -59,21 +69,39 @@ script:
             return id(s_ipixel_power).state ? lv_color_hex(0xFFFFFF)
                                      : lv_color_hex(0xBDC1C6);
 
-      # ---- Secondary line: status text ------------------------------
+      # ---- Line 2: LEFT LED status --------------------------------
       - lvgl.label.update:
-          id: lbl_ipixel_status
+          id: lbl_ipixel_led_left
           text: !lambda |-
             #ifdef USE_API
-            if (!api_is_connected()) return std::string("---");
+            if (!api_is_connected()) return std::string("L ---");
             #endif
-            if (!id(s_ipixel_status).has_state()) return std::string("---");
-            return id(s_ipixel_status).state;
+            if (!id(s_ipixel_led_left).has_state()) return std::string("L ---");
+            return id(s_ipixel_led_left).state ? std::string("L EIN") : std::string("L AUS");
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_ipixel_status).has_state()) return lv_color_hex(0x555555);
-            return lv_color_hex(0xBDC1C6);
+            if (!id(s_ipixel_led_left).has_state()) return lv_color_hex(0x555555);
+            return id(s_ipixel_led_left).state ? lv_color_hex(0x2ECC71)
+                                        : lv_color_hex(0xBDC1C6);
+
+      # ---- Line 2: RIGHT LED status --------------------------------
+      - lvgl.label.update:
+          id: lbl_ipixel_led_right
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("R ---");
+            #endif
+            if (!id(s_ipixel_led_right).has_state()) return std::string("R ---");
+            return id(s_ipixel_led_right).state ? std::string("R EIN") : std::string("R AUS");
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_ipixel_led_right).has_state()) return lv_color_hex(0x555555);
+            return id(s_ipixel_led_right).state ? lv_color_hex(0x2ECC71)
+                                        : lv_color_hex(0xBDC1C6);
 
       # ---- Button: on/off -------------------------------------------
       - lvgl.label.update:
@@ -133,10 +161,19 @@ lvgl:
             text_color: 0x555555
 
         - label:
-            id: lbl_ipixel_status
+            id: lbl_ipixel_led_left
             align: CENTER
+            x: -${x_col}
             y: ${y_line2}
-            text: "---"
+            text: "L ---"
+            text_font: font_16
+            text_color: 0x555555
+        - label:
+            id: lbl_ipixel_led_right
+            align: CENTER
+            x: ${x_col}
+            y: ${y_line2}
+            text: "R ---"
             text_font: font_16
             text_color: 0x555555
 
