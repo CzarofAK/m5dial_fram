@@ -20,8 +20,16 @@
 #  Double-click on the physical front button cycles between the two
 #  columns' SET (.m5dial_fram.yaml's double-click handler -- home is
 #  long-press-only here now): 1st click arms FANBOARD, 2nd click
-#  switches to arming HVAC, 3rd back to FANBOARD, and so on -- neither
-#  gets a fixed "the" double-click action, both are reachable.
+#  switches to arming HVAC, 3rd disarms (back to navigate mode), then
+#  wraps. Driven entirely off the CURRENT g_edit_target, not a
+#  separate position counter (bug fix: a counter that just alternated
+#  between "call act_fans_arm_board" / "call act_fans_arm_hvac" could
+#  never reach disarmed -- each of those scripts only toggles ITS OWN
+#  target off if IT was the one already armed, so bouncing between two
+#  different targets meant neither ever saw itself armed, and the
+#  encoder lock never released). Also correct if a touch tap (the
+#  on-screen SET buttons) changes the armed target in between
+#  double-clicks -- the cycle reads real state, not a remembered step.
 #
 #  Encoder feel (FANBOARD only, HVAC has no real entity to write to
 #  yet): same lag fix as page_power_2.yaml (see that file's header) --
@@ -54,13 +62,6 @@ globals:
     restore_value: false
     initial_value: "0"
 
-  # Double-click cycle position (.m5dial_fram.yaml's dc_fans_cycle):
-  # 0 = arm FANBOARD next, 1 = arm HVAC next.
-  - id: g_fans_dc_pos
-    type: int
-    restore_value: false
-    initial_value: "0"
-
 script:
   - id: act_fans_arm_board
     then:
@@ -82,19 +83,25 @@ script:
           value: !lambda "return (id(g_edit_target) == 2) ? 0 : 2;"
       - script.execute: draw_fans
 
-  # Called by .m5dial_fram.yaml's double-click handler -- see header.
+  # Called by .m5dial_fram.yaml's double-click handler -- see header
+  # for why this reads current state instead of tracking its own
+  # position: FANBOARD armed -> HVAC, HVAC armed -> disarm, anything
+  # else (disarmed, or a leftover target from another page) -> FANBOARD.
   - id: dc_fans_cycle
     then:
-      - if:
-          condition:
-            lambda: return id(g_fans_dc_pos) == 0;
-          then:
-            - script.execute: act_fans_arm_board
-          else:
-            - script.execute: act_fans_arm_hvac
-      - globals.set:
-          id: g_fans_dc_pos
-          value: !lambda "return (id(g_fans_dc_pos) + 1) % 2;"
+      - lambda: |-
+          int cur = id(g_edit_target);
+          if (cur == 1) {
+            id(fans_board_write_debounced)->stop();
+            id(fans_board_write_now)->execute();
+            id(g_edit_target) = 2;
+          } else if (cur == 2) {
+            id(g_edit_target) = 0;
+          } else {
+            id(g_fans_board_pending) = id(s_fans_board_speed).has_state() ? id(s_fans_board_speed).state : 0.0f;
+            id(g_edit_target) = 1;
+          }
+      - script.execute: draw_fans
 
   # 5%-step, clamped 0-100. Adjusts g_fans_board_pending locally and
   # redraws immediately (see header re: lag), only calling
