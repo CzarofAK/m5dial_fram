@@ -7,12 +7,26 @@
 #  QUER (left/right) = its Roll sensor -- matches that device's own
 #  sign convention (pitch: front down = +, roll: right down = +).
 #
-#  No arc: a tilt angle isn't a 0-100% quantity (design.md §8 — the arc
-#  is always a percentage), so this page is label-only, like clock.
-#  Two-value layout (design.md §3) without arcs: LÄNGS (longitudinal,
-#  front/back) / QUER (lateral, left/right), each just the signed
-#  degree value — there's no separate "absolute" line to show
-#  alongside a percentage here, so y_line2 stays empty.
+#  Bubble level, not just numbers (readability follow-up): three
+#  static rings as a target, a bubble that moves off-center with tilt
+#  -- the physical spirit-level metaphor, not the insect. LÄNGS/QUER
+#  stay as compact numeric readouts above/below the rings, since the
+#  bubble alone doesn't say "how many degrees."
+#
+#  Bubble travel: R_MAX = 85px maps to DEG_MAX = 4° (the alarm
+#  threshold) on each axis independently, clamped beyond that so it
+#  can't leave the outer ring. Direction convention -- UNVERIFIED,
+#  there's no established "which way is screen-up vs. vehicle-front"
+#  for this page yet: a real bubble floats toward the HIGH side, so
+#  QUER positive (right-down) moves it left, LÄNGS positive
+#  (front-down) moves it toward the back (down on screen, assuming the
+#  dial's "up" faces the front). If that reads backwards on the actual
+#  device, flip the sign in draw_levelling's ox/oy lambdas -- one line
+#  each, not a redesign.
+#
+#  No arc: a tilt angle isn't a 0-100% quantity (design.md §8), and
+#  the rings aren't arcs either -- full circles via LVGL's
+#  radius = width/2 trick, not the gas/water double-ring pattern.
 #
 #  Thresholds (< 2° ok, 2-4° warning, >= 4° alarm) are a GUESS, not
 #  measured against a real leveling requirement (fridge compressor
@@ -40,89 +54,70 @@ script:
   - id: draw_levelling
     mode: restart
     then:
-      # ---- LÄNGS (front/back tilt) ------------------------------------
-      - lvgl.label.update:
-          id: lbl_levelling_cap_lon
-          text_color: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return lv_color_hex(0x555555);
-            #endif
-            if (!id(s_levelling_lon).has_state()) return lv_color_hex(0x555555);
-            float v = fabsf(id(s_levelling_lon).state);
-            if (v >= 4.0f) return lv_color_hex(0xE74C3C);
-            if (v >= 2.0f) return lv_color_hex(0xF39C12);
-            return lv_color_hex(0xFFFFFF);
-      - lvgl.label.update:
-          id: lbl_levelling_val_lon
-          text: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return std::string("---°");
-            #endif
-            if (!id(s_levelling_lon).has_state()) return std::string("---°");
-            return str_sprintf("%+.1f°", id(s_levelling_lon).state);
-          text_color: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return lv_color_hex(0x555555);
-            #endif
-            if (!id(s_levelling_lon).has_state()) return lv_color_hex(0x555555);
-            float v = fabsf(id(s_levelling_lon).state);
-            if (v >= 4.0f) return lv_color_hex(0xE74C3C);
-            if (v >= 2.0f) return lv_color_hex(0xF39C12);
-            return lv_color_hex(0xFFFFFF);
-
-      # ---- QUER (left/right tilt) --------------------------------------
-      - lvgl.label.update:
-          id: lbl_levelling_cap_lat
-          text_color: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return lv_color_hex(0x555555);
-            #endif
-            if (!id(s_levelling_lat).has_state()) return lv_color_hex(0x555555);
-            float v = fabsf(id(s_levelling_lat).state);
-            if (v >= 4.0f) return lv_color_hex(0xE74C3C);
-            if (v >= 2.0f) return lv_color_hex(0xF39C12);
-            return lv_color_hex(0xFFFFFF);
-      - lvgl.label.update:
-          id: lbl_levelling_val_lat
-          text: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return std::string("---°");
-            #endif
-            if (!id(s_levelling_lat).has_state()) return std::string("---°");
-            return str_sprintf("%+.1f°", id(s_levelling_lat).state);
-          text_color: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return lv_color_hex(0x555555);
-            #endif
-            if (!id(s_levelling_lat).has_state()) return lv_color_hex(0x555555);
-            float v = fabsf(id(s_levelling_lat).state);
-            if (v >= 4.0f) return lv_color_hex(0xE74C3C);
-            if (v >= 2.0f) return lv_color_hex(0xF39C12);
-            return lv_color_hex(0xFFFFFF);
-
-      # ---- Footer: only when off level -----------------------------
-      - lvgl.label.update:
-          id: lbl_levelling_status
-          text: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return std::string("KEINE VERBINDUNG");
-            #endif
-            if (!id(s_levelling_lon).has_state() || !id(s_levelling_lat).has_state())
-              return std::string("KEIN WERT");
-            float lon = fabsf(id(s_levelling_lon).state);
-            float lat = fabsf(id(s_levelling_lat).state);
-            if (lon >= 2.0f || lat >= 2.0f) return std::string("NIVELLIERUNG PRÜFEN");
-            return std::string("");
-          text_color: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return lv_color_hex(0x555555);
-            #endif
+      # ---- Bubble position: clamped to the outer ring ------------------
+      - lvgl.widget.update:
+          id: obj_levelling_bubble
+          x: !lambda |-
+            if (!id(s_levelling_lat).has_state()) return 0;
+            const float R_MAX = 85.0f, DEG_MAX = 4.0f;
+            float ox = -(id(s_levelling_lat).state / DEG_MAX) * R_MAX;
+            if (ox > R_MAX) ox = R_MAX;
+            if (ox < -R_MAX) ox = -R_MAX;
+            return (int) ox;
+          y: !lambda |-
+            if (!id(s_levelling_lon).has_state()) return 0;
+            const float R_MAX = 85.0f, DEG_MAX = 4.0f;
+            float oy = (id(s_levelling_lon).state / DEG_MAX) * R_MAX;
+            if (oy > R_MAX) oy = R_MAX;
+            if (oy < -R_MAX) oy = -R_MAX;
+            return (int) oy;
+          bg_color: !lambda |-
             if (!id(s_levelling_lon).has_state() || !id(s_levelling_lat).has_state())
               return lv_color_hex(0x555555);
             float lon = fabsf(id(s_levelling_lon).state);
             float lat = fabsf(id(s_levelling_lat).state);
-            if (lon >= 4.0f || lat >= 4.0f) return lv_color_hex(0xE74C3C);
-            return lv_color_hex(0xF39C12);
+            float v = lon > lat ? lon : lat;
+            if (v >= 4.0f) return lv_color_hex(0xE74C3C);
+            if (v >= 2.0f) return lv_color_hex(0xF39C12);
+            return lv_color_hex(0xFFFFFF);
+
+      # ---- LÄNGS (front/back tilt) ------------------------------------
+      - lvgl.label.update:
+          id: lbl_levelling_lon
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("LÄNGS ---°");
+            #endif
+            if (!id(s_levelling_lon).has_state()) return std::string("LÄNGS ---°");
+            return str_sprintf("LÄNGS %+.1f°", id(s_levelling_lon).state);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_levelling_lon).has_state()) return lv_color_hex(0x555555);
+            float v = fabsf(id(s_levelling_lon).state);
+            if (v >= 4.0f) return lv_color_hex(0xE74C3C);
+            if (v >= 2.0f) return lv_color_hex(0xF39C12);
+            return lv_color_hex(0xBDC1C6);
+
+      # ---- QUER (left/right tilt) --------------------------------------
+      - lvgl.label.update:
+          id: lbl_levelling_lat
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("QUER ---°");
+            #endif
+            if (!id(s_levelling_lat).has_state()) return std::string("QUER ---°");
+            return str_sprintf("QUER %+.1f°", id(s_levelling_lat).state);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_levelling_lat).has_state()) return lv_color_hex(0x555555);
+            float v = fabsf(id(s_levelling_lat).state);
+            if (v >= 4.0f) return lv_color_hex(0xE74C3C);
+            if (v >= 2.0f) return lv_color_hex(0xF39C12);
+            return lv_color_hex(0xBDC1C6);
 
 esphome:
   on_boot:
@@ -139,46 +134,54 @@ lvgl:
       bg_color: 0x000000
       bg_opa: COVER
       widgets:
-        # ---- LÄNGS column -------------------------------------------
-        - label:
-            id: lbl_levelling_cap_lon
+        # ---- Bubble level: static target rings --------------------------
+        - obj:
             align: CENTER
-            x: -${x_col}
-            y: ${y_cap}
-            text: "LÄNGS"
-            text_font: montserrat_12
-            text_color: 0x555555
-        - label:
-            id: lbl_levelling_val_lon
+            width: 200
+            height: 200
+            radius: 100
+            bg_opa: TRANSP
+            border_width: 2
+            border_color: 0x2A2D30
+        - obj:
             align: CENTER
-            x: -${x_col}
-            y: ${y_main}
-            text: "---°"
-            text_font: montserrat_24
-            text_color: 0x555555
+            width: 140
+            height: 140
+            radius: 70
+            bg_opa: TRANSP
+            border_width: 2
+            border_color: 0x2A2D30
+        - obj:
+            align: CENTER
+            width: 80
+            height: 80
+            radius: 40
+            bg_opa: TRANSP
+            border_width: 2
+            border_color: 0x2ECC71
 
-        # ---- QUER column --------------------------------------------
-        - label:
-            id: lbl_levelling_cap_lat
+        # ---- Bubble level: the bubble itself ------------------------------
+        - obj:
+            id: obj_levelling_bubble
             align: CENTER
-            x: ${x_col}
-            y: ${y_cap}
-            text: "QUER"
-            text_font: montserrat_12
-            text_color: 0x555555
-        - label:
-            id: lbl_levelling_val_lat
-            align: CENTER
-            x: ${x_col}
-            y: ${y_main}
-            text: "---°"
-            text_font: montserrat_24
-            text_color: 0x555555
+            width: 26
+            height: 26
+            radius: 13
+            bg_color: 0x555555
+            bg_opa: COVER
+            border_width: 0
 
         - label:
-            id: lbl_levelling_status
+            id: lbl_levelling_lon
+            align: CENTER
+            y: ${y_cap}
+            text: "LÄNGS ---°"
+            text_font: font_16
+            text_color: 0x555555
+        - label:
+            id: lbl_levelling_lat
             align: BOTTOM_MID
             y: ${y_footer}
-            text: ""
-            text_font: montserrat_12
+            text: "QUER ---°"
+            text_font: font_16
             text_color: 0x555555

@@ -316,7 +316,7 @@ lvgl:
             align: CENTER
             y: ${y_main}
             text: "---W"
-            text_font: montserrat_40
+            text_font: font_40
             text_color: 0x555555
 
         - label:
@@ -324,7 +324,7 @@ lvgl:
             align: CENTER
             y: ${y_line2}
             text: "---"
-            text_font: montserrat_16
+            text_font: font_16
             text_color: 0x555555
 
         - button:
@@ -343,7 +343,7 @@ lvgl:
                   id: lbl_power_2_mode
                   align: CENTER
                   text: "---"
-                  text_font: montserrat_16
+                  text_font: font_16
                   text_color: 0x555555
             on_click:
               - script.execute: act_power_2_mode
@@ -364,7 +364,7 @@ lvgl:
                   id: lbl_power_2_limit
                   align: CENTER
                   text: "--A"
-                  text_font: montserrat_16
+                  text_font: font_16
                   text_color: 0x555555
             on_click:
               - script.execute: act_power_2_limit
@@ -374,5 +374,5 @@ lvgl:
             align: BOTTOM_MID
             y: ${y_footer}
             text: ""
-            text_font: montserrat_12
+            text_font: font_12
             text_color: 0x555555

@@ -622,10 +622,16 @@ reusable by any dial in the project, not just this one.
   `page_fans` uses it so far (2 targets) — the dispatch in
   `encoder_adjust_up`/`_down` is hand-written per target, so a third
   page adopting this needs a branch added there too.
-* **Special characters.** `°` is needed on the temperature and boiler
-  pages; it's included in the built-in montserrat fonts, but with a
-  custom font it would need to go into the glyph list. The middle dot
-  `·` is untested and avoided until then.
+* **~~Special characters.~~** Turned out to be a real bug, not a
+  someday concern: every Ä/Ö/Ü/ä/ö/ü/ß on the device showed as a tofu
+  box — LVGL's built-in `montserrat_NN` fonts are ASCII-only, no
+  Latin-1, and ESPHome can't add glyphs to an already-compiled font.
+  Fixed by switching to custom-rasterized fonts (`.m5dial_fram.yaml`'s
+  `font:` block, `font_12`/`_16`/`_24`/`_40`) with an explicit glyph
+  list covering what's actually used, umlauts included. Not yet
+  confirmed on the device — next flash should show it either fixed or
+  not. The middle dot `·` is still untested and still avoided; add it
+  to the glyph list first if it's ever needed.
 * **Visual height of the main value.** `72%` and `540 W` sit on the
   same `y_main` but appear to be at different heights, because the
   percent sign reaches further up. Only decide whether this is a

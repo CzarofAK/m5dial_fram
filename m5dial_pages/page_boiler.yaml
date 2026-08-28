@@ -15,10 +15,17 @@
 #                                check it actually fits the 104 px
 #                                button on the real device, not just
 #                                in the simulator)
+#    y_row2   one button        SET, arms water temp for the encoder
 #    y_footer status line       montserrat_12 — heater error (shared
 #                                with page_climate.yaml's binary_sensor:
 #                                one physical fault flag for the whole
-#                                Combi, not per water/room side)
+#                                Combi, not per water/room side), or a
+#                                "turn to adjust" hint while armed
+#
+#  Water temp is encoder-adjustable (design.md §14, g_edit_target in
+#  .m5dial_fram.yaml) via the SET button, same as page_climate.yaml's
+#  room temp -- and the same guard: refuses to arm while BOILER is
+#  off, since a target set while off doesn't take effect on the Truma.
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -57,6 +64,52 @@ script:
           service: switch.toggle
           data:
             entity_id: switch.activate_water_heater
+
+  # Water temp (target 5), same guard as page_climate.yaml's targets:
+  # refuses to arm while BOILER is off, since a target set while off
+  # doesn't take effect on the Truma.
+  - id: act_boiler_arm_temp
+    then:
+      - if:
+          condition:
+            lambda: return id(s_boiler_heater_on).has_state() && id(s_boiler_heater_on).state;
+          then:
+            - globals.set:
+                id: g_edit_target
+                value: !lambda "return (id(g_edit_target) == 5) ? 0 : 5;"
+      - script.execute: draw_boiler
+
+  # 1°C step, clamped 30-70 (a guess at a sane range, not the Truma's
+  # actual documented min/max -- verify on the device).
+  - id: act_boiler_temp_up
+    then:
+      - homeassistant.service:
+          service: number.set_value
+          data:
+            entity_id: number.target_water_temperature
+          data_template:
+            value: "{{ val }}"
+          variables:
+            val: !lambda |-
+              float cur = id(s_boiler_target).has_state() ? id(s_boiler_target).state : 40.0f;
+              float v = cur + 1.0f;
+              if (v > 70.0f) v = 70.0f;
+              return str_sprintf("%.0f", v);
+
+  - id: act_boiler_temp_down
+    then:
+      - homeassistant.service:
+          service: number.set_value
+          data:
+            entity_id: number.target_water_temperature
+          data_template:
+            value: "{{ val }}"
+          variables:
+            val: !lambda |-
+              float cur = id(s_boiler_target).has_state() ? id(s_boiler_target).state : 40.0f;
+              float v = cur - 1.0f;
+              if (v < 30.0f) v = 30.0f;
+              return str_sprintf("%.0f", v);
 
   - id: draw_boiler
     mode: restart
@@ -128,21 +181,32 @@ script:
             return id(s_boiler_heater_on).state ? lv_color_hex(0x2ECC71)
                                          : lv_color_hex(0x3C4043);
 
-      # ---- Status line: error only -------------------------------------
+      # ---- Row 2: SET, arms water temp (target 5) -----------------------
+      - lvgl.widget.update:
+          id: btn_boiler_temp_set
+          border_color: !lambda |-
+            if (id(g_edit_target) == 5) return lv_color_hex(0x4A9EFF);
+            return lv_color_hex(0x3C4043);
+
+      # ---- Footer: error, or the edit-mode hint if nothing's wrong -----
       - lvgl.label.update:
           id: lbl_boiler_status
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("KEINE VERBINDUNG");
             #endif
-            if (!id(s_boiler_error).has_state()) return std::string("");
-            return id(s_boiler_error).state ? std::string("HEIZUNG FEHLER")
-                                     : std::string("");
+            if (id(s_boiler_error).has_state() && id(s_boiler_error).state)
+              return std::string("HEIZUNG FEHLER");
+            if (id(g_edit_target) == 5)
+              return std::string("DREHEN ZUM ÄNDERN");
+            return std::string("");
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            return lv_color_hex(0xE74C3C);
+            if (id(s_boiler_error).has_state() && id(s_boiler_error).state)
+              return lv_color_hex(0xE74C3C);
+            return lv_color_hex(0x4A9EFF);
 
 esphome:
   on_boot:
@@ -164,7 +228,7 @@ lvgl:
             align: CENTER
             y: ${y_main}
             text: "---°C"
-            text_font: montserrat_40
+            text_font: font_40
             text_color: 0x555555
 
         - label:
@@ -172,7 +236,7 @@ lvgl:
             align: CENTER
             y: ${y_line2}
             text: "SOLL ---°C"
-            text_font: montserrat_16
+            text_font: font_16
             text_color: 0x555555
 
         - button:
@@ -190,15 +254,35 @@ lvgl:
                   id: lbl_boiler_heater
                   align: CENTER
                   text: "BOILER ---"
-                  text_font: montserrat_16
+                  text_font: font_16
                   text_color: 0x555555
             on_click:
               - script.execute: act_boiler_heater
+
+        # ---- Row 2: SET, arms water temp (target 5) ----------------------
+        - button:
+            id: btn_boiler_temp_set
+            align: CENTER
+            y: ${y_row2}
+            width: 68
+            height: 26
+            radius: 13
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  align: CENTER
+                  text: "SET"
+                  text_font: font_16
+                  text_color: 0xBDC1C6
+            on_click:
+              - script.execute: act_boiler_arm_temp
 
         - label:
             id: lbl_boiler_status
             align: BOTTOM_MID
             y: ${y_footer}
             text: ""
-            text_font: montserrat_12
+            text_font: font_12
             text_color: 0x555555
