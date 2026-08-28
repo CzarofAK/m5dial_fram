@@ -59,3 +59,4 @@ packages:
   # they add to LVGL's top_layer instead of pages:, shown over whatever
   # page is current.
   ov_litterbox: !include m5dial_pages/overlay_litterbox.yaml
+  ov_ipixel: !include m5dial_pages/overlay_ipixel.yaml

@@ -27,7 +27,11 @@
 #  y_row        one button  "ASSIST 8.0A" -- value in the button
 #                            (number.multiplus_strombegrenzung),
 #                            tapping arms/disarms encoder edit mode
-#                            (design.md §14, g_edit_target target 6)
+#                            (design.md §14, g_edit_target target 6).
+#                            Double-clicking the physical front button
+#                            on this page does the same
+#                            (.m5dial_fram.yaml's double-click handler
+#                            -- home is long-press-only here now).
 #  y_footer     status line
 #
 #  PowerAssist step is 1A now, not 0.1A: 0.1A steps made the encoder

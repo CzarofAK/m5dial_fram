@@ -40,9 +40,12 @@
 #                                while armed
 #
 #  Room temp is encoder-adjustable (design.md §14, g_edit_target
-#  target 3 in .m5dial_fram.yaml) via the SET button. Refuses to arm
-#  while HEIZUNG is off: per Truma, a target set while off doesn't
-#  take effect, so this blocks arming rather than letting the encoder
+#  target 3 in .m5dial_fram.yaml) via the SET button, or by
+#  double-clicking the physical front button while this page is
+#  showing (same action, .m5dial_fram.yaml's double-click handler --
+#  home is long-press-only on this page now). Refuses to arm while
+#  HEIZUNG is off: per Truma, a target set while off doesn't take
+#  effect, so this blocks arming rather than letting the encoder
 #  silently do nothing.
 # =====================================================================
 

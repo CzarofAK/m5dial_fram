@@ -37,9 +37,12 @@
 #                                while armed
 #
 #  Water temp is encoder-adjustable (design.md §14, g_edit_target in
-#  .m5dial_fram.yaml) via the SET button, same as page_climate.yaml's
-#  room temp -- and the same guard: refuses to arm while BOILER is
-#  off, since a target set while off doesn't take effect on the Truma.
+#  .m5dial_fram.yaml) via the SET button, or by double-clicking the
+#  physical front button while this page is showing (same action,
+#  .m5dial_fram.yaml's double-click handler -- home is long-press-only
+#  on this page now), same as page_climate.yaml's room temp -- and the
+#  same guard: refuses to arm while BOILER is off, since a target set
+#  while off doesn't take effect on the Truma.
 # =====================================================================
 
 # ---------------------------------------------------------------------

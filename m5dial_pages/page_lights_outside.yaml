@@ -51,6 +51,10 @@ binary_sensor:
 
 script:
   # Any-on-reads-on, toggle-drives-both-the-same-way -- see header.
+  # Two separate homeassistant.service calls, not one call with a YAML
+  # list under entity_id: -- ESPHome's data:/data_template: values must
+  # be plain strings, a list there is a hard config error ("Must be
+  # string, got EList").
   - id: act_lights_entrance
     then:
       - if:
@@ -62,16 +66,20 @@ script:
             - homeassistant.service:
                 service: switch.turn_off
                 data:
-                  entity_id:
-                    - switch.light_pir
-                    - switch.light_step
+                  entity_id: switch.light_pir
+            - homeassistant.service:
+                service: switch.turn_off
+                data:
+                  entity_id: switch.light_step
           else:
             - homeassistant.service:
                 service: switch.turn_on
                 data:
-                  entity_id:
-                    - switch.light_pir
-                    - switch.light_step
+                  entity_id: switch.light_pir
+            - homeassistant.service:
+                service: switch.turn_on
+                data:
+                  entity_id: switch.light_step
 
   - id: act_lights_awning
     then:
