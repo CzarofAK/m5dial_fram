@@ -32,6 +32,7 @@ doesn't exist. The simulator shows a square and lies at the corners.
 | `m5dial_pages/` | all pages, one file each, reusable across every dial in the project |
 | `m5dial_pages/page_<name>.yaml` | one page, ready to `!include` as-is — no separate simulator variant, no merge step |
 | `m5dial_pages/overlay_<name>.yaml` | an overlay (§15) — adds to LVGL's `top_layer`, not `pages:`; no page order, no `p<n>` slot |
+| `m5dial_pages/assets/` | binary assets (`image:`/`animation:` source files) referenced by `file:` from a page or overlay; generated ones keep their generator script alongside (e.g. `gen_cat.py`) instead of being hand-edited |
 
 One file per page, named `page_<name>.yaml`, `<name>` matching §10's
 page names (`clock`, `gas`, `power_1`, `power_2`, `power_3`, `water`). Each file
@@ -722,7 +723,20 @@ the `s_ignition` comment in `.m5dial_fram.yaml`:
 | id | Content | Status |
 |---|---|---|
 | `OV1` | Pre-flight check overlay | not designed yet |
-| `OV2` | Cat litter box overlay: red while the light is on, green for 5s when the fan starts, then off | implemented (`overlay_litterbox.yaml`) — placeholder text label, no cat icon (no icon font set up in this repo yet) |
+| `OV2` | Cat litter box overlay: red while the light is on, green for 5s when the fan starts, then off | implemented (`overlay_litterbox.yaml`) — blocky pixel-art cat (`m5dial_pages/assets/`, animimg 2-frame blink), dismissible early |
+| `OV3` | iPixel-on overlay: red while either front LED switch is on | implemented (`overlay_ipixel.yaml`) — text only, dismissible early |
+
+All overlays are dismissible early: double-clicking the physical front
+button while one is showing acknowledges and hides it instead of
+jumping to the home page (`.m5dial_fram.yaml`'s double-click handler
+checks each overlay's root widget before deciding). A page adding a
+new overlay needs to: give its root `obj:` widget an `<name>_ack`
+script (hide + set a page-local `g_ov_<name>_ack` global, guarded so
+it's a no-op when that overlay isn't the one currently showing — see
+either existing overlay for the shape), reset that ack global to
+false once its own trigger condition goes false again, and add a
+branch for it to the double-click handler's hard-coded list — same
+"add a branch here" pattern as `encoder_adjust_up`/`_down`.
 
 Neither overlay is suppressed while driving yet — the `s_ignition`
 mechanism for that is still just the comment, not wired to anything.

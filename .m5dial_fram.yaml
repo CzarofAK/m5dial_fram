@@ -224,12 +224,20 @@ binary_sensor:
               id: g_daynight
               value: !lambda "return (id(g_daynight) + 1) % 3;"
           - script.execute: apply_daynight
-      # Double click: back to the home page. Also drops out of encoder
-      # edit mode if a page had one armed (design.md §14) -- draw_fans
-      # is the only page using it right now; add its own script.execute
-      # here if a second page ever does too (same caveat as
-      # apply_daynight's clock_face reference below: hard-coded because
-      # there's only one case so far).
+      # Double click: dismiss an active overlay first, if any -- checked
+      # via each overlay's own root widget (LV_OBJ_FLAG_HIDDEN, the
+      # flag lvgl.widget.show/hide actually flips) before calling its
+      # _ack script, which is a no-op if that overlay isn't the one
+      # showing. Same hard-coded, "add a branch per new one" pattern as
+      # encoder_adjust_up/down and apply_daynight's clock_face
+      # reference: ov_litterbox (overlay_litterbox.yaml) and ov_ipixel
+      # (overlay_ipixel.yaml) so far.
+      #
+      # Otherwise (no overlay was up): back to the home page, same as
+      # before. Also drops out of encoder edit mode if a page had one
+      # armed (design.md §14) -- draw_fans is the only page using it
+      # right now; add its own script.execute here if a second page
+      # ever does too.
       - timing:
           - ON for at most 0.35s
           - OFF for at most 0.35s
@@ -237,10 +245,21 @@ binary_sensor:
           - OFF for at least 0.5s
         then:
           - globals.set:
-              id: g_edit_target
-              value: "0"
-          - script.execute: draw_fans
-          - lvgl.page.show: ${home_page}
+              id: g_dc_overlay_active
+              value: !lambda |-
+                return !lv_obj_has_flag(id(ov_litterbox), LV_OBJ_FLAG_HIDDEN) ||
+                       !lv_obj_has_flag(id(ov_ipixel), LV_OBJ_FLAG_HIDDEN);
+          - script.execute: ov_litterbox_ack
+          - script.execute: ov_ipixel_ack
+          - if:
+              condition:
+                lambda: return !id(g_dc_overlay_active);
+              then:
+                - globals.set:
+                    id: g_edit_target
+                    value: "0"
+                - script.execute: draw_fans
+                - lvgl.page.show: ${home_page}
       # Long press: also back to the home page, same edit-mode reset.
       - timing:
           - ON for 0.5s to 3s
@@ -297,6 +316,15 @@ globals:
     type: int
     restore_value: false
     initial_value: "0" # 0 = navigate. 1/2 = page_fans, 3 = page_climate, 5 = page_boiler, 6 = page_power_2.
+
+  # Scratch flag for the front-button double-click handler below: was
+  # any overlay up right before this click? Set once per click, right
+  # before the _ack calls run (which would otherwise hide it and make
+  # it too late to check). Not meaningful outside that handler.
+  - id: g_dc_overlay_active
+    type: bool
+    restore_value: false
+    initial_value: "false"
 
 script:
   - id: beep_confirm

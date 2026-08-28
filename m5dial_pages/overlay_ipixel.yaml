@@ -1,0 +1,115 @@
+# =====================================================================
+#  m5dial_pages/overlay_ipixel.yaml — overlay: iPixel on
+#  FRAM M5Dial Cockpit · overlay package
+#
+#  NOT a page (design.md §15) -- shown on top of whatever page is
+#  current, via LVGL's top_layer rather than the pages: list. Same
+#  shape as overlay_litterbox.yaml, no cat/fan-flash equivalent here:
+#
+#    - Either LED switch ON (switch.ipixel_front_left_led_left /
+#      _right_led_right, same entities as page_ipixel.yaml) -> overlay
+#      visible, red background.
+#    - Both OFF -> hidden again immediately.
+#    - Dismissible early: double-clicking the physical front button
+#      while this overlay is up acknowledges and hides it
+#      (.m5dial_fram.yaml's double-click handler, generic across all
+#      overlays -- see that file's header note). Re-arms once both
+#      LEDs are OFF again.
+#
+#  No graphic here -- text label only, same as the litterbox overlay's
+#  original placeholder before it got its cat.
+# =====================================================================
+
+# ---------------------------------------------------------------------
+#  C  Bindings
+# ---------------------------------------------------------------------
+globals:
+  # Page-local state, same reasoning as overlay_litterbox's
+  # g_ov_litterbox_ack: "did the user already dismiss the alert
+  # that's currently showing", reset once both LEDs are OFF.
+  - id: g_ov_ipixel_ack
+    type: bool
+    restore_value: false
+    initial_value: "false"
+
+binary_sensor:
+  - platform: homeassistant
+    id: s_ov_ipixel_led_left
+    entity_id: switch.ipixel_front_left_led_left
+    on_state:
+      - script.execute: draw_ov_ipixel
+  - platform: homeassistant
+    id: s_ov_ipixel_led_right
+    entity_id: switch.ipixel_front_right_led_right
+    on_state:
+      - script.execute: draw_ov_ipixel
+
+script:
+  - id: draw_ov_ipixel
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: |-
+              return (id(s_ov_ipixel_led_left).has_state() && id(s_ov_ipixel_led_left).state) ||
+                     (id(s_ov_ipixel_led_right).has_state() && id(s_ov_ipixel_led_right).state);
+          then:
+            - if:
+                condition:
+                  lambda: return !id(g_ov_ipixel_ack);
+                then:
+                  - lvgl.widget.show: ov_ipixel
+          else:
+            - globals.set:
+                id: g_ov_ipixel_ack
+                value: "false"
+            - lvgl.widget.hide: ov_ipixel
+
+  # Dismiss on double-click (.m5dial_fram.yaml calls this directly,
+  # unconditionally -- guarded here so it's a no-op when this overlay
+  # isn't the one showing).
+  - id: ov_ipixel_ack
+    then:
+      - if:
+          condition:
+            lambda: return !lv_obj_has_flag(id(ov_ipixel), LV_OBJ_FLAG_HIDDEN);
+          then:
+            - globals.set:
+                id: g_ov_ipixel_ack
+                value: "true"
+            - lvgl.widget.hide: ov_ipixel
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - script.execute: draw_ov_ipixel
+
+# ---------------------------------------------------------------------
+#  D  Widget
+# ---------------------------------------------------------------------
+lvgl:
+  top_layer:
+    widgets:
+      - obj:
+          id: ov_ipixel
+          align: CENTER
+          width: 240
+          height: 240
+          radius: 0
+          border_width: 0
+          hidden: true
+          bg_color: 0xE74C3C
+          bg_opa: COVER
+          widgets:
+            - label:
+                align: CENTER
+                text: "IPIXEL AN"
+                text_font: font_24
+                text_color: 0xFFFFFF
+            - label:
+                align: CENTER
+                y: 30
+                text: "2X KLICK = AUS"
+                text_font: font_12
+                text_color: 0xF5A9A0
