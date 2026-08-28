@@ -27,11 +27,40 @@
 #  page_levelling.yaml: y_cap names the light, the button below it
 #  is the control -- there's no y_main/y_line2 value to show besides
 #  on/off, which already lives on the button label.
+#
+#  Layout (readability follow-up: the two-switch template read as too
+#  sparse and too cramped at once). x_col=40 is meant for narrow TEXT
+#  columns (gas/water's percentages) -- at a 76px-wide BUTTON it left
+#  only a 4px gap between the two, close enough to misregister a tap
+#  on the wrong one. Widened to a literal x:±48 (not ${x_col}, same
+#  reasoning as page_levelling's literal y:42 -- a page-local geometry
+#  choice, not a shared grid constant, kept inside the round display's
+#  r=120 limit even at the button's far corner) and the buttons grew
+#  to 76x32 -- a bigger, clearer touch target, which also matters more
+#  now that double-click can trigger these too (see below) and touch
+#  should feel like the equally-sized sibling of that, not an
+#  afterthought.
+#
+#  Double-click on the physical front button cycles between the two
+#  switches (.m5dial_fram.yaml's double-click handler -- home is
+#  long-press-only here now): 1st click toggles EINGANG, 2nd toggles
+#  MARKISE, 3rd back to EINGANG. Same reasoning as page_fans.yaml's
+#  FANBOARD/HVAC cycle -- haptic control while driving, touch while
+#  parked, both always available.
 # =====================================================================
 
 # ---------------------------------------------------------------------
 #  C  Bindings
 # ---------------------------------------------------------------------
+globals:
+  # Double-click cycle position (.m5dial_fram.yaml's
+  # dc_lights_outside_cycle): 0 = toggle EINGANG next, 1 = toggle
+  # MARKISE next.
+  - id: g_lights_outside_dc_pos
+    type: int
+    restore_value: false
+    initial_value: "0"
+
 binary_sensor:
   - platform: homeassistant
     id: s_lights_entrance_pir
@@ -87,6 +116,20 @@ script:
           service: switch.toggle
           data:
             entity_id: switch.shelly1g4_7c2c6772123c
+
+  # Called by .m5dial_fram.yaml's double-click handler -- see header.
+  - id: dc_lights_outside_cycle
+    then:
+      - if:
+          condition:
+            lambda: return id(g_lights_outside_dc_pos) == 0;
+          then:
+            - script.execute: act_lights_entrance
+          else:
+            - script.execute: act_lights_awning
+      - globals.set:
+          id: g_lights_outside_dc_pos
+          value: !lambda "return (id(g_lights_outside_dc_pos) + 1) % 2;"
 
   - id: draw_lights_outside
     mode: restart
@@ -180,7 +223,7 @@ lvgl:
         - label:
             id: lbl_lights_cap_entrance
             align: CENTER
-            x: -${x_col}
+            x: -48
             y: ${y_cap}
             text: "EINGANG"
             text_font: font_12
@@ -188,11 +231,11 @@ lvgl:
         - button:
             id: btn_lights_entrance
             align: CENTER
-            x: -${x_col}
+            x: -48
             y: ${y_row}
             width: 76
-            height: 30
-            radius: 15
+            height: 32
+            radius: 16
             bg_color: 0x202124
             border_width: 1
             border_color: 0x3C4043
@@ -209,7 +252,7 @@ lvgl:
         - label:
             id: lbl_lights_cap_awning
             align: CENTER
-            x: ${x_col}
+            x: 48
             y: ${y_cap}
             text: "MARKISE"
             text_font: font_12
@@ -217,11 +260,11 @@ lvgl:
         - button:
             id: btn_lights_awning
             align: CENTER
-            x: ${x_col}
+            x: 48
             y: ${y_row}
             width: 76
-            height: 30
-            radius: 15
+            height: 32
+            radius: 16
             bg_color: 0x202124
             border_width: 1
             border_color: 0x3C4043

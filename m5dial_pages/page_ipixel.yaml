@@ -18,7 +18,14 @@
 #    y_main   AN / AUS          montserrat_40 — input_boolean.ipixel
 #    y_line2  L EIN · R AUS     montserrat_16 — the two LED switches,
 #                                split across x: ±${x_col}
-#    y_row    one button        76 x 30 — toggle input_boolean.ipixel
+#    y_row    one button        140 x 36 — toggle input_boolean.ipixel
+#
+#  Button grew from 104x30 (readability follow-up: a single small
+#  button under a big AN/AUS value read as too sparse) -- bigger,
+#  clearer touch target, also a better match now that double-click can
+#  trigger the same toggle (.m5dial_fram.yaml's double-click handler --
+#  home is long-press-only here now): haptic control while driving,
+#  touch while parked, both always available.
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -181,9 +188,9 @@ lvgl:
             id: btn_ipixel_power
             align: CENTER
             y: ${y_row}
-            width: 104
-            height: 30
-            radius: 15
+            width: 140
+            height: 36
+            radius: 18
             bg_color: 0x202124
             border_width: 1
             border_color: 0x3C4043

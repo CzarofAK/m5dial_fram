@@ -40,13 +40,26 @@
 #                                while armed
 #
 #  Room temp is encoder-adjustable (design.md §14, g_edit_target
-#  target 3 in .m5dial_fram.yaml) via the SET button, or by
-#  double-clicking the physical front button while this page is
-#  showing (same action, .m5dial_fram.yaml's double-click handler --
-#  home is long-press-only on this page now). Refuses to arm while
-#  HEIZUNG is off: per Truma, a target set while off doesn't take
-#  effect, so this blocks arming rather than letting the encoder
+#  target 3 in .m5dial_fram.yaml) via the SET button. Refuses to arm
+#  while HEIZUNG is off: per Truma, a target set while off doesn't
+#  take effect, so this blocks arming rather than letting the encoder
 #  silently do nothing.
+#
+#  Double-click on the physical front button cycles this page's two
+#  actions (.m5dial_fram.yaml's double-click handler -- home is
+#  long-press-only here now): 1st click arms room temp (same as SET),
+#  2nd toggles HEIZUNG, 3rd back to arming, and so on -- lets HEIZUNG
+#  itself be reached without touching the screen too, not just the
+#  temperature (design feedback: haptic control matters while driving,
+#  touch works fine parked, so both stay available always).
+#
+#  Encoder feel: same lag fix as page_power_2.yaml (see that file's
+#  header) -- adjusts a local g_climate_temp_pending value and redraws
+#  from it immediately, only calling climate.set_temperature once the
+#  encoder's quiet for 400ms (or immediately on disarm). The display
+#  used to wait for the full HA-round-trip-plus-Truma-LIN echo before
+#  moving; the Truma's own ~2-4s lag is unchanged and unavoidable, but
+#  the number now tracks the knob instead of the (slow) confirmation.
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -73,6 +86,24 @@ binary_sensor:
     on_state:
       - script.execute: draw_climate
 
+globals:
+  # Page-local (design.md §3's "On/off-only pages" precedent for
+  # page-local globals applies here too): the temp being dialed while
+  # armed, ahead of what HA's confirmed back (and long ahead of what
+  # the Truma's actually done -- see header re: lag).
+  - id: g_climate_temp_pending
+    type: float
+    restore_value: false
+    initial_value: "20"
+
+  # Double-click cycle position (.m5dial_fram.yaml's dc_climate_cycle
+  # calls this page's actions in turn): 0 = arm temp SET next, 1 =
+  # toggle HEIZUNG next.
+  - id: g_climate_dc_pos
+    type: int
+    restore_value: false
+    initial_value: "0"
+
 script:
   - id: act_climate_heater
     then:
@@ -92,29 +123,54 @@ script:
           condition:
             lambda: return id(s_climate_heater_on).has_state() && id(s_climate_heater_on).state;
           then:
-            - globals.set:
-                id: g_edit_target
-                value: !lambda "return (id(g_edit_target) == 3) ? 0 : 3;"
+            - lambda: |-
+                bool was_armed = (id(g_edit_target) == 3);
+                id(g_edit_target) = was_armed ? 0 : 3;
+                if (!was_armed) {
+                  id(g_climate_temp_pending) = id(s_climate_target).has_state() ? id(s_climate_target).state : 20.0f;
+                } else {
+                  id(climate_temp_write_debounced)->stop();
+                  id(climate_temp_write_now)->execute();
+                }
       - script.execute: draw_climate
+
+  # Called by .m5dial_fram.yaml's double-click handler -- see header.
+  - id: dc_climate_cycle
+    then:
+      - if:
+          condition:
+            lambda: return id(g_climate_dc_pos) == 0;
+          then:
+            - script.execute: act_climate_arm_temp
+          else:
+            - script.execute: act_climate_heater
+      - globals.set:
+          id: g_climate_dc_pos
+          value: !lambda "return (id(g_climate_dc_pos) + 1) % 2;"
 
   # 1°C step, clamped 5-30 (a guess at a sane range, not the Truma's
   # actual documented min/max -- verify on the device).
   - id: act_climate_temp_up
     then:
-      - homeassistant.service:
-          service: climate.set_temperature
-          data:
-            entity_id: climate.womolin_controller_mqtt_truma_room
-          data_template:
-            temperature: "{{ val }}"
-          variables:
-            val: !lambda |-
-              float cur = id(s_climate_target).has_state() ? id(s_climate_target).state : 20.0f;
-              float v = cur + 1.0f;
-              if (v > 30.0f) v = 30.0f;
-              return str_sprintf("%.0f", v);
+      - lambda: |-
+          float v = id(g_climate_temp_pending) + 1.0f;
+          if (v > 30.0f) v = 30.0f;
+          id(g_climate_temp_pending) = v;
+      - script.execute: draw_climate
+      - script.execute: climate_temp_write_debounced
 
   - id: act_climate_temp_down
+    then:
+      - lambda: |-
+          float v = id(g_climate_temp_pending) - 1.0f;
+          if (v < 5.0f) v = 5.0f;
+          id(g_climate_temp_pending) = v;
+      - script.execute: draw_climate
+      - script.execute: climate_temp_write_debounced
+
+  # The actual write, split from the debounce delay so disarming can
+  # call it immediately (act_climate_arm_temp above).
+  - id: climate_temp_write_now
     then:
       - homeassistant.service:
           service: climate.set_temperature
@@ -123,11 +179,13 @@ script:
           data_template:
             temperature: "{{ val }}"
           variables:
-            val: !lambda |-
-              float cur = id(s_climate_target).has_state() ? id(s_climate_target).state : 20.0f;
-              float v = cur - 1.0f;
-              if (v < 5.0f) v = 5.0f;
-              return str_sprintf("%.0f", v);
+            val: !lambda "return str_sprintf(\"%.0f\", id(g_climate_temp_pending));"
+
+  - id: climate_temp_write_debounced
+    mode: restart
+    then:
+      - delay: 400ms
+      - script.execute: climate_temp_write_now
 
   - id: draw_climate
     mode: restart
@@ -155,6 +213,9 @@ script:
             #ifdef USE_API
             if (!api_is_connected()) return std::string("SOLL ---°C");
             #endif
+            // Armed: show the pending (locally-dialed) value, not the
+            // HA-confirmed one -- see header re: lag.
+            if (id(g_edit_target) == 3) return str_sprintf("SOLL %.0f°C", id(g_climate_temp_pending));
             if (!id(s_climate_target).has_state()) return std::string("SOLL ---°C");
             return str_sprintf("SOLL %.0f°C", id(s_climate_target).state);
           text_color: !lambda |-

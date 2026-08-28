@@ -17,11 +17,17 @@
 #  FANBOARD does anything real yet -- HVAC's adjust scripts are stubs
 #  (see below).
 #
-#  Double-clicking the physical front button on this page also arms
-#  FANBOARD (act_fans_arm_board), same as tapping its SET button --
-#  it does NOT exit to home here (that's long-press-only on this page
-#  now); see .m5dial_fram.yaml's double-click handler. HVAC has no
-#  double-click shortcut -- FANBOARD is the one real column.
+#  Double-click on the physical front button cycles between the two
+#  columns' SET (.m5dial_fram.yaml's double-click handler -- home is
+#  long-press-only here now): 1st click arms FANBOARD, 2nd click
+#  switches to arming HVAC, 3rd back to FANBOARD, and so on -- neither
+#  gets a fixed "the" double-click action, both are reachable.
+#
+#  Encoder feel (FANBOARD only, HVAC has no real entity to write to
+#  yet): same lag fix as page_power_2.yaml (see that file's header) --
+#  adjusts a local g_fans_board_pending value and redraws from it
+#  immediately, only calling number.set_value once the encoder's quiet
+#  for 400ms (or immediately on disarm).
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -40,12 +46,33 @@ sensor:
     on_value:
       - script.execute: draw_fans
 
+globals:
+  # Page-local, same reasoning as page_power_2.yaml's
+  # g_power_2_assist_pending.
+  - id: g_fans_board_pending
+    type: float
+    restore_value: false
+    initial_value: "0"
+
+  # Double-click cycle position (.m5dial_fram.yaml's dc_fans_cycle):
+  # 0 = arm FANBOARD next, 1 = arm HVAC next.
+  - id: g_fans_dc_pos
+    type: int
+    restore_value: false
+    initial_value: "0"
+
 script:
   - id: act_fans_arm_board
     then:
-      - globals.set:
-          id: g_edit_target
-          value: !lambda "return (id(g_edit_target) == 1) ? 0 : 1;"
+      - lambda: |-
+          bool was_armed = (id(g_edit_target) == 1);
+          id(g_edit_target) = was_armed ? 0 : 1;
+          if (!was_armed) {
+            id(g_fans_board_pending) = id(s_fans_board_speed).has_state() ? id(s_fans_board_speed).state : 0.0f;
+          } else {
+            id(fans_board_write_debounced)->stop();
+            id(fans_board_write_now)->execute();
+          }
       - script.execute: draw_fans
 
   - id: act_fans_arm_hvac
@@ -55,25 +82,45 @@ script:
           value: !lambda "return (id(g_edit_target) == 2) ? 0 : 2;"
       - script.execute: draw_fans
 
-  # 5%-step, clamped 0-100. Reads back the last known sensor state
-  # rather than the arc (the arc only reflects what HA confirmed).
+  # Called by .m5dial_fram.yaml's double-click handler -- see header.
+  - id: dc_fans_cycle
+    then:
+      - if:
+          condition:
+            lambda: return id(g_fans_dc_pos) == 0;
+          then:
+            - script.execute: act_fans_arm_board
+          else:
+            - script.execute: act_fans_arm_hvac
+      - globals.set:
+          id: g_fans_dc_pos
+          value: !lambda "return (id(g_fans_dc_pos) + 1) % 2;"
+
+  # 5%-step, clamped 0-100. Adjusts g_fans_board_pending locally and
+  # redraws immediately (see header re: lag), only calling
+  # number.set_value once the encoder's quiet for 400ms.
   - id: act_fans_speed_up
     then:
-      - homeassistant.service:
-          service: number.set_value
-          data:
-            entity_id: number.fan_speed_control
-          data_template:
-            value: "{{ val }}"
-          variables:
-            val: !lambda |-
-              float cur = id(s_fans_board_speed).has_state() ? id(s_fans_board_speed).state : 0.0f;
-              float v = cur + 5.0f;
-              if (v > 100.0f) v = 100.0f;
-              return str_sprintf("%.0f", v);
+      - lambda: |-
+          float v = id(g_fans_board_pending) + 5.0f;
+          if (v > 100.0f) v = 100.0f;
+          id(g_fans_board_pending) = v;
+      - script.execute: draw_fans
+      - script.execute: fans_board_write_debounced
 
   - id: act_fans_speed_down
     then:
+      - lambda: |-
+          float v = id(g_fans_board_pending) - 5.0f;
+          if (v < 0.0f) v = 0.0f;
+          id(g_fans_board_pending) = v;
+      - script.execute: draw_fans
+      - script.execute: fans_board_write_debounced
+
+  # The actual write, split from the debounce delay so disarming can
+  # call it immediately (act_fans_arm_board above).
+  - id: fans_board_write_now
+    then:
       - homeassistant.service:
           service: number.set_value
           data:
@@ -81,11 +128,13 @@ script:
           data_template:
             value: "{{ val }}"
           variables:
-            val: !lambda |-
-              float cur = id(s_fans_board_speed).has_state() ? id(s_fans_board_speed).state : 0.0f;
-              float v = cur - 5.0f;
-              if (v < 0.0f) v = 0.0f;
-              return str_sprintf("%.0f", v);
+            val: !lambda "return str_sprintf(\"%.0f\", id(g_fans_board_pending));"
+
+  - id: fans_board_write_debounced
+    mode: restart
+    then:
+      - delay: 400ms
+      - script.execute: fans_board_write_now
 
   # PLACEHOLDER: no HVAC fan entity yet. Wired up so target 2 already
   # works end-to-end once one exists -- give this the same
@@ -106,6 +155,9 @@ script:
       - lvgl.arc.update:
           id: arc_fans_board
           value: !lambda |-
+            // Armed: show the pending (locally-dialed) value, not the
+            // HA-confirmed one -- see header re: lag.
+            if (id(g_edit_target) == 1) return id(g_fans_board_pending);
             if (!id(s_fans_board_speed).has_state()) return 0.0f;
             return id(s_fans_board_speed).state;
           indicator:
@@ -137,6 +189,7 @@ script:
             #ifdef USE_API
             if (!api_is_connected()) return std::string("---%");
             #endif
+            if (id(g_edit_target) == 1) return str_sprintf("%.0f%%", id(g_fans_board_pending));
             if (!id(s_fans_board_speed).has_state()) return std::string("---%");
             return str_sprintf("%.0f%%", id(s_fans_board_speed).state);
           text_color: !lambda |-
