@@ -58,6 +58,23 @@
 #  toward the bubble's severity color -- nothing to do there isn't a
 #  problem.
 #
+#  OPEN ITEM: sensor.mpu6050_womo_vl_cm/_vr_cm/_hl_cm/_hr_cm all read
+#  0 right now -- nothing upstream computes them yet (the header above
+#  already assumed a real conversion exists "elsewhere", which turned
+#  out not to be built). Per user decision: do the degrees-to-cm math
+#  in HA (a template sensor per corner, using the vehicle's actual
+#  track width/wheelbase) and have these four stay exactly what they
+#  are here -- a page that only reads four already-computed entities,
+#  no conversion of its own. Nothing to change in this file once those
+#  HA-side sensors exist; this page was already built for that.
+#
+#  Corner labels sit on a page-local x:±44 / y:∓54 (not ${x_col}/
+#  ${y_cap}, same page-local-literal reasoning as page_lights_outside's
+#  x:±48) -- at the shared y_cap (-42) their text box's nearest corner
+#  came out closer to center than the green target ring's own radius
+#  (40px), so the ring visually cut through the label. Pushed out
+#  along both axes for real clearance instead of just nudging one.
+#
 #  No button: reading only, nothing to act on from the dial.
 # =====================================================================
 
@@ -280,32 +297,32 @@ lvgl:
         - label:
             id: lbl_levelling_vl
             align: CENTER
-            x: -${x_col}
-            y: ${y_cap}
+            x: -44
+            y: -54
             text: "VL --cm"
             text_font: font_12
             text_color: 0x555555
         - label:
             id: lbl_levelling_vr
             align: CENTER
-            x: ${x_col}
-            y: ${y_cap}
+            x: 44
+            y: -54
             text: "VR --cm"
             text_font: font_12
             text_color: 0x555555
         - label:
             id: lbl_levelling_hl
             align: CENTER
-            x: -${x_col}
-            y: 42
+            x: -44
+            y: 54
             text: "HL --cm"
             text_font: font_12
             text_color: 0x555555
         - label:
             id: lbl_levelling_hr
             align: CENTER
-            x: ${x_col}
-            y: 42
+            x: 44
+            y: 54
             text: "HR --cm"
             text_font: font_12
             text_color: 0x555555

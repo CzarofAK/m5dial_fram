@@ -25,19 +25,39 @@
 #
 #  Slots (design.md §3):
 #    y_main   40°C              montserrat_40 — current water temp
-#    y_line2  SOLL 60°C         montserrat_16 — target temp
+#    y_line2  SOLL 60°C ECO     montserrat_16 — target temp + tier tag
 #    y_row    one button        BOILER on/off (design.md §4: "BOILER
 #                                AUS" is 10 characters, wider than any
 #                                existing button label in this repo --
 #                                check it actually fits the 104 px
 #                                button on the real device, not just
 #                                in the simulator)
-#    y_row2   one button        SET, arms water temp for the encoder
+#    y_row2   one button        SOLL, arms water temp for the encoder
 #    y_footer status line       montserrat_12 — "turn to adjust" hint
 #                                while armed
 #
+#  Button labels (readability follow-up: "SET" next to "BOILER EIN/AUS"
+#  didn't say what either one actually controlled): the row-2 button is
+#  now labelled SOLL, matching the SOLL line above it it arms -- BOILER
+#  EIN/AUS is unambiguously the power toggle, SOLL is unambiguously the
+#  temperature one.
+#
+#  NOT continuously adjustable, unlike page_climate.yaml's room temp:
+#  this Truma boiler only actually has three fixed levels -- ECO
+#  (40°C), an unnamed middle one (60°C, name TBD -- ask before
+#  guessing, Truma's own naming isn't consistent enough across models
+#  to assume), and BOOST (80°C). The encoder/double-click step
+#  therefore jumps between exactly those three values, not ±1°C --
+#  sending an in-between temperature to climate.set_temperature would
+#  either get silently clamped by the Truma or just not correspond to
+#  anything the physical control panel can select, so stepping through
+#  the three real options is the correct behavior here, not a
+#  simplification. SOLL shows the tier tag (ECO/BOOST) next to the two
+#  known ones; the middle stays untagged until the name's confirmed --
+#  update the string in draw_boiler once it is, don't guess it.
+#
 #  Water temp is encoder-adjustable (design.md §14, g_edit_target in
-#  .m5dial_fram.yaml) via the SET button, same as page_climate.yaml's
+#  .m5dial_fram.yaml) via the SOLL button, same as page_climate.yaml's
 #  room temp -- and the same guard: refuses to arm while BOILER is
 #  off, since a target set while off doesn't take effect on the Truma.
 #
@@ -49,7 +69,11 @@
 #  Encoder feel: same lag fix as page_power_2.yaml/page_climate.yaml
 #  (see either header) -- adjusts a local g_boiler_temp_pending value
 #  and redraws from it immediately, only calling climate.set_temperature
-#  once the encoder's quiet for 400ms (or immediately on disarm).
+#  once the encoder's quiet for 400ms (or immediately on disarm). Less
+#  load-bearing here than on the continuous pages since there are only
+#  three possible values to land on, but keeps the behavior consistent
+#  and the write still debounced against a fast double-tap of the
+#  encoder.
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -133,13 +157,15 @@ script:
           id: g_boiler_dc_pos
           value: !lambda "return (id(g_boiler_dc_pos) + 1) % 2;"
 
-  # 1°C step, clamped 30-70 (a guess at a sane range, not the Truma's
-  # actual documented min/max -- verify on the device).
+  # Three fixed tiers, not a continuous range -- see header. Clamped
+  # at the ends, not wrapping (consistent with every other
+  # encoder-adjustable value in this repo).
   - id: act_boiler_temp_up
     then:
       - lambda: |-
-          float v = id(g_boiler_temp_pending) + 1.0f;
-          if (v > 70.0f) v = 70.0f;
+          float v = id(g_boiler_temp_pending);
+          if (v < 60.0f) v = 60.0f;
+          else v = 80.0f;
           id(g_boiler_temp_pending) = v;
       - script.execute: draw_boiler
       - script.execute: boiler_temp_write_debounced
@@ -147,8 +173,9 @@ script:
   - id: act_boiler_temp_down
     then:
       - lambda: |-
-          float v = id(g_boiler_temp_pending) - 1.0f;
-          if (v < 30.0f) v = 30.0f;
+          float v = id(g_boiler_temp_pending);
+          if (v > 60.0f) v = 60.0f;
+          else v = 40.0f;
           id(g_boiler_temp_pending) = v;
       - script.execute: draw_boiler
       - script.execute: boiler_temp_write_debounced
@@ -199,10 +226,15 @@ script:
             if (!api_is_connected()) return std::string("SOLL ---°C");
             #endif
             // Armed: show the pending (locally-dialed) value, not the
-            // HA-confirmed one -- see header re: lag.
-            if (id(g_edit_target) == 5) return str_sprintf("SOLL %.0f°C", id(g_boiler_temp_pending));
-            if (!id(s_boiler_target).has_state()) return std::string("SOLL ---°C");
-            return str_sprintf("SOLL %.0f°C", id(s_boiler_target).state);
+            // HA-confirmed one -- see header re: lag. Tag the two
+            // known tiers (ECO/BOOST); the middle stays untagged until
+            // its real name is confirmed -- see header, don't guess it.
+            float v;
+            if (id(g_edit_target) == 5) v = id(g_boiler_temp_pending);
+            else if (id(s_boiler_target).has_state()) v = id(s_boiler_target).state;
+            else return std::string("SOLL ---°C");
+            std::string tag = (v <= 40.0f) ? " ECO" : (v >= 80.0f) ? " BOOST" : "";
+            return str_sprintf("SOLL %.0f°C", v) + tag;
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
@@ -331,7 +363,7 @@ lvgl:
             widgets:
               - label:
                   align: CENTER
-                  text: "SET"
+                  text: "SOLL"
                   text_font: font_16
                   text_color: 0xBDC1C6
             on_click:

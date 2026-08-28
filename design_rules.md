@@ -676,14 +676,26 @@ reusable by any dial in the project, not just this one.
   (`act_ipixel_power`). A page with two exposes a dedicated
   `dc_<page>_cycle` script that alternates between them, one per
   click, instead of one fixed winner: `page_fans` (FANBOARD SET, then
-  HVAC SET — the real column no longer permanently wins), `page_climate`
-  and `page_boiler` (temp SET, then the HEIZ/BOILER on/off toggle —
-  this is also how ordinary toggle buttons became double-click-
-  reachable, not just encoder-SET ones), `page_lights_outside`
-  (EINGANG, then MARKISE). `page_clock`/`page_gas`/`page_levelling`
-  have nothing to act on; `page_entrance` deliberately has no
-  double-click action at all (see that file's header — momentary
-  step/lock actions aren't safe for a quick gesture while driving).
+  HVAC SET, then disarm — see below), `page_climate` and `page_boiler`
+  (temp SET, then the HEIZ/BOILER on/off toggle — this is also how
+  ordinary toggle buttons became double-click-reachable, not just
+  encoder-SET ones), `page_lights_outside` (EINGANG, then MARKISE).
+  `page_clock`/`page_gas`/`page_levelling` have nothing to act on;
+  `page_entrance` deliberately has no double-click action at all (see
+  that file's header — momentary step/lock actions aren't safe for a
+  quick gesture while driving). `page_fans`'s cycle is state-driven
+  (reads `g_edit_target` itself) rather than a separate position
+  counter, unlike the other three two-action pages — a counter that
+  just alternated between "call the FANBOARD arm script" / "call the
+  HVAC arm script" turned out to never reach disarmed: each of those
+  scripts only toggles ITS OWN target off if it was the one already
+  armed, so bouncing between two different arm-style targets meant
+  neither ever saw itself armed, and the encoder lock never released.
+  `page_climate`/`page_boiler` don't have this bug (one arm-style
+  target + one plain toggle, and the arm script's own built-in toggle
+  naturally reaches "off" every other click) — but if a third
+  multi-arm-target page ever needs a cycle, copy `page_fans`'s
+  state-driven shape, not the position-counter one.
 * **~~Encoder lag on adjustable values.~~** Built: every
   `number.set_value`/`climate.set_temperature` call used to fire on
   every single encoder detent, and the display waited for HA to
@@ -701,6 +713,20 @@ reusable by any dial in the project, not just this one.
   against real turning speed — adjust per-page if it still lags or
   fires mid-turn. Doesn't and can't touch the Truma's own ~2-4s
   hardware lag — that's physical, not a display problem.
+* **SET → SOLL button label (`page_climate`/`page_boiler`).**
+  Readability follow-up: a generic "SET" button sitting right next to
+  "HEIZ EIN/AUS" / "BOILER EIN/AUS" didn't say which one was power and
+  which was temperature. Renamed to SOLL, matching the SOLL line it
+  arms — the on/off button's own label already says what it does,
+  this just needed to say the same about the other one.
+* **`page_boiler`'s three fixed temperature tiers, not a continuous
+  range.** This Truma boiler only actually supports ECO (40°C), an
+  unnamed middle level (60°C — ask before labelling it, don't guess),
+  and BOOST (80°C) — confirmed by the user, not documented anywhere
+  ESPHome-side. `act_boiler_temp_up`/`_down` step between exactly
+  those three now instead of ±1°C across a guessed 30-70 range.
+  `page_climate`'s room temp is unaffected — that side of the same
+  Truma Combi 4 genuinely is continuous.
 * **Real integration behind `climate`/`boiler`.** Both originally
   assumed a `truma_inetbox` external ESPHome component talking LIN
   directly — wrong; the real path is a MQTT-based `womolin_controller`
@@ -726,6 +752,15 @@ reusable by any dial in the project, not just this one.
   wedge under this corner", and a negative source reading just means
   "this one's fine", not "let air out" (there's no air suspension
   here to relate a minus sign to).
+* **`page_levelling`'s four corner sensors all read 0 right now** —
+  `sensor.mpu6050_womo_vl_cm`/`_vr_cm`/`_hl_cm`/`_hr_cm` exist as
+  entity_ids but nothing upstream computes real values into them yet.
+  Per user decision: build the degrees-to-cm conversion in HA (one
+  template sensor per corner, using the vehicle's real track
+  width/wheelbase) rather than in this page — this page was already
+  written to only ever consume four finished entities (see its own
+  header), so nothing here needs to change once those HA-side sensors
+  exist.
 * **~~Special characters.~~** Turned out to be a real bug, not a
   someday concern: every Ä/Ö/Ü/ä/ö/ü/ß on the device showed as a tofu
   box — LVGL's built-in `montserrat_NN` fonts are ASCII-only, no

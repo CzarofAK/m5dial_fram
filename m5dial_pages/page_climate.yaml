@@ -35,12 +35,17 @@
 #    y_main   21°C              montserrat_40 — current room temp
 #    y_line2  SOLL 22°C         montserrat_16 — target temperature
 #    y_row    one button        104 x 30 — HEIZUNG on/off
-#    y_row2   one button        SET, arms room temp for the encoder
+#    y_row2   one button        SOLL, arms room temp for the encoder
 #    y_footer status line       montserrat_12 — "turn to adjust" hint
 #                                while armed
 #
+#  Row-2 button labelled SOLL, not the generic "SET" it had before
+#  (readability follow-up: next to "HEIZ EIN/AUS" it wasn't clear
+#  which button was power and which was temperature) -- matches the
+#  SOLL line it arms, same fix as page_boiler.yaml.
+#
 #  Room temp is encoder-adjustable (design.md §14, g_edit_target
-#  target 3 in .m5dial_fram.yaml) via the SET button. Refuses to arm
+#  target 3 in .m5dial_fram.yaml) via the SOLL button. Refuses to arm
 #  while HEIZUNG is off: per Truma, a target set while off doesn't
 #  take effect, so this blocks arming rather than letting the encoder
 #  silently do nothing.
@@ -346,7 +351,7 @@ lvgl:
             widgets:
               - label:
                   align: CENTER
-                  text: "SET"
+                  text: "SOLL"
                   text_font: font_16
                   text_color: 0xBDC1C6
             on_click:
