@@ -2,25 +2,50 @@
 #  m5dial_pages/page_power_2.yaml — page: Power / Grid (input, PowerAssist)
 #  FRAM M5Dial Cockpit · page package
 #
-#  Split from what used to be here (which covered WR load and mode
-#  too) once that got too full. This half: grid input power, and the
-#  PowerAssist current limit. The other half moved to
-#  page_power_3.yaml.
+#  Single-arc layout (rebuilt, readability follow-up on the original
+#  double-ring version): EINGANG is the page's one real telemetry
+#  value and gets the same treatment as page_power_1's SOC -- single
+#  arc, capped with a title, big value underneath. PowerAssist is a
+#  setting, not a reading, and only needs a small footprint: one
+#  button at y_row carries both its value and the SET/arm action, no
+#  separate label or second ring. Same shape as page_power_3.yaml
+#  (arc + main value + line2 + one button row + footer), just applied
+#  to grid input instead of WR load.
 #
-#  Double ring (design.md §4), same geometry as page_gas.yaml:
-#    outer 224 x 224   EINGANG      -- input power, read-only
-#    inner 200 x 200   ASSIST       -- PowerAssist limit, adjustable
+#  arc          224 x 224   EINGANG %  -- current draw as % of the
+#                                          PowerAssist limit (same
+#                                          calculation this page
+#                                          always used)
+#  y_cap        "EINGANG"   title, since a bare Watt number doesn't
+#                            say what it is (design.md §3's "no page
+#                            title" rule is about naming the whole
+#                            page -- page_entrance's "STUFE" is the
+#                            same kind of per-value caption already)
+#  y_main       "850W"      the reading itself
+#  y_line2      "12.3A"     context for the Watt figure, same role as
+#                            page_power_1's "13.4V -12A" line
+#  y_row        one button  "ASSIST 8.0A" -- value in the button
+#                            (number.multiplus_strombegrenzung),
+#                            tapping arms/disarms encoder edit mode
+#                            (design.md §14, g_edit_target target 6)
+#  y_footer     status line
 #
-#  Both arcs are percentages (design.md §8), not the raw values:
-#    EINGANG = current draw as % of the PowerAssist limit (same
-#      calculation this page always used for its one arc).
-#    ASSIST  = the limit itself as % of 16A -- not the entity's own
-#      0-63A range, but this installation's real ceiling (2.5mm² wiring).
+#  PowerAssist step is 1A now, not 0.1A: 0.1A steps made the encoder
+#  feel laggy in practice (many detents needed to move anything, each
+#  one its own number.set_value call). 1A moves the needle in far
+#  fewer turns. Clamped 0-16A -- still this installation's real
+#  ceiling on 2.5mm² wiring, not the entity's own 0-63A range.
 #
-#  PowerAssist (number.multiplus_strombegrenzung) is encoder-adjustable
-#  (design.md §14, g_edit_target target 6) via the SET button under its
-#  column: 0.1A steps, clamped 0-16A. Always armable -- unlike
-#  climate/boiler, there's no "must be on first" gate here.
+#  CAVEAT: the button shows the setpoint (number.multiplus_strombegrenzung),
+#  not a separately confirmed "applied" value -- there's no other
+#  entity for that. The MultiPlus's own shore-current limiter can take
+#  a moment to actually settle on VE.Bus, so the real, currently-active
+#  limit can differ briefly from what's shown here. Nothing to fix
+#  without a second entity that reports the applied value; noted so
+#  it isn't mistaken for a live readback.
+#
+#  No "must be on" gate here, unlike climate/boiler -- PowerAssist has
+#  nothing to be off.
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -51,8 +76,9 @@ script:
           value: !lambda "return (id(g_edit_target) == 6) ? 0 : 6;"
       - script.execute: draw_power_2
 
-  # 0.1A step, clamped 0-16 -- this installation's real ceiling (2.5mm²
-  # wiring), not the entity's own 0-63A range.
+  # 1A step, clamped 0-16 -- this installation's real ceiling (2.5mm²
+  # wiring), not the entity's own 0-63A range. See header re: the 0.1A
+  # -> 1A change (lag) and the setpoint-vs-applied caveat.
   - id: act_power_2_assist_up
     then:
       - homeassistant.service:
@@ -64,9 +90,9 @@ script:
           variables:
             val: !lambda |-
               float cur = id(s_power_2_limit).has_state() ? id(s_power_2_limit).state : 0.0f;
-              float v = cur + 0.1f;
+              float v = cur + 1.0f;
               if (v > 16.0f) v = 16.0f;
-              return str_sprintf("%.1f", v);
+              return str_sprintf("%.0f", v);
 
   - id: act_power_2_assist_down
     then:
@@ -79,14 +105,14 @@ script:
           variables:
             val: !lambda |-
               float cur = id(s_power_2_limit).has_state() ? id(s_power_2_limit).state : 0.0f;
-              float v = cur - 0.1f;
+              float v = cur - 1.0f;
               if (v < 0.0f) v = 0.0f;
-              return str_sprintf("%.1f", v);
+              return str_sprintf("%.0f", v);
 
   - id: draw_power_2
     mode: restart
     then:
-      # ---- Outer ring: EINGANG, % of the PowerAssist limit ------------
+      # ---- Arc: EINGANG, % of the PowerAssist limit -------------------
       - lvgl.arc.update:
           id: arc_power_2_in
           value: !lambda |-
@@ -112,24 +138,7 @@ script:
               if (p >= 80.0f) return lv_color_hex(0xF39C12);
               return lv_color_hex(0x4A9EFF);
 
-      # ---- Inner ring: ASSIST, % of the 16A cable ceiling --------------
-      - lvgl.arc.update:
-          id: arc_power_2_assist
-          value: !lambda |-
-            if (!id(s_power_2_limit).has_state()) return 0.0f;
-            float p = id(s_power_2_limit).state / 16.0f * 100.0f;
-            if (p > 100.0f) p = 100.0f;
-            if (p < 0.0f) p = 0.0f;
-            return p;
-          indicator:
-            arc_color: !lambda |-
-              #ifdef USE_API
-              if (!api_is_connected()) return lv_color_hex(0x555555);
-              #endif
-              if (!id(s_power_2_limit).has_state()) return lv_color_hex(0x555555);
-              return lv_color_hex(0x9AA0A6);
-
-      # ---- Outer column: EINGANG ----------------------------------------
+      # ---- Main value: EINGANG -------------------------------------
       - lvgl.label.update:
           id: lbl_power_2_w
           text: !lambda |-
@@ -152,23 +161,40 @@ script:
             if (p >= 80.0f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0xFFFFFF);
 
-      # ---- Inner column: ASSIST -----------------------------------------
+      # ---- Line 2: input current, context for the Watt figure ---------
       - lvgl.label.update:
-          id: lbl_power_2_limit
+          id: lbl_power_2_a
           text: !lambda |-
             #ifdef USE_API
-            if (!api_is_connected()) return std::string("--A");
+            if (!api_is_connected()) return std::string("---A");
             #endif
-            if (!id(s_power_2_limit).has_state()) return std::string("--A");
-            return str_sprintf("%.1fA", id(s_power_2_limit).state);
+            if (!id(s_power_2_a).has_state()) return std::string("---A");
+            return str_sprintf("%.1fA", id(s_power_2_a).state);
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_power_2_a).has_state()) return lv_color_hex(0x555555);
+            return lv_color_hex(0xBDC1C6);
+
+      # ---- Button: ASSIST, value in the button, also its own SET -----
+      - lvgl.label.update:
+          id: lbl_power_2_assist
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("ASSIST --A");
+            #endif
+            if (!id(s_power_2_limit).has_state()) return std::string("ASSIST --A");
+            return str_sprintf("ASSIST %.0fA", id(s_power_2_limit).state);
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
             if (!id(s_power_2_limit).has_state()) return lv_color_hex(0x555555);
+            if (id(g_edit_target) == 6) return lv_color_hex(0x4A9EFF);
             return lv_color_hex(0xBDC1C6);
       - lvgl.widget.update:
-          id: btn_power_2_assist_set
+          id: btn_power_2_assist
           border_color: !lambda |-
             if (id(g_edit_target) == 6) return lv_color_hex(0x4A9EFF);
             return lv_color_hex(0x3C4043);
@@ -235,76 +261,47 @@ lvgl:
             knob:
               bg_opa: TRANSP
 
-        - arc:
-            id: arc_power_2_assist
-            align: CENTER
-            width: 200
-            height: 200
-            start_angle: 135
-            end_angle: 45
-            min_value: 0
-            max_value: 100
-            adjustable: false
-            arc_width: 10
-            arc_color: 0x1A1C1E
-            indicator:
-              arc_width: 10
-              arc_color: 0x9AA0A6
-            knob:
-              bg_opa: TRANSP
-
-        # ---- Outer column: EINGANG ----------------------------------
         - label:
-            id: lbl_power_2_cap_w
+            id: lbl_power_2_cap
             align: CENTER
-            x: -${x_col}
             y: ${y_cap}
             text: "EINGANG"
             text_font: font_12
             text_color: 0x555555
+
         - label:
             id: lbl_power_2_w
             align: CENTER
-            x: -${x_col}
             y: ${y_main}
             text: "---W"
+            text_font: font_40
+            text_color: 0x555555
+
+        - label:
+            id: lbl_power_2_a
+            align: CENTER
+            y: ${y_line2}
+            text: "---A"
             text_font: font_16
             text_color: 0x555555
 
-        # ---- Inner column: ASSIST ------------------------------------
-        - label:
-            id: lbl_power_2_cap_assist
-            align: CENTER
-            x: ${x_col}
-            y: ${y_cap}
-            text: "ASSIST"
-            text_font: font_12
-            text_color: 0x555555
-        - label:
-            id: lbl_power_2_limit
-            align: CENTER
-            x: ${x_col}
-            y: ${y_main}
-            text: "--A"
-            text_font: font_16
-            text_color: 0x555555
         - button:
-            id: btn_power_2_assist_set
+            id: btn_power_2_assist
             align: CENTER
-            x: ${x_col}
             y: ${y_row}
-            width: 68
-            height: 26
-            radius: 13
+            width: 140
+            height: 30
+            radius: 15
             bg_color: 0x202124
             border_width: 1
             border_color: 0x3C4043
             widgets:
               - label:
+                  id: lbl_power_2_assist
                   align: CENTER
-                  text: "SET"
+                  text: "ASSIST --A"
                   text_font: font_16
-                  text_color: 0xBDC1C6
+                  text_color: 0x555555
             on_click:
               - script.execute: act_power_2_arm_assist
 

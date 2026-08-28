@@ -2,14 +2,26 @@
 #  m5dial_pages/page_lights_outside.yaml — page: Outside lights
 #  FRAM M5Dial Cockpit · page package
 #
-#  PLACEHOLDER ENTITIES — entrance light and awning light (both
-#  dimmable per design.md §15), light.PLACEHOLDER_* below.
+#  Real entities, not the light-domain placeholders originally
+#  guessed (design.md §15 flagged both as unverified) -- both are
+#  plain switches, not the `light` domain, so the service calls below
+#  are switch.turn_on/_off/toggle, not light.*:
 #
-#  Dimming itself isn't exposed here: the dial has no slider convention
-#  (design.md has none either — only arcs, buttons, labels), so this
-#  is on/off only, like every other two-button page. If per-light
-#  brightness control is actually wanted from the dial, that's a new
-#  widget type to design first, not something to improvise here.
+#  EINGANG (entrance): TWO switches, not one -- switch.light_pir (the
+#  PIR-triggered entrance light) and switch.light_step (the step
+#  light). Read and driven as one group: the button shows EIN if
+#  EITHER is on, and toggling always drives both to the SAME target
+#  state (both on, or both off) rather than toggling each
+#  independently -- a mixed on/off state would otherwise be
+#  unreachable from one button and confusing to read.
+#
+#  MARKISE (awning): one switch, switch.shelly1g4_7c2c6772123c.
+#
+#  Dimming isn't exposed here: the dial has no slider convention
+#  (design.md has none either — only arcs, buttons, labels), and these
+#  turned out to be switches, not dimmable lights anyway, so on/off is
+#  the whole story now, not a deliberate simplification of something
+#  richer.
 #
 #  Two-column layout (design.md §3) without arcs, same shape as
 #  page_levelling.yaml: y_cap names the light, the button below it
@@ -22,66 +34,92 @@
 # ---------------------------------------------------------------------
 binary_sensor:
   - platform: homeassistant
-    id: s_lights_entrance
-    entity_id: light.PLACEHOLDER_eingang
+    id: s_lights_entrance_pir
+    entity_id: switch.light_pir
+    on_state:
+      - script.execute: draw_lights_outside
+  - platform: homeassistant
+    id: s_lights_entrance_step
+    entity_id: switch.light_step
     on_state:
       - script.execute: draw_lights_outside
   - platform: homeassistant
     id: s_lights_awning
-    entity_id: light.PLACEHOLDER_markise
+    entity_id: switch.shelly1g4_7c2c6772123c
     on_state:
       - script.execute: draw_lights_outside
 
 script:
+  # Any-on-reads-on, toggle-drives-both-the-same-way -- see header.
   - id: act_lights_entrance
     then:
-      - homeassistant.service:
-          service: light.toggle
-          data:
-            entity_id: light.PLACEHOLDER_eingang
+      - if:
+          condition:
+            lambda: |-
+              return (id(s_lights_entrance_pir).has_state() && id(s_lights_entrance_pir).state) ||
+                     (id(s_lights_entrance_step).has_state() && id(s_lights_entrance_step).state);
+          then:
+            - homeassistant.service:
+                service: switch.turn_off
+                data:
+                  entity_id:
+                    - switch.light_pir
+                    - switch.light_step
+          else:
+            - homeassistant.service:
+                service: switch.turn_on
+                data:
+                  entity_id:
+                    - switch.light_pir
+                    - switch.light_step
 
   - id: act_lights_awning
     then:
       - homeassistant.service:
-          service: light.toggle
+          service: switch.toggle
           data:
-            entity_id: light.PLACEHOLDER_markise
+            entity_id: switch.shelly1g4_7c2c6772123c
 
   - id: draw_lights_outside
     mode: restart
     then:
-      # ---- Entrance light -----------------------------------------
+      # ---- Entrance light (either switch on = EIN) -------------------
       - lvgl.label.update:
           id: lbl_lights_entrance
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("---");
             #endif
-            if (!id(s_lights_entrance).has_state()) return std::string("---");
-            return id(s_lights_entrance).state ? std::string("EIN") : std::string("AUS");
+            if (!id(s_lights_entrance_pir).has_state() || !id(s_lights_entrance_step).has_state())
+              return std::string("---");
+            bool on = id(s_lights_entrance_pir).state || id(s_lights_entrance_step).state;
+            return on ? std::string("EIN") : std::string("AUS");
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_lights_entrance).has_state()) return lv_color_hex(0x555555);
-            return id(s_lights_entrance).state ? lv_color_hex(0x2ECC71)
-                                        : lv_color_hex(0xBDC1C6);
+            if (!id(s_lights_entrance_pir).has_state() || !id(s_lights_entrance_step).has_state())
+              return lv_color_hex(0x555555);
+            bool on = id(s_lights_entrance_pir).state || id(s_lights_entrance_step).state;
+            return on ? lv_color_hex(0x2ECC71) : lv_color_hex(0xBDC1C6);
       - lvgl.widget.update:
           id: btn_lights_entrance
           bg_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x202124);
             #endif
-            if (!id(s_lights_entrance).has_state()) return lv_color_hex(0x202124);
-            return id(s_lights_entrance).state ? lv_color_hex(0x1B5E3A)
-                                        : lv_color_hex(0x202124);
+            if (!id(s_lights_entrance_pir).has_state() || !id(s_lights_entrance_step).has_state())
+              return lv_color_hex(0x202124);
+            bool on = id(s_lights_entrance_pir).state || id(s_lights_entrance_step).state;
+            return on ? lv_color_hex(0x1B5E3A) : lv_color_hex(0x202124);
           border_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x3C4043);
             #endif
-            if (!id(s_lights_entrance).has_state()) return lv_color_hex(0x3C4043);
-            return id(s_lights_entrance).state ? lv_color_hex(0x2ECC71)
-                                        : lv_color_hex(0x3C4043);
+            if (!id(s_lights_entrance_pir).has_state() || !id(s_lights_entrance_step).has_state())
+              return lv_color_hex(0x3C4043);
+            bool on = id(s_lights_entrance_pir).state || id(s_lights_entrance_step).state;
+            return on ? lv_color_hex(0x2ECC71) : lv_color_hex(0x3C4043);
 
       # ---- Awning light -----------------------------------------
       - lvgl.label.update:

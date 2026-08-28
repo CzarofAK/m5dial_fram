@@ -3,8 +3,25 @@
 #  FRAM M5Dial Cockpit · page package
 #
 #  The water-heating side of the same Truma Combi 4 as page_climate.yaml
-#  — see that file's header for the device/component background.
-#  entity_ids are the same kind of implied HA slug, same caveat: VERIFY.
+#  — see that file's header for the integration background (real path
+#  is the MQTT-based "womolin_controller" integration, not the
+#  truma_inetbox guess this page originally assumed):
+#    switch.womolin_controller_mqtt_activate_water_heater  on/off gate
+#    climate.womolin_controller_mqtt_truma_water            the heater
+#  Same caveat: the activate switch must be ON before the climate
+#  entity carries live values, and every change (switch or target
+#  temperature) has real lag -- ca. 2-4s, Truma's own LIN round trip,
+#  not something to work around here.
+#
+#  Current/target water temperature come off the climate entity's own
+#  current_temperature/temperature attributes, same as page_climate.yaml
+#  — no separate sensor/number entity, and climate.set_temperature
+#  instead of number.set_value.
+#
+#  OPEN ITEM: a shared fault flag existed on the old (wrong)
+#  truma_inetbox assumption; dropped here rather than guessed again
+#  under the real integration (design.md §15) — add it back once a
+#  real error entity/attribute is confirmed.
 #
 #  Slots (design.md §3):
 #    y_main   40°C              montserrat_40 — current water temp
@@ -16,11 +33,8 @@
 #                                button on the real device, not just
 #                                in the simulator)
 #    y_row2   one button        SET, arms water temp for the encoder
-#    y_footer status line       montserrat_12 — heater error (shared
-#                                with page_climate.yaml's binary_sensor:
-#                                one physical fault flag for the whole
-#                                Combi, not per water/room side), or a
-#                                "turn to adjust" hint while armed
+#    y_footer status line       montserrat_12 — "turn to adjust" hint
+#                                while armed
 #
 #  Water temp is encoder-adjustable (design.md §14, g_edit_target in
 #  .m5dial_fram.yaml) via the SET button, same as page_climate.yaml's
@@ -34,26 +48,21 @@
 sensor:
   - platform: homeassistant
     id: s_boiler_temp
-    entity_id: sensor.current_water_temperature
+    entity_id: climate.womolin_controller_mqtt_truma_water
+    attribute: current_temperature
     on_value:
       - script.execute: draw_boiler
-  # Read-only twin of number.target_water_temperature, same pattern as
-  # page_climate.yaml's s_climate_target.
   - platform: homeassistant
     id: s_boiler_target
-    entity_id: sensor.target_water_temperature_status
+    entity_id: climate.womolin_controller_mqtt_truma_water
+    attribute: temperature
     on_value:
       - script.execute: draw_boiler
 
 binary_sensor:
   - platform: homeassistant
     id: s_boiler_heater_on
-    entity_id: switch.activate_water_heater
-    on_state:
-      - script.execute: draw_boiler
-  - platform: homeassistant
-    id: s_boiler_error
-    entity_id: binary_sensor.heater_has_error
+    entity_id: switch.womolin_controller_mqtt_activate_water_heater
     on_state:
       - script.execute: draw_boiler
 
@@ -63,9 +72,9 @@ script:
       - homeassistant.service:
           service: switch.toggle
           data:
-            entity_id: switch.activate_water_heater
+            entity_id: switch.womolin_controller_mqtt_activate_water_heater
 
-  # Water temp (target 5), same guard as page_climate.yaml's targets:
+  # Water temp (target 5), same guard as page_climate.yaml's target 3:
   # refuses to arm while BOILER is off, since a target set while off
   # doesn't take effect on the Truma.
   - id: act_boiler_arm_temp
@@ -84,11 +93,11 @@ script:
   - id: act_boiler_temp_up
     then:
       - homeassistant.service:
-          service: number.set_value
+          service: climate.set_temperature
           data:
-            entity_id: number.target_water_temperature
+            entity_id: climate.womolin_controller_mqtt_truma_water
           data_template:
-            value: "{{ val }}"
+            temperature: "{{ val }}"
           variables:
             val: !lambda |-
               float cur = id(s_boiler_target).has_state() ? id(s_boiler_target).state : 40.0f;
@@ -99,11 +108,11 @@ script:
   - id: act_boiler_temp_down
     then:
       - homeassistant.service:
-          service: number.set_value
+          service: climate.set_temperature
           data:
-            entity_id: number.target_water_temperature
+            entity_id: climate.womolin_controller_mqtt_truma_water
           data_template:
-            value: "{{ val }}"
+            temperature: "{{ val }}"
           variables:
             val: !lambda |-
               float cur = id(s_boiler_target).has_state() ? id(s_boiler_target).state : 40.0f;
@@ -128,7 +137,6 @@ script:
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
             if (!id(s_boiler_temp).has_state()) return lv_color_hex(0x555555);
-            if (id(s_boiler_error).state) return lv_color_hex(0xE74C3C);
             return lv_color_hex(0xFFFFFF);
 
       # ---- Secondary line: target temperature --------------------------
@@ -188,24 +196,19 @@ script:
             if (id(g_edit_target) == 5) return lv_color_hex(0x4A9EFF);
             return lv_color_hex(0x3C4043);
 
-      # ---- Footer: error, or the edit-mode hint if nothing's wrong -----
+      # ---- Footer: edit-mode hint ---------------------------------------
       - lvgl.label.update:
           id: lbl_boiler_status
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("KEINE VERBINDUNG");
             #endif
-            if (id(s_boiler_error).has_state() && id(s_boiler_error).state)
-              return std::string("HEIZUNG FEHLER");
-            if (id(g_edit_target) == 5)
-              return std::string("DREHEN ZUM ÄNDERN");
+            if (id(g_edit_target) == 5) return std::string("DREHEN ZUM ÄNDERN");
             return std::string("");
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (id(s_boiler_error).has_state() && id(s_boiler_error).state)
-              return lv_color_hex(0xE74C3C);
             return lv_color_hex(0x4A9EFF);
 
 esphome:

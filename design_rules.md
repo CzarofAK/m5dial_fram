@@ -1,6 +1,6 @@
 # FRAM M5Dial — Design and Build Specification
 
-As of: 2026-08-21. Applies to all pages of the cockpit dashboard.
+As of: 2026-08-28. Applies to all pages of the cockpit dashboard.
 If a page deviates from this document, either the page is wrong or this
 document is outdated — either way it must be corrected, not ignored.
 
@@ -150,6 +150,29 @@ help, because the rings are concentric.
 At most four characters in the value row and six in the label. At
 `y_cap −42` the label has room up to x ±75 (inner radius 90); `GAS I`
 comes to 57.5, `RECHTS` (RIGHT) to 62.5.
+
+### On/off-only pages
+
+No arc, no numeric value — just one or two switches to read and
+toggle (`page_lights_outside`, the reference example: two switches,
+two columns). There'll be more of these; use the same shape rather
+than reinventing it per page:
+
+* Two switches, same rank → the two-column shape above, minus
+  `y_line2` (nothing to put there): `y_cap` names the switch, a button
+  at `y_row` both shows EIN/AUS and toggles it. One switch → the same
+  button centered, no columns.
+* A switch's on/off state reads via `binary_sensor:` on
+  `platform: homeassistant` (works for `switch.*` and `input_boolean.*`
+  alike — HA reports both as a plain on/off state), never `sensor:`.
+* The button's `on_click` calls an `act_` script, which calls
+  `switch.toggle` / `input_boolean.toggle` — never a service straight
+  off the widget (§9's device-independence reason applies here too).
+* If a page is driven by more than one switch as one group (two
+  switches standing in for one control, `page_lights_outside`'s
+  EINGANG) — decide once what "on" means for the pair (any-on, as
+  there) and make toggling always drive both to the *same* target
+  state. A button can't show or reach a mixed on/off state usefully.
 
 ---
 
@@ -618,10 +641,32 @@ reusable by any dial in the project, not just this one.
   that one would fire far too often to stay a "pay attention" signal.
 * **~~Level 2 with two buttons.~~** Built: `g_edit_target`
   (`.m5dial_fram.yaml`) lets a page arm one of its values for the
-  encoder to adjust instead of paging, tap to switch which one. Only
-  `page_fans` uses it so far (2 targets) — the dispatch in
-  `encoder_adjust_up`/`_down` is hand-written per target, so a third
-  page adopting this needs a branch added there too.
+  encoder to adjust instead of paging, tap to switch which one.
+  `page_fans` (targets 1/2), `page_climate` (3), `page_boiler` (5) and
+  `page_power_2` (6) use it now — the dispatch in
+  `encoder_adjust_up`/`_down` is hand-written per target, so each page
+  adopting this needs a branch added there too.
+* **Real integration behind `climate`/`boiler`.** Both originally
+  assumed a `truma_inetbox` external ESPHome component talking LIN
+  directly — wrong; the real path is a MQTT-based `womolin_controller`
+  integration (`switch.womolin_controller_mqtt_activate_room_heater` /
+  `_water_heater`, `climate.womolin_controller_mqtt_truma_room` /
+  `_water`). Current/target temperature and the on/off gate are wired
+  to that now. Fan mode/level and a fault flag existed on the old
+  assumption and were dropped rather than re-guessed — add them back
+  once the real attribute/entity for either is confirmed on the
+  `womolin_controller` climate entities.
+* **PowerAssist setpoint vs. applied value (`page_power_2`).** The
+  ASSIST button shows `number.multiplus_strombegrenzung`, the
+  setpoint — there's no separate entity confirming the MultiPlus has
+  actually settled on that limit over VE.Bus, so the display can lag
+  the real applied value briefly after a change. Nothing to fix
+  without a second entity for the applied value.
+* **Corner cm thresholds (`page_levelling`).** `< 1.5cm` ok,
+  `1.5-3cm` warning, `>= 3cm` alarm are a guess, same status the old
+  degree thresholds had — not measured against a real leveling
+  requirement. Values also round to whole cm for legibility; revisit
+  if that's not enough precision in practice.
 * **~~Special characters.~~** Turned out to be a real bug, not a
   someday concern: every Ä/Ö/Ü/ä/ö/ü/ß on the device showed as a tofu
   box — LVGL's built-in `montserrat_NN` fonts are ASCII-only, no
@@ -657,17 +702,17 @@ one line each) before relying on it.
 |---|---|---|---|
 | 0 | `clock` | Clock + outdoor temperature and date/weekday | implemented |
 | 1 | `power_1` | Battery: SOC, park mode, starter voltage | implemented |
-| 2 | `power_2` | Grid power: input power (arc, read-only), PowerAssist current limit (arc, encoder-adjustable) | implemented |
+| 2 | `power_2` | Grid power: input power (single arc + big value, read-only), PowerAssist current limit (value + SET button, encoder-adjustable) | implemented |
 | 3 | `power_3` | Grid power, WR side: inverter load (arc, computed against the installed model's nominal rating), MultiPlus mode | implemented |
 | 4 | `gas` | Two gas bottles (double ring, §4) | implemented |
 | 5 | `water` | Fresh / grey water (double ring, §4) | implemented |
-| 6 | `levelling` | Spirit level — sensor is **external** hardware, not on the dial | implemented |
-| 7 | `climate` | Truma Combi 4 (gas only) room-heating side + fan mode; AC not installed yet | draft |
-| 8 | `boiler` | Truma Combi 4 water-heating side: mode, actual temperature | draft |
+| 6 | `levelling` | Spirit level (bubble, MPU6050) + per-corner cm-to-add (VL/VR/HL/HR, from four already-computed sensors) | implemented |
+| 7 | `climate` | Truma Combi 4 (gas only) room-heating side, via the `womolin_controller` MQTT integration's activate switch + climate entity; AC not installed yet; fan mode/fault dropped pending a confirmed entity | implemented |
+| 8 | `boiler` | Truma Combi 4 water-heating side, same `womolin_controller` integration as `climate` | implemented |
 | 9 | `fans` | Fan board (real) + Sprinter HVAC fan (**placeholder** — that PCB doesn't exist yet) | implemented |
-| 10 | `lights_outside` | Entrance light, awning light (dimmable; dial only does on/off, no brightness) | draft |
-| 11 | `entrance` | Step, door lock | implemented |
-| 12 | `ipixel` | On/off and status only | draft |
+| 10 | `lights_outside` | Entrance light (two switches, driven together), awning light — both plain switches, not the `light` domain | implemented |
+| 11 | `entrance` | Step, door lock — two columns, STUFE left / ZV right | implemented |
+| 12 | `ipixel` | On/off (`input_boolean`) + per-side LED status (two switches) | implemented |
 | reserved | `lights_inside` | — | reserved, not designed yet |
 
 Not pages — shown as an overlay on top of whatever page is current,

@@ -20,8 +20,17 @@
 #  relay_4ch_step_zv_lock / _zv_unlock), same as the Homematic wall
 #  switch does. No status readout is possible, so none is shown.
 #
-#  Four momentary actions, two rows of two buttons (y_row/y_row2) --
-#  outgrows the usual two-button layout (design.md §3).
+#  Layout (readability follow-up): two columns instead of two rows of
+#  mixed pairs -- STUFE (RAUS/REIN) stacked on the left, ZV (ZU/AUF)
+#  stacked on the right, each column captioned at y_cap so the two
+#  switch pairs read as two distinct groups instead of one undivided
+#  four-button block. The step status (AKTIV/RUHE) stays centered at
+#  y_main -- it's the page's only real telemetry, not tied to either
+#  column.
+#
+#  Row 1 buttons (RAUS/ZU) stay at 76x30, row 2 (REIN/AUF) at the
+#  smaller 68x26 (design.md §3's y_row2 sizing) -- y_row2 sits further
+#  from center on a round display, a 76x30 button there clips the edge.
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -96,13 +105,6 @@ lvgl:
       bg_opa: COVER
       widgets:
         - label:
-            id: lbl_entrance_cap
-            align: CENTER
-            y: ${y_cap}
-            text: "STUFE"
-            text_font: font_12
-            text_color: 0x555555
-        - label:
             id: lbl_entrance_step_state
             align: CENTER
             y: ${y_main}
@@ -110,7 +112,15 @@ lvgl:
             text_font: font_40
             text_color: 0x555555
 
-        # ---- Row 1: step, momentary -----------------------------------
+        # ---- Left column: STUFE, momentary, stacked -----------------
+        - label:
+            id: lbl_entrance_cap_step
+            align: CENTER
+            x: -${x_col}
+            y: ${y_cap}
+            text: "STUFE"
+            text_font: font_12
+            text_color: 0x555555
         - button:
             id: btn_entrance_step_out
             align: CENTER
@@ -130,30 +140,8 @@ lvgl:
                   text_color: 0xBDC1C6
             on_click:
               - script.execute: act_entrance_step_out
-
         - button:
             id: btn_entrance_step_in
-            align: CENTER
-            x: ${x_col}
-            y: ${y_row}
-            width: 76
-            height: 30
-            radius: 15
-            bg_color: 0x202124
-            border_width: 1
-            border_color: 0x3C4043
-            widgets:
-              - label:
-                  align: CENTER
-                  text: "REIN"
-                  text_font: font_16
-                  text_color: 0xBDC1C6
-            on_click:
-              - script.execute: act_entrance_step_in
-
-        # ---- Row 2: lock, momentary, no status --------------------------
-        - button:
-            id: btn_entrance_lock
             align: CENTER
             x: -${x_col}
             y: ${y_row2}
@@ -166,12 +154,40 @@ lvgl:
             widgets:
               - label:
                   align: CENTER
+                  text: "REIN"
+                  text_font: font_16
+                  text_color: 0xBDC1C6
+            on_click:
+              - script.execute: act_entrance_step_in
+
+        # ---- Right column: ZV, momentary, stacked, no status -------------
+        - label:
+            id: lbl_entrance_cap_zv
+            align: CENTER
+            x: ${x_col}
+            y: ${y_cap}
+            text: "ZV"
+            text_font: font_12
+            text_color: 0x555555
+        - button:
+            id: btn_entrance_lock
+            align: CENTER
+            x: ${x_col}
+            y: ${y_row}
+            width: 76
+            height: 30
+            radius: 15
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  align: CENTER
                   text: "ZU"
                   text_font: font_16
                   text_color: 0xBDC1C6
             on_click:
               - script.execute: act_entrance_lock
-
         - button:
             id: btn_entrance_unlock
             align: CENTER
