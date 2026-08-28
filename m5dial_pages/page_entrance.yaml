@@ -7,11 +7,14 @@
 #  Step (Trittstufe): no toggleable on/off state exists. The relay
 #  board has two momentary pulse relays, RAUS (extend) and REIN
 #  (retract), each auto-releasing after 4s -- so this is two fire-once
-#  buttons, not one toggle. Status is approximate: the only feedback
-#  is binary_sensor.relay_4ch_step_step_out_engine_on, which reads OFF
-#  both when the step is retracted AND when the ignition is off --
-#  it can't tell those two apart. Shown as-is (AKTIV/RUHE), not
-#  invented into something more precise than the source data.
+#  buttons, not one toggle. Status is approximate: the central AKTIV/
+#  RUHE readout (lbl_entrance_step_state, y_main) is
+#  binary_sensor.relay_4ch_step_step_out_engine_on and NOTHING else --
+#  that's the one entity behind it. It reads OFF ("---" if HA has no
+#  value for it at all, RUHE if it does) both when the step is
+#  retracted AND when the ignition is off -- it can't tell those two
+#  apart, that's the hardware's own limit, not a bug here. Shown as-is,
+#  not invented into something more precise than the source data.
 #
 #  Lock (Zentralverriegelung, rear doors): no state entity exists at
 #  all -- HA only has ZV status for the FRONT doors, via MercedesME,
@@ -20,17 +23,34 @@
 #  relay_4ch_step_zv_lock / _zv_unlock), same as the Homematic wall
 #  switch does. No status readout is possible, so none is shown.
 #
-#  Layout (readability follow-up): two columns instead of two rows of
-#  mixed pairs -- STUFE (RAUS/REIN) stacked on the left, ZV (ZU/AUF)
-#  stacked on the right, each column captioned at y_cap so the two
-#  switch pairs read as two distinct groups instead of one undivided
-#  four-button block. The step status (AKTIV/RUHE) stays centered at
-#  y_main -- it's the page's only real telemetry, not tied to either
-#  column.
+#  Layout (readability follow-up, 2nd pass): rows group by ACTION now,
+#  not by device -- y_row is REIN + ZU (securing the vehicle: retract
+#  the step, lock the doors -- what you'd do right before driving off,
+#  matching the pre-flight-check overlay's own concern), y_row2 is
+#  RAUS + AUF (the opposite: what you'd do on arrival). The previous
+#  pass grouped by device instead (STUFE column / ZV column) -- traded
+#  back for this because the two actions IN one row now share a
+#  purpose, not just a device. The central AKTIV/RUHE readout stays
+#  put; it's the page's only real telemetry, still not tied to either
+#  row (STUFE's own state, shown regardless of which row you're
+#  looking at).
 #
-#  Row 1 buttons (RAUS/ZU) stay at 76x30, row 2 (REIN/AUF) at the
-#  smaller 68x26 (design.md §3's y_row2 sizing) -- y_row2 sits further
-#  from center on a round display, a 76x30 button there clips the edge.
+#  Both rows use a literal x offset instead of ${x_col} (page-local
+#  geometry, same reasoning as page_levelling's literal y:42 /
+#  page_lights_outside's literal x:±48) -- x_col=40 was sized for
+#  narrow text columns, not these buttons, and left them nearly
+#  touching. y_row buttons are 76x30 at x:±48 (~106px corner radius);
+#  y_row2 buttons are smaller, 64x24 at x:±42 (~117px corner radius,
+#  design.md §3: y_row2 sits further out, needs to stay smaller to
+#  clear the round display's r=120 limit).
+#
+#  No double-click shortcut on this page, unlike most others (design
+#  feedback: double-click should reach a page's fixed settings too,
+#  not just SET) -- deliberately: none of these four actions is safely
+#  "the" one worth a quick double-click while driving, and door
+#  lock/step while moving is exactly the kind of thing design.md
+#  §14's open item about MP OFF/RETRACT already flags as needing a
+#  deliberate confirmation, not a fast gesture. Touch only for now.
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -105,6 +125,13 @@ lvgl:
       bg_opa: COVER
       widgets:
         - label:
+            id: lbl_entrance_cap
+            align: CENTER
+            y: ${y_cap}
+            text: "STUFE"
+            text_font: font_12
+            text_color: 0x555555
+        - label:
             id: lbl_entrance_step_state
             align: CENTER
             y: ${y_main}
@@ -112,42 +139,15 @@ lvgl:
             text_font: font_40
             text_color: 0x555555
 
-        # ---- Left column: STUFE, momentary, stacked -----------------
-        - label:
-            id: lbl_entrance_cap_step
-            align: CENTER
-            x: -${x_col}
-            y: ${y_cap}
-            text: "STUFE"
-            text_font: font_12
-            text_color: 0x555555
+        # ---- Row 1: securing (REIN + ZU) -----------------------------
         - button:
-            id: btn_entrance_step_out
+            id: btn_entrance_step_in
             align: CENTER
-            x: -${x_col}
+            x: -48
             y: ${y_row}
             width: 76
             height: 30
             radius: 15
-            bg_color: 0x202124
-            border_width: 1
-            border_color: 0x3C4043
-            widgets:
-              - label:
-                  align: CENTER
-                  text: "RAUS"
-                  text_font: font_16
-                  text_color: 0xBDC1C6
-            on_click:
-              - script.execute: act_entrance_step_out
-        - button:
-            id: btn_entrance_step_in
-            align: CENTER
-            x: -${x_col}
-            y: ${y_row2}
-            width: 68
-            height: 26
-            radius: 13
             bg_color: 0x202124
             border_width: 1
             border_color: 0x3C4043
@@ -159,20 +159,10 @@ lvgl:
                   text_color: 0xBDC1C6
             on_click:
               - script.execute: act_entrance_step_in
-
-        # ---- Right column: ZV, momentary, stacked, no status -------------
-        - label:
-            id: lbl_entrance_cap_zv
-            align: CENTER
-            x: ${x_col}
-            y: ${y_cap}
-            text: "ZV"
-            text_font: font_12
-            text_color: 0x555555
         - button:
             id: btn_entrance_lock
             align: CENTER
-            x: ${x_col}
+            x: 48
             y: ${y_row}
             width: 76
             height: 30
@@ -188,14 +178,35 @@ lvgl:
                   text_color: 0xBDC1C6
             on_click:
               - script.execute: act_entrance_lock
+
+        # ---- Row 2: arriving (RAUS + AUF) -----------------------------
+        - button:
+            id: btn_entrance_step_out
+            align: CENTER
+            x: -42
+            y: ${y_row2}
+            width: 64
+            height: 24
+            radius: 12
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  align: CENTER
+                  text: "RAUS"
+                  text_font: font_16
+                  text_color: 0xBDC1C6
+            on_click:
+              - script.execute: act_entrance_step_out
         - button:
             id: btn_entrance_unlock
             align: CENTER
-            x: ${x_col}
+            x: 42
             y: ${y_row2}
-            width: 68
-            height: 26
-            radius: 13
+            width: 64
+            height: 24
+            radius: 12
             bg_color: 0x202124
             border_width: 1
             border_color: 0x3C4043

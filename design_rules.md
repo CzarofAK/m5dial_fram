@@ -162,7 +162,18 @@ than reinventing it per page:
 * Two switches, same rank → the two-column shape above, minus
   `y_line2` (nothing to put there): `y_cap` names the switch, a button
   at `y_row` both shows EIN/AUS and toggles it. One switch → the same
-  button centered, no columns.
+  button centered, no columns, but grown (`page_ipixel`: 140x36, not
+  the usual 104x30) — a single focal control reads as too sparse at
+  the usual size.
+* `x_col` (40) is sized for narrow TEXT columns (percentages, short
+  labels), not buttons — a button that wide at `x_col` leaves only a
+  few px between the two, easy to misregister a tap on the wrong one.
+  Use a literal, page-local x offset instead (same reasoning as a
+  page-local y — §3's `y_cap`/`y_row` intro), wide enough for a
+  comfortable ~20px gap at the button width in use, and check the
+  outer corner still clears r=120 (`page_lights_outside`: x:±48 at
+  76x30; a row further from center needs to shrink further, same
+  logic as `y_row2` — `page_entrance`'s outer row is 64x24 at x:±42).
 * A switch's on/off state reads via `binary_sensor:` on
   `platform: homeassistant` (works for `switch.*` and `input_boolean.*`
   alike — HA reports both as a plain on/off state), never `sensor:`.
@@ -174,6 +185,11 @@ than reinventing it per page:
   EINGANG) — decide once what "on" means for the pair (any-on, as
   there) and make toggling always drive both to the *same* target
   state. A button can't show or reach a mixed on/off state usefully.
+* Give the page a double-click shortcut to its `act_` script(s) too
+  (§14's "Double-click as a SET/toggle shortcut" — one switch calls it
+  directly, two alternate via a `dc_<page>_cycle` script), unless a
+  momentary/dangerous action makes that unsafe (`page_entrance`
+  deliberately has none — see that file's header).
 
 ---
 
@@ -647,16 +663,44 @@ reusable by any dial in the project, not just this one.
   `page_power_2` (6) use it now — the dispatch in
   `encoder_adjust_up`/`_down` is hand-written per target, so each page
   adopting this needs a branch added there too.
-* **~~Double-click as a SET shortcut.~~** Built: on a page with a
-  primary settable value, double-clicking the physical front button
-  arms it (`LvPageType::is_showing()` picks the page, same
-  hand-written per-page dispatch as the encoder one above) instead of
-  jumping to the home page — home moves to long-press-only on those
-  pages. `page_fans` (`act_fans_arm_board` — the real FANBOARD column,
-  not the HVAC placeholder, since only one target fits one
-  double-click), `page_climate`, `page_boiler`, `page_power_2`. A page
-  with no settable value (or `page_fans`'s HVAC column specifically)
-  has no double-click shortcut; double-click there still goes home.
+* **~~Double-click as a SET/toggle shortcut.~~** Built, then widened:
+  double-click no longer ever falls back to the home page — that's
+  long-press-only now, unconditionally, on every page. Instead,
+  double-click runs the current page's own double-click action, if it
+  has one (`LvPageType::is_showing()` picks the page, hand-written
+  per-page dispatch in `.m5dial_fram.yaml`, same pattern as
+  `encoder_adjust_up`/`_down`). A page with exactly one thing worth
+  reaching calls it directly: `page_power_1` (`act_power_1_park`),
+  `page_power_2` (`act_power_2_arm_assist`), `page_power_3`
+  (`act_power_3_mode`), `page_water` (`act_water_pump`), `page_ipixel`
+  (`act_ipixel_power`). A page with two exposes a dedicated
+  `dc_<page>_cycle` script that alternates between them, one per
+  click, instead of one fixed winner: `page_fans` (FANBOARD SET, then
+  HVAC SET — the real column no longer permanently wins), `page_climate`
+  and `page_boiler` (temp SET, then the HEIZ/BOILER on/off toggle —
+  this is also how ordinary toggle buttons became double-click-
+  reachable, not just encoder-SET ones), `page_lights_outside`
+  (EINGANG, then MARKISE). `page_clock`/`page_gas`/`page_levelling`
+  have nothing to act on; `page_entrance` deliberately has no
+  double-click action at all (see that file's header — momentary
+  step/lock actions aren't safe for a quick gesture while driving).
+* **~~Encoder lag on adjustable values.~~** Built: every
+  `number.set_value`/`climate.set_temperature` call used to fire on
+  every single encoder detent, and the display waited for HA to
+  confirm the new value before moving — turning fast felt laggy
+  because the number was always one round trip (or, for the Truma
+  targets, one Truma LIN round trip, ~2-4s) behind the knob. Now each
+  adjustable target keeps a local `g_<page>_<name>_pending` value that
+  the encoder edits directly and the display reads from while armed
+  (zero perceived lag, no HA involved), and the actual write is
+  debounced — restarted on every tick, only firing 400ms after the
+  encoder goes quiet (`page_power_2`, `page_climate`, `page_boiler`,
+  `page_fans`'s FANBOARD). Disarming (SET tapped again, or the
+  double-click cycle moving past it) flushes the write immediately
+  instead of waiting out the debounce. 400ms is a guess, not measured
+  against real turning speed — adjust per-page if it still lags or
+  fires mid-turn. Doesn't and can't touch the Truma's own ~2-4s
+  hardware lag — that's physical, not a display problem.
 * **Real integration behind `climate`/`boiler`.** Both originally
   assumed a `truma_inetbox` external ESPHome component talking LIN
   directly — wrong; the real path is a MQTT-based `womolin_controller`
@@ -677,7 +721,11 @@ reusable by any dial in the project, not just this one.
   `1.5-3cm` warning, `>= 3cm` alarm are a guess, same status the old
   degree thresholds had — not measured against a real leveling
   requirement. Values also round to whole cm for legibility; revisit
-  if that's not enough precision in practice.
+  if that's not enough precision in practice. Also now clamped to
+  `>= 0` rather than shown signed — this reads as "how many cm to
+  wedge under this corner", and a negative source reading just means
+  "this one's fine", not "let air out" (there's no air suspension
+  here to relate a minus sign to).
 * **~~Special characters.~~** Turned out to be a real bug, not a
   someday concern: every Ä/Ö/Ü/ä/ö/ü/ß on the device showed as a tofu
   box — LVGL's built-in `montserrat_NN` fonts are ASCII-only, no
@@ -722,7 +770,7 @@ one line each) before relying on it.
 | 8 | `boiler` | Truma Combi 4 water-heating side, same `womolin_controller` integration as `climate` | implemented |
 | 9 | `fans` | Fan board (real) + Sprinter HVAC fan (**placeholder** — that PCB doesn't exist yet) | implemented |
 | 10 | `lights_outside` | Entrance light (two switches, driven together), awning light — both plain switches, not the `light` domain | implemented |
-| 11 | `entrance` | Step, door lock — two columns, STUFE left / ZV right | implemented |
+| 11 | `entrance` | Step, door lock — rows grouped by purpose: REIN+ZU (securing to drive) / RAUS+AUF (arriving), not by device; no double-click shortcut (safety) | implemented |
 | 12 | `ipixel` | On/off (`input_boolean`) + per-side LED status (two switches) | implemented |
 | reserved | `lights_inside` | — | reserved, not designed yet |
 
@@ -732,21 +780,25 @@ the `s_ignition` comment in `.m5dial_fram.yaml`:
 
 | id | Content | Status |
 |---|---|---|
-| `OV1` | Pre-flight check overlay | not designed yet |
+| `OV1` | Pre-flight check overlay: red while `binary_sensor.pre_flight_check` is off (failed) AND ignition is on/starting | implemented (`overlay_preflight.yaml`) — text only (generic message, not the actual failed-items list, see that file's header open item), dismissible early |
 | `OV2` | Cat litter box overlay: red while the light is on, green for 5s when the fan starts, then off | implemented (`overlay_litterbox.yaml`) — blocky pixel-art cat (`m5dial_pages/assets/`, animimg 2-frame blink), dismissible early |
 | `OV3` | iPixel-on overlay: red while either front LED switch is on | implemented (`overlay_ipixel.yaml`) — text only, dismissible early |
 
 All overlays are dismissible early: double-clicking the physical front
 button while one is showing acknowledges and hides it instead of
-jumping to the home page (`.m5dial_fram.yaml`'s double-click handler
-checks each overlay's root widget before deciding). A page adding a
-new overlay needs to: give its root `obj:` widget an `<name>_ack`
-script (hide + set a page-local `g_ov_<name>_ack` global, guarded so
-it's a no-op when that overlay isn't the one currently showing — see
-either existing overlay for the shape), reset that ack global to
-false once its own trigger condition goes false again, and add a
-branch for it to the double-click handler's hard-coded list — same
-"add a branch here" pattern as `encoder_adjust_up`/`_down`.
+running whatever that double-click would otherwise do on the current
+page — dismissing always wins first (`.m5dial_fram.yaml`'s
+double-click handler checks each overlay's root widget before
+deciding what else to do). A page adding a new overlay needs to: give
+its root `obj:` widget an `<name>_ack` script (hide + set a page-local
+`g_ov_<name>_ack` global, guarded so it's a no-op when that overlay
+isn't the one currently showing — see any existing overlay for the
+shape), reset that ack global to false once its own trigger condition
+goes false again, and add a branch for it to the double-click
+handler's hard-coded list — same "add a branch here" pattern as
+`encoder_adjust_up`/`_down`.
 
-Neither overlay is suppressed while driving yet — the `s_ignition`
-mechanism for that is still just the comment, not wired to anything.
+`overlay_preflight` is gated on `s_ignition` (state 4/5 = on/starting)
+— the first real use of the "suppresses the overlays" idea that
+comment used to only anticipate. `overlay_litterbox`/`overlay_ipixel`
+still aren't suppressed while driving.

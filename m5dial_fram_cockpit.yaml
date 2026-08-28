@@ -43,10 +43,9 @@ packages:
   p3: !include m5dial_pages/page_power_3.yaml
   p4: !include m5dial_pages/page_gas.yaml
   p5: !include m5dial_pages/page_water.yaml
-  # p6-p12: draft pages, most with placeholder entity_ids that don't
-  # point at anything real yet (design.md §15) -- they'll compile and
-  # show "---" everywhere rather than break the build, but check each
-  # one's entity_ids before relying on it.
+  # p6-p12: real entity_ids now (design.md §15's catalog) except
+  # page_fans's HVAC column, still a placeholder -- that PCB doesn't
+  # exist yet.
   p6: !include m5dial_pages/page_levelling.yaml
   p7: !include m5dial_pages/page_climate.yaml
   p8: !include m5dial_pages/page_boiler.yaml
@@ -60,3 +59,4 @@ packages:
   # page is current.
   ov_litterbox: !include m5dial_pages/overlay_litterbox.yaml
   ov_ipixel: !include m5dial_pages/overlay_ipixel.yaml
+  ov_preflight: !include m5dial_pages/overlay_preflight.yaml

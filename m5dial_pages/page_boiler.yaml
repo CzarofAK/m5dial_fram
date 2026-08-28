@@ -37,12 +37,19 @@
 #                                while armed
 #
 #  Water temp is encoder-adjustable (design.md §14, g_edit_target in
-#  .m5dial_fram.yaml) via the SET button, or by double-clicking the
-#  physical front button while this page is showing (same action,
-#  .m5dial_fram.yaml's double-click handler -- home is long-press-only
-#  on this page now), same as page_climate.yaml's room temp -- and the
-#  same guard: refuses to arm while BOILER is off, since a target set
-#  while off doesn't take effect on the Truma.
+#  .m5dial_fram.yaml) via the SET button, same as page_climate.yaml's
+#  room temp -- and the same guard: refuses to arm while BOILER is
+#  off, since a target set while off doesn't take effect on the Truma.
+#
+#  Double-click on the physical front button cycles this page's two
+#  actions, same pattern as page_climate.yaml (.m5dial_fram.yaml's
+#  double-click handler -- home is long-press-only here now): 1st
+#  click arms water temp, 2nd toggles BOILER, 3rd back to arming.
+#
+#  Encoder feel: same lag fix as page_power_2.yaml/page_climate.yaml
+#  (see either header) -- adjusts a local g_boiler_temp_pending value
+#  and redraws from it immediately, only calling climate.set_temperature
+#  once the encoder's quiet for 400ms (or immediately on disarm).
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -69,6 +76,21 @@ binary_sensor:
     on_state:
       - script.execute: draw_boiler
 
+globals:
+  # Page-local, same reasoning as page_power_2.yaml's
+  # g_power_2_assist_pending / page_climate.yaml's g_climate_temp_pending.
+  - id: g_boiler_temp_pending
+    type: float
+    restore_value: false
+    initial_value: "40"
+
+  # Double-click cycle position (.m5dial_fram.yaml's dc_boiler_cycle):
+  # 0 = arm temp SET next, 1 = toggle BOILER next.
+  - id: g_boiler_dc_pos
+    type: int
+    restore_value: false
+    initial_value: "0"
+
 script:
   - id: act_boiler_heater
     then:
@@ -86,29 +108,54 @@ script:
           condition:
             lambda: return id(s_boiler_heater_on).has_state() && id(s_boiler_heater_on).state;
           then:
-            - globals.set:
-                id: g_edit_target
-                value: !lambda "return (id(g_edit_target) == 5) ? 0 : 5;"
+            - lambda: |-
+                bool was_armed = (id(g_edit_target) == 5);
+                id(g_edit_target) = was_armed ? 0 : 5;
+                if (!was_armed) {
+                  id(g_boiler_temp_pending) = id(s_boiler_target).has_state() ? id(s_boiler_target).state : 40.0f;
+                } else {
+                  id(boiler_temp_write_debounced)->stop();
+                  id(boiler_temp_write_now)->execute();
+                }
       - script.execute: draw_boiler
+
+  # Called by .m5dial_fram.yaml's double-click handler -- see header.
+  - id: dc_boiler_cycle
+    then:
+      - if:
+          condition:
+            lambda: return id(g_boiler_dc_pos) == 0;
+          then:
+            - script.execute: act_boiler_arm_temp
+          else:
+            - script.execute: act_boiler_heater
+      - globals.set:
+          id: g_boiler_dc_pos
+          value: !lambda "return (id(g_boiler_dc_pos) + 1) % 2;"
 
   # 1°C step, clamped 30-70 (a guess at a sane range, not the Truma's
   # actual documented min/max -- verify on the device).
   - id: act_boiler_temp_up
     then:
-      - homeassistant.service:
-          service: climate.set_temperature
-          data:
-            entity_id: climate.womolin_controller_mqtt_truma_water
-          data_template:
-            temperature: "{{ val }}"
-          variables:
-            val: !lambda |-
-              float cur = id(s_boiler_target).has_state() ? id(s_boiler_target).state : 40.0f;
-              float v = cur + 1.0f;
-              if (v > 70.0f) v = 70.0f;
-              return str_sprintf("%.0f", v);
+      - lambda: |-
+          float v = id(g_boiler_temp_pending) + 1.0f;
+          if (v > 70.0f) v = 70.0f;
+          id(g_boiler_temp_pending) = v;
+      - script.execute: draw_boiler
+      - script.execute: boiler_temp_write_debounced
 
   - id: act_boiler_temp_down
+    then:
+      - lambda: |-
+          float v = id(g_boiler_temp_pending) - 1.0f;
+          if (v < 30.0f) v = 30.0f;
+          id(g_boiler_temp_pending) = v;
+      - script.execute: draw_boiler
+      - script.execute: boiler_temp_write_debounced
+
+  # The actual write, split from the debounce delay so disarming can
+  # call it immediately (act_boiler_arm_temp above).
+  - id: boiler_temp_write_now
     then:
       - homeassistant.service:
           service: climate.set_temperature
@@ -117,11 +164,13 @@ script:
           data_template:
             temperature: "{{ val }}"
           variables:
-            val: !lambda |-
-              float cur = id(s_boiler_target).has_state() ? id(s_boiler_target).state : 40.0f;
-              float v = cur - 1.0f;
-              if (v < 30.0f) v = 30.0f;
-              return str_sprintf("%.0f", v);
+            val: !lambda "return str_sprintf(\"%.0f\", id(g_boiler_temp_pending));"
+
+  - id: boiler_temp_write_debounced
+    mode: restart
+    then:
+      - delay: 400ms
+      - script.execute: boiler_temp_write_now
 
   - id: draw_boiler
     mode: restart
@@ -149,6 +198,9 @@ script:
             #ifdef USE_API
             if (!api_is_connected()) return std::string("SOLL ---°C");
             #endif
+            // Armed: show the pending (locally-dialed) value, not the
+            // HA-confirmed one -- see header re: lag.
+            if (id(g_edit_target) == 5) return str_sprintf("SOLL %.0f°C", id(g_boiler_temp_pending));
             if (!id(s_boiler_target).has_state()) return std::string("SOLL ---°C");
             return str_sprintf("SOLL %.0f°C", id(s_boiler_target).state);
           text_color: !lambda |-

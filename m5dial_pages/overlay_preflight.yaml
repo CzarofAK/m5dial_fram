@@ -1,0 +1,152 @@
+# =====================================================================
+#  m5dial_pages/overlay_preflight.yaml — overlay: Pre-flight check
+#  FRAM M5Dial Cockpit · overlay package
+#
+#  NOT a page (design.md §15) -- shown on top of whatever page is
+#  current, via LVGL's top_layer rather than the pages: list.
+#
+#  Source: the HA automation "FRAM - Pre-Flight Check" (checks open
+#  hatches/doors/shore power/step on ignition-on or already-driving,
+#  repeats a phone+Telegram notification 3x at 2min intervals while
+#  binary_sensor.pre_flight_check stays off). This overlay does NOT
+#  reimplement that automation -- HA already owns the notification
+#  retry logic, that's its job, not the dial's. What this adds: a
+#  visible, on-the-dashboard reminder for as long as the check is
+#  actually failing at a relevant moment, dismissible early instead of
+#  only timing out with the automation's own 3x/2min cycle.
+#
+#  Trigger, simplified from the automation's own three (ignition-state
+#  4/5, the step's engine-on sensor, or gps_speed above 5 for 30s):
+#  just ignition state 4 ("on") or 5 ("start") -- .m5dial_fram.yaml's
+#  shared s_ignition, already exactly the automation's own first
+#  trigger. The other two triggers exist in HA to catch "ignition
+#  already on before you look at the dial" / "already rolling before
+#  you looked" -- this page reacts to the SAME underlying signal
+#  (ignition) whenever it changes, so it catches the same moment
+#  without needing gps_speed wired into this device's header (it isn't
+#  currently) or re-deriving the step-engine-on ambiguity page_entrance
+#  already flags. OPEN ITEM: doesn't cover "was already driving before
+#  the dial noticed" (the automation's gps_speed-for-30s branch) --
+#  add gps_speed to the shared header and gate on that too if that gap
+#  matters in practice.
+#
+#  Condition: binary_sensor.pre_flight_check state OFF = check FAILED
+#  (matches the automation's own `condition: state ... 'off'` before
+#  it notifies) -- counterintuitive name, not a bug, that's HA's own
+#  entity.
+#
+#  OPEN ITEM: the automation's notification body lists exactly what's
+#  open (state_attr('binary_sensor.pre_flight_check', 'offene_punkte')
+#  | join(', ')) -- that's a list attribute, computed ad hoc inside
+#  the automation's own template, not its own HA entity. ESPHome's
+#  homeassistant text_sensor reads one attribute as one string; there
+#  is no already-joined string entity to point it at. This overlay
+#  therefore shows a generic message, not the actual failed items --
+#  add a HA-side template sensor exposing offene_punkte pre-joined
+#  (e.g. sensor.pre_flight_check_offene_punkte) and bind a text_sensor
+#  to it here once that exists, rather than guessing at one.
+#
+#  Dismissible early, same mechanism as every overlay
+#  (.m5dial_fram.yaml's double-click handler): acknowledging hides it
+#  without touching binary_sensor.pre_flight_check itself, and re-arms
+#  once the show condition goes false again (ignition drops, or the
+#  check starts passing) and then true again.
+# =====================================================================
+
+# ---------------------------------------------------------------------
+#  C  Bindings
+# ---------------------------------------------------------------------
+globals:
+  - id: g_ov_preflight_ack
+    type: bool
+    restore_value: false
+    initial_value: "false"
+
+binary_sensor:
+  - platform: homeassistant
+    id: s_ov_preflight_check
+    entity_id: binary_sensor.pre_flight_check
+    on_state:
+      - script.execute: draw_ov_preflight
+
+script:
+  - id: draw_ov_preflight
+    mode: restart
+    then:
+      - lambda: |-
+          bool ignition_on = id(s_ignition).has_state() &&
+                              (id(s_ignition).state == "4" || id(s_ignition).state == "5");
+          // has_state() on a binary_sensor.homeassistant platform is
+          // true once HA's ever sent a value; state itself is the
+          // actual bool. "Failed" is OFF -- see header.
+          bool check_failed = id(s_ov_preflight_check).has_state() && !id(s_ov_preflight_check).state;
+          if (!(ignition_on && check_failed)) {
+            id(g_ov_preflight_ack) = false;
+          }
+      - if:
+          condition:
+            lambda: |-
+              bool ignition_on = id(s_ignition).has_state() &&
+                                  (id(s_ignition).state == "4" || id(s_ignition).state == "5");
+              bool check_failed = id(s_ov_preflight_check).has_state() && !id(s_ov_preflight_check).state;
+              return ignition_on && check_failed && !id(g_ov_preflight_ack);
+          then:
+            - lvgl.widget.show: ov_preflight
+          else:
+            - lvgl.widget.hide: ov_preflight
+
+  # Dismiss on double-click (.m5dial_fram.yaml calls this directly,
+  # unconditionally -- guarded here so it's a no-op when this overlay
+  # isn't the one showing).
+  - id: ov_preflight_ack
+    then:
+      - if:
+          condition:
+            lambda: return !lv_obj_has_flag(id(ov_preflight), LV_OBJ_FLAG_HIDDEN);
+          then:
+            - globals.set:
+                id: g_ov_preflight_ack
+                value: "true"
+            - lvgl.widget.hide: ov_preflight
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - script.execute: draw_ov_preflight
+
+# ---------------------------------------------------------------------
+#  D  Widget
+# ---------------------------------------------------------------------
+lvgl:
+  top_layer:
+    widgets:
+      - obj:
+          id: ov_preflight
+          align: CENTER
+          width: 240
+          height: 240
+          radius: 0
+          border_width: 0
+          hidden: true
+          bg_color: 0xE74C3C
+          bg_opa: COVER
+          widgets:
+            - label:
+                align: CENTER
+                y: -15
+                text: "PRE-FLIGHT CHECK"
+                text_font: font_16
+                text_color: 0xFFFFFF
+            - label:
+                align: CENTER
+                y: 10
+                text: "FEHLGESCHLAGEN"
+                text_font: font_16
+                text_color: 0xFFFFFF
+            - label:
+                align: CENTER
+                y: 45
+                text: "2X KLICK = AUS"
+                text_font: font_12
+                text_color: 0xF5A9A0

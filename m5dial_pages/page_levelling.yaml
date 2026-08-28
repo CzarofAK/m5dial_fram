@@ -50,6 +50,14 @@
 #  and adjust. Values round to whole cm for legibility at four labels
 #  and font_12 -- revisit if that's not enough precision in practice.
 #
+#  Displayed clamped to >= 0, not signed: this is "how many cm to
+#  place under this wheel" (wedges), not a delta to apply either
+#  direction -- a negative source reading means "this corner's
+#  already fine, no wedge needed here", which reads the same as 0,
+#  not as "let air out". A corner clamped to 0 also doesn't count
+#  toward the bubble's severity color -- nothing to do there isn't a
+#  problem.
+#
 #  No button: reading only, nothing to act on from the dial.
 # =====================================================================
 
@@ -118,11 +126,12 @@ script:
             if (!id(s_levelling_vl).has_state() || !id(s_levelling_vr).has_state() ||
                 !id(s_levelling_hl).has_state() || !id(s_levelling_hr).has_state())
               return lv_color_hex(0x555555);
-            float v = fabsf(id(s_levelling_vl).state);
+            float v = id(s_levelling_vl).state;
             float t;
-            t = fabsf(id(s_levelling_vr).state); if (t > v) v = t;
-            t = fabsf(id(s_levelling_hl).state); if (t > v) v = t;
-            t = fabsf(id(s_levelling_hr).state); if (t > v) v = t;
+            t = id(s_levelling_vr).state; if (t > v) v = t;
+            t = id(s_levelling_hl).state; if (t > v) v = t;
+            t = id(s_levelling_hr).state; if (t > v) v = t;
+            if (v < 0.0f) v = 0.0f;
             if (v >= 3.0f) return lv_color_hex(0xE74C3C);
             if (v >= 1.5f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0xFFFFFF);
@@ -135,13 +144,16 @@ script:
             if (!api_is_connected()) return std::string("VL --cm");
             #endif
             if (!id(s_levelling_vl).has_state()) return std::string("VL --cm");
-            return str_sprintf("VL %+.0fcm", id(s_levelling_vl).state);
+            float v = id(s_levelling_vl).state;
+            if (v < 0.0f) v = 0.0f;
+            return str_sprintf("VL %.0fcm", v);
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
             if (!id(s_levelling_vl).has_state()) return lv_color_hex(0x555555);
-            float v = fabsf(id(s_levelling_vl).state);
+            float v = id(s_levelling_vl).state;
+            if (v < 0.0f) v = 0.0f;
             if (v >= 3.0f) return lv_color_hex(0xE74C3C);
             if (v >= 1.5f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0xBDC1C6);
@@ -154,13 +166,16 @@ script:
             if (!api_is_connected()) return std::string("VR --cm");
             #endif
             if (!id(s_levelling_vr).has_state()) return std::string("VR --cm");
-            return str_sprintf("VR %+.0fcm", id(s_levelling_vr).state);
+            float v = id(s_levelling_vr).state;
+            if (v < 0.0f) v = 0.0f;
+            return str_sprintf("VR %.0fcm", v);
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
             if (!id(s_levelling_vr).has_state()) return lv_color_hex(0x555555);
-            float v = fabsf(id(s_levelling_vr).state);
+            float v = id(s_levelling_vr).state;
+            if (v < 0.0f) v = 0.0f;
             if (v >= 3.0f) return lv_color_hex(0xE74C3C);
             if (v >= 1.5f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0xBDC1C6);
@@ -173,13 +188,16 @@ script:
             if (!api_is_connected()) return std::string("HL --cm");
             #endif
             if (!id(s_levelling_hl).has_state()) return std::string("HL --cm");
-            return str_sprintf("HL %+.0fcm", id(s_levelling_hl).state);
+            float v = id(s_levelling_hl).state;
+            if (v < 0.0f) v = 0.0f;
+            return str_sprintf("HL %.0fcm", v);
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
             if (!id(s_levelling_hl).has_state()) return lv_color_hex(0x555555);
-            float v = fabsf(id(s_levelling_hl).state);
+            float v = id(s_levelling_hl).state;
+            if (v < 0.0f) v = 0.0f;
             if (v >= 3.0f) return lv_color_hex(0xE74C3C);
             if (v >= 1.5f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0xBDC1C6);
@@ -192,13 +210,16 @@ script:
             if (!api_is_connected()) return std::string("HR --cm");
             #endif
             if (!id(s_levelling_hr).has_state()) return std::string("HR --cm");
-            return str_sprintf("HR %+.0fcm", id(s_levelling_hr).state);
+            float v = id(s_levelling_hr).state;
+            if (v < 0.0f) v = 0.0f;
+            return str_sprintf("HR %.0fcm", v);
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
             if (!id(s_levelling_hr).has_state()) return lv_color_hex(0x555555);
-            float v = fabsf(id(s_levelling_hr).state);
+            float v = id(s_levelling_hr).state;
+            if (v < 0.0f) v = 0.0f;
             if (v >= 3.0f) return lv_color_hex(0xE74C3C);
             if (v >= 1.5f) return lv_color_hex(0xF39C12);
             return lv_color_hex(0xBDC1C6);

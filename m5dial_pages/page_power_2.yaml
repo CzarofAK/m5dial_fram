@@ -50,6 +50,23 @@
 #
 #  No "must be on" gate here, unlike climate/boiler -- PowerAssist has
 #  nothing to be off.
+#
+#  Encoder feel (readability follow-up, separate from the 0.1A->1A
+#  step change above): every tick used to call number.set_value and
+#  then wait for HA to confirm the new number.multiplus_strombegrenzung
+#  state before the button's label moved at all -- fast turning felt
+#  laggy because the display was always one HA round trip behind the
+#  knob. Now the encoder adjusts a local g_power_2_assist_pending
+#  value directly and redraws immediately from THAT while armed (zero
+#  perceived lag, all local), and only fires the actual
+#  number.set_value once the encoder's been quiet for
+#  ASSIST_DEBOUNCE_MS (act_power_2_assist_up/_down restart a debounce
+#  script on every tick) -- so a fast spin sends one HA call at the
+#  end, not one per detent. Disarming (SET tapped again) flushes
+#  immediately instead of waiting out the debounce, since no more
+#  ticks are coming. 400ms is a guess, not measured against how fast
+#  someone actually turns this thing -- adjust if it still feels
+#  laggy, or feels like it fires mid-turn.
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -72,34 +89,58 @@ sensor:
     on_value:
       - script.execute: draw_power_2
 
+globals:
+  # Page-local (design.md §3's "On/off-only pages" precedent for
+  # page-local globals applies here too): the value being dialed while
+  # armed, ahead of what HA's confirmed back yet. See header re: lag.
+  - id: g_power_2_assist_pending
+    type: float
+    restore_value: false
+    initial_value: "0"
+
 script:
   - id: act_power_2_arm_assist
     then:
-      - globals.set:
-          id: g_edit_target
-          value: !lambda "return (id(g_edit_target) == 6) ? 0 : 6;"
+      - lambda: |-
+          bool was_armed = (id(g_edit_target) == 6);
+          id(g_edit_target) = was_armed ? 0 : 6;
+          if (!was_armed) {
+            // Just armed: seed pending from the last confirmed value.
+            id(g_power_2_assist_pending) = id(s_power_2_limit).has_state() ? id(s_power_2_limit).state : 0.0f;
+          } else {
+            // Just disarmed: flush immediately, don't wait for the
+            // debounce -- no more ticks are coming.
+            id(power_2_assist_write_debounced)->stop();
+            id(power_2_assist_write_now)->execute();
+          }
       - script.execute: draw_power_2
 
   # 1A step, clamped 0-16 -- this installation's real ceiling (2.5mm²
   # wiring), not the entity's own 0-63A range. See header re: the 0.1A
-  # -> 1A change (lag) and the setpoint-vs-applied caveat.
+  # -> 1A change and the debounced-write change (both about lag).
   - id: act_power_2_assist_up
     then:
-      - homeassistant.service:
-          service: number.set_value
-          data:
-            entity_id: number.multiplus_strombegrenzung
-          data_template:
-            value: "{{ val }}"
-          variables:
-            val: !lambda |-
-              float cur = id(s_power_2_limit).has_state() ? id(s_power_2_limit).state : 0.0f;
-              float v = cur + 1.0f;
-              if (v > 16.0f) v = 16.0f;
-              return str_sprintf("%.0f", v);
+      - lambda: |-
+          float v = id(g_power_2_assist_pending) + 1.0f;
+          if (v > 16.0f) v = 16.0f;
+          id(g_power_2_assist_pending) = v;
+      - script.execute: draw_power_2
+      - script.execute: power_2_assist_write_debounced
 
   - id: act_power_2_assist_down
     then:
+      - lambda: |-
+          float v = id(g_power_2_assist_pending) - 1.0f;
+          if (v < 0.0f) v = 0.0f;
+          id(g_power_2_assist_pending) = v;
+      - script.execute: draw_power_2
+      - script.execute: power_2_assist_write_debounced
+
+  # The actual write, split from the debounce delay so disarming can
+  # call it immediately (see act_power_2_arm_assist above) instead of
+  # duplicating the homeassistant.service call in two places.
+  - id: power_2_assist_write_now
+    then:
       - homeassistant.service:
           service: number.set_value
           data:
@@ -107,11 +148,13 @@ script:
           data_template:
             value: "{{ val }}"
           variables:
-            val: !lambda |-
-              float cur = id(s_power_2_limit).has_state() ? id(s_power_2_limit).state : 0.0f;
-              float v = cur - 1.0f;
-              if (v < 0.0f) v = 0.0f;
-              return str_sprintf("%.0f", v);
+            val: !lambda "return str_sprintf(\"%.0f\", id(g_power_2_assist_pending));"
+
+  - id: power_2_assist_write_debounced
+    mode: restart
+    then:
+      - delay: 400ms
+      - script.execute: power_2_assist_write_now
 
   - id: draw_power_2
     mode: restart
@@ -188,6 +231,9 @@ script:
             #ifdef USE_API
             if (!api_is_connected()) return std::string("ASSIST --A");
             #endif
+            // Armed: show the pending (locally-dialed) value, not the
+            // HA-confirmed one -- see header re: lag.
+            if (id(g_edit_target) == 6) return str_sprintf("ASSIST %.0fA", id(g_power_2_assist_pending));
             if (!id(s_power_2_limit).has_state()) return std::string("ASSIST --A");
             return str_sprintf("ASSIST %.0fA", id(s_power_2_limit).state);
           text_color: !lambda |-
