@@ -87,6 +87,18 @@
 #     (g_boiler_heater_optimistic) the instant it's tapped, ahead of
 #     switch.womolin_controller_mqtt_activate_water_heater's own
 #     confirmation.
+#
+#  on_load poll (design.md §9): HA only pushes an entity's CURRENT
+#  value to this device at API-connect time if HA already has one --
+#  an entity that's still unknown/unavailable at that moment sends
+#  nothing, and then only catches up whenever it next changes on its
+#  own (which, for something like a slow-polling integration, can be a
+#  long wait -- reported as pages sitting on "---" until unrelated
+#  interaction happened to trigger a state change). poll_boiler calls
+#  homeassistant.update_entity per entity on page_boiler's own on_load
+#  trigger, forcing a fresh push every time this page is actually
+#  shown, rather than a background timer running for a page nobody's
+#  looking at.
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -161,6 +173,19 @@ globals:
     initial_value: "0"
 
 script:
+  # Forces a fresh push from HA for this page's entities -- called
+  # from page_boiler's own on_load trigger below. See header re: why.
+  - id: poll_boiler
+    then:
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: climate.womolin_controller_mqtt_truma_water
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: switch.womolin_controller_mqtt_activate_water_heater
+
   - id: act_boiler_heater
     then:
       - lambda: |-
@@ -377,6 +402,8 @@ esphome:
 lvgl:
   pages:
     - id: page_boiler
+      on_load:
+        - script.execute: poll_boiler
       bg_color: 0x000000
       bg_opa: COVER
       widgets:

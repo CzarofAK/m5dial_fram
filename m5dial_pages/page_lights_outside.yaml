@@ -47,6 +47,14 @@
 #  MARKISE, 3rd back to EINGANG. Same reasoning as page_fans.yaml's
 #  FANBOARD/HVAC cycle -- haptic control while driving, touch while
 #  parked, both always available.
+#
+#  on_load poll (design.md §9): HA only pushes an entity's CURRENT
+#  value to this device at API-connect time if HA already has one --
+#  an entity that's still unknown/unavailable at that moment sends
+#  nothing, and then only catches up whenever it next changes on its
+#  own. poll_lights_outside calls homeassistant.update_entity per
+#  entity on page_lights_outside's own on_load trigger, forcing a
+#  fresh push every time this page is actually shown.
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -79,6 +87,24 @@ binary_sensor:
       - script.execute: draw_lights_outside
 
 script:
+  # Forces a fresh push from HA for this page's entities -- called
+  # from page_lights_outside's own on_load trigger below. See header
+  # re: why.
+  - id: poll_lights_outside
+    then:
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: switch.light_pir
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: switch.light_step
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: switch.shelly1g4_7c2c6772123c
+
   # Any-on-reads-on, toggle-drives-both-the-same-way -- see header.
   # Two separate homeassistant.service calls, not one call with a YAML
   # list under entity_id: -- ESPHome's data:/data_template: values must
@@ -217,6 +243,8 @@ esphome:
 lvgl:
   pages:
     - id: page_lights_outside
+      on_load:
+        - script.execute: poll_lights_outside
       bg_color: 0x000000
       bg_opa: COVER
       widgets:

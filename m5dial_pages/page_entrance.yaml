@@ -51,6 +51,14 @@
 #  lock/step while moving is exactly the kind of thing design.md
 #  §14's open item about MP OFF/RETRACT already flags as needing a
 #  deliberate confirmation, not a fast gesture. Touch only for now.
+#
+#  on_load poll (design.md §9): HA only pushes an entity's CURRENT
+#  value to this device at API-connect time if HA already has one --
+#  an entity that's still unknown/unavailable at that moment sends
+#  nothing, and then only catches up whenever it next changes on its
+#  own. poll_entrance calls homeassistant.update_entity on
+#  page_entrance's own on_load trigger, forcing a fresh push of the
+#  one entity that matters here every time this page is shown.
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -66,6 +74,15 @@ binary_sensor:
       - script.execute: draw_entrance
 
 script:
+  # Forces a fresh push from HA for this page's entity -- called from
+  # page_entrance's own on_load trigger below. See header re: why.
+  - id: poll_entrance
+    then:
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: binary_sensor.relay_4ch_step_step_out_engine_on
+
   - id: act_entrance_step_out
     then:
       - homeassistant.service:
@@ -121,6 +138,8 @@ esphome:
 lvgl:
   pages:
     - id: page_entrance
+      on_load:
+        - script.execute: poll_entrance
       bg_color: 0x000000
       bg_opa: COVER
       widgets:

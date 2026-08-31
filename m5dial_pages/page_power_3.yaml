@@ -20,6 +20,14 @@
 #  12/1600) — NOT a precise figure: real max capacity also depends on
 #  temperature (thermal derating) and isn't tracked here. Good enough
 #  for "getting close", not exact.
+#
+#  on_load poll (design.md §9): HA only pushes an entity's CURRENT
+#  value to this device at API-connect time if HA already has one --
+#  an entity that's still unknown/unavailable at that moment sends
+#  nothing, and then only catches up whenever it next changes on its
+#  own. poll_power_3 calls homeassistant.update_entity per entity on
+#  page_power_3's own on_load trigger, forcing a fresh push every time
+#  this page is actually shown.
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -56,6 +64,23 @@ text_sensor:
       - script.execute: draw_power_3
 
 script:
+  # Forces a fresh push from HA for this page's entities -- called
+  # from page_power_3's own on_load trigger below. See header re: why.
+  - id: poll_power_3
+    then:
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: sensor.multiplus_0_wr_leistung
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: sensor.multiplus_zustand
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: select.multiplus
+
   # OPEN ITEM (design.md §14): the jump to OFF takes away shore power,
   # charging, and 230 V, and should require a long press.
   - id: act_power_3_mode
@@ -215,6 +240,8 @@ esphome:
 lvgl:
   pages:
     - id: page_power_3
+      on_load:
+        - script.execute: poll_power_3
       bg_color: 0x000000
       bg_opa: COVER
       widgets:

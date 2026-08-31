@@ -26,6 +26,17 @@
 #  trigger the same toggle (.m5dial_fram.yaml's double-click handler --
 #  home is long-press-only here now): haptic control while driving,
 #  touch while parked, both always available.
+#
+#  on_load poll (design.md §9): explains this page's own "status takes
+#  forever to appear" report -- HA only pushes an entity's CURRENT
+#  value to this device at API-connect time if HA already has one; an
+#  entity that's still unknown/unavailable at that moment sends
+#  nothing and only catches up whenever it next changes on its own,
+#  which for the two LED switches (behind the iPixel's own hardware/
+#  integration, possibly slow to report) can be a long wait. poll_ipixel
+#  calls homeassistant.update_entity per entity on page_ipixel's own
+#  on_load trigger, forcing a fresh push every time this page is
+#  actually shown.
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -49,6 +60,23 @@ binary_sensor:
       - script.execute: draw_ipixel
 
 script:
+  # Forces a fresh push from HA for this page's entities -- called
+  # from page_ipixel's own on_load trigger below. See header re: why.
+  - id: poll_ipixel
+    then:
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: input_boolean.ipixel
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: switch.ipixel_front_left_led_left
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: switch.ipixel_front_right_led_right
+
   - id: act_ipixel_power
     then:
       - homeassistant.service:
@@ -156,6 +184,8 @@ esphome:
 lvgl:
   pages:
     - id: page_ipixel
+      on_load:
+        - script.execute: poll_ipixel
       bg_color: 0x000000
       bg_opa: COVER
       widgets:

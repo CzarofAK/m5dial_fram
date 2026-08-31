@@ -545,6 +545,53 @@ stay identical across all pages — and not as `globals:`, because no
 state is held on the dial. Currently: fresh 180 L, grey 90 L, gas
 bottle 10.5 kg net.
 
+### on_load poll
+
+"Can take minutes" above turned out to be the reported symptom, not
+just a theoretical caveat: HA only pushes an entity's CURRENT value to
+this device at API-connect time if HA already has one. An entity
+that's still unknown/unavailable at that exact moment (a slow-polling
+integration behind it, a device that hasn't reported yet) sends
+nothing — and then only catches up whenever it next changes on its
+own, which can be a long, unpredictable wait. A background timer would
+poll pages nobody's looking at; instead, each page with entities worth
+forcing gets a dedicated `poll_<page>` script, called from that page's
+own `on_load:` trigger (an LVGL page property, fires when the page
+becomes active — not the same thing as `esphome: on_boot:` above,
+which only fires once at startup):
+
+```yaml
+script:
+  - id: poll_grid
+    then:
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: sensor.some_entity
+      # one homeassistant.service call per entity -- data:/data_template:
+      # values must be plain strings, a YAML list under entity_id: is a
+      # hard config error (§9's own `homeassistant.service` calls,
+      # page_lights_outside.yaml hit this first)
+
+lvgl:
+  pages:
+    - id: page_grid
+      on_load:
+        - script.execute: poll_grid
+```
+
+`homeassistant.service: homeassistant.update_entity` forces HA to
+re-fetch/re-publish that entity now, which reaches this device the
+same way any other state change would. Not every page needs this —
+`page_gas`/`page_water`/`page_power_1` and similar fast, reliably-
+pushed entities don't need forcing; pages behind something slower to
+report (an MQTT bridge, a Truma panel, a possibly-polling third-party
+integration) do. Currently wired: `page_climate`, `page_boiler`,
+`page_ipixel`, `page_entrance`, `page_lights_outside`, `page_power_2`,
+`page_power_3`. Deliberately not wired: `page_levelling` (its four
+corner sensors have their own bigger open item — see §14 — polling a
+sensor with nothing behind it yet wouldn't help) and `page_gas`.
+
 ---
 
 ## 10. Naming scheme
@@ -561,6 +608,7 @@ e.g. `s_power_1_soc`, `page_power_2`, `draw_water`.
 | `btn_` | button |
 | `s_` | sensor / text sensor (data source) |
 | `draw_` | a page's drawing script |
+| `poll_` | a page's on_load entity-refresh script (§9) |
 
 For two equal-ranked values, a suffix distinguishes the columns, using
 the same abbreviation as in the label:
@@ -815,7 +863,7 @@ the `s_ignition` comment in `.m5dial_fram.yaml`:
 
 | id | Content | Status |
 |---|---|---|
-| `OV1` | Pre-flight check overlay: red while `binary_sensor.pre_flight_check` is off (failed) AND ignition is on/starting | implemented (`overlay_preflight.yaml`) — text only (generic message, not the actual failed-items list, see that file's header open item), dismissible early |
+| `OV1` | Pre-flight check overlay: red while `binary_sensor.pre_flight_check` is off (failed) AND ignition is on/starting | implemented (`overlay_preflight.yaml`) — blocky pixel-art warning triangle (pulses amber/white, `gen_warning.py`), generic message text (not the actual failed-items list, see that file's header open item), dismissible early |
 | `OV2` | Cat litter box overlay: red while the light is on, green for 5s when the fan starts, then off | implemented (`overlay_litterbox.yaml`) — blocky pixel-art cat (`m5dial_pages/assets/`, animimg 2-frame blink), dismissible early |
 | `OV3` | iPixel-on overlay: red while either front LED switch is on | implemented (`overlay_ipixel.yaml`) — text only, dismissible early |
 
