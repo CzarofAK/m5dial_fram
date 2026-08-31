@@ -582,15 +582,17 @@ lvgl:
 
 `homeassistant.service: homeassistant.update_entity` forces HA to
 re-fetch/re-publish that entity now, which reaches this device the
-same way any other state change would. Not every page needs this —
-`page_gas`/`page_water`/`page_power_1` and similar fast, reliably-
-pushed entities don't need forcing; pages behind something slower to
-report (an MQTT bridge, a Truma panel, a possibly-polling third-party
-integration) do. Currently wired: `page_climate`, `page_boiler`,
-`page_ipixel`, `page_entrance`, `page_lights_outside`, `page_power_2`,
-`page_power_3`. Deliberately not wired: `page_levelling` (its four
-corner sensors have their own bigger open item — see §14 — polling a
-sensor with nothing behind it yet wouldn't help) and `page_gas`.
+same way any other state change would. Wired on every page that has a
+real entity to poll — `page_clock`, `page_power_1`, `page_power_2`,
+`page_power_3`, `page_gas`, `page_water`, `page_levelling`,
+`page_climate`, `page_boiler`, `page_fans`, `page_lights_outside`,
+`page_entrance`, `page_ipixel` — per user decision, deliberately not
+split by guessing which integrations are already fast enough to skip:
+the call is cheap, consistency won that tradeoff. The one exception is
+never a whole page, only individual PLACEHOLDER entities that don't
+exist yet (`page_fans`'s HVAC column) — polling those would just log a
+warning in HA for nothing; add the poll once the real entity replaces
+the placeholder.
 
 ---
 

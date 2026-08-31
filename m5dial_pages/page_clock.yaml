@@ -24,7 +24,23 @@
 #  `foreground`-colored border (width scales with the radius, 3 px at
 #  240x240) — this is what replaces the old page's separate bezel
 #  object, no extra widget needed for it.
+#
+#  on_load poll (design.md §9): poll_clock forces a fresh push from HA
+#  for weather.forecast_home (s_aussentemp, declared in
+#  .m5dial_fram.yaml's shared header, not here -- the only entity this
+#  page reads) on page_clock's own on_load trigger. Applied to every
+#  page now, including ones that already tend to update promptly --
+#  the call is cheap, and consistency beats guessing per page which
+#  integrations are fast enough to skip.
 # =====================================================================
+
+script:
+  - id: poll_clock
+    then:
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: weather.forecast_home
 
 external_components:
   - source:
@@ -51,12 +67,15 @@ color:
 # ---------------------------------------------------------------------
 #  D  Widgets
 # ---------------------------------------------------------------------
-#  No block B/C here: the component reads time and temperature itself
-#  on every render tick, and draws date/temperature/hands in one pass —
-#  no separate sensor, script, or interval needed on this side any more.
+#  No block B/C here beyond poll_clock above: the component reads time
+#  and temperature itself on every render tick, and draws date/
+#  temperature/hands in one pass — no separate sensor, drawing script,
+#  or interval needed on this side for the clock itself any more.
 lvgl:
   pages:
     - id: page_clock
+      on_load:
+        - script.execute: poll_clock
       # By LVGL default the page is opaque WHITE and sits over the
       # bottom_layer — without this line it would be white on white.
       bg_color: 0x000000

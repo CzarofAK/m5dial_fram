@@ -16,6 +16,12 @@
 #
 #  Width check y_main (montserrat_40, box top edge -44.5, r 102):
 #    available ~183 px, "100%" ≈ 100 px. Fits.
+#
+#  on_load poll (design.md §9): poll_power_1 forces a fresh push from
+#  HA for this page's entities on page_power_1's own on_load trigger.
+#  Applied to every page now, including ones that already tend to
+#  update promptly -- the call is cheap, and consistency beats
+#  guessing per page which integrations are fast enough to skip.
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -63,6 +69,31 @@ binary_sensor:
       - script.execute: draw_power_1
 
 script:
+  # Forces a fresh push from HA for this page's entities -- called
+  # from page_power_1's own on_load trigger below. See header re: why.
+  - id: poll_power_1
+    then:
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: sensor.smartshunt_ladestand
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: sensor.smartshunt_dc_bus_spannung
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: sensor.smartshunt_dc_bus_stromstarke
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: sensor.nw19939_starter_battery_state
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: switch.fram_parkmodus
+
   # The button never calls a service directly, always an act_ script.
   # That keeps block D device-independent.
   - id: act_power_1_park
@@ -198,6 +229,8 @@ esphome:
 lvgl:
   pages:
     - id: page_power_1
+      on_load:
+        - script.execute: poll_power_1
       # An LVGL page is by default an opaque WHITE object and sits over
       # the bottom_layer from the header. Without these two lines
       # everything sits on a white background (correction to design.md

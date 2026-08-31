@@ -22,6 +22,12 @@
 #  The label names the RING, not the mounting position: two bottles sit
 #  one behind the other, and concentric rings have no left and no right
 #  (design.md §3).
+#
+#  on_load poll (design.md §9): poll_gas forces a fresh push from HA
+#  for this page's entities on page_gas's own on_load trigger. Applied
+#  to every page now, including ones that already tend to update
+#  promptly -- the call is cheap, and consistency beats guessing per
+#  page which integrations are fast enough to skip.
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -42,6 +48,19 @@ sensor:
       - script.execute: draw_gas
 
 script:
+  # Forces a fresh push from HA for this page's entities -- called
+  # from page_gas's own on_load trigger below. See header re: why.
+  - id: poll_gas
+    then:
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: sensor.gas_1_stand
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: sensor.gas_2_stand
+
   - id: draw_gas
     mode: restart
     then:
@@ -220,6 +239,8 @@ esphome:
 lvgl:
   pages:
     - id: page_gas
+      on_load:
+        - script.execute: poll_gas
       # An LVGL page is by default an opaque WHITE object and sits over
       # the bottom_layer from the header. Without these two lines
       # everything sits on a white background (correction to design.md
