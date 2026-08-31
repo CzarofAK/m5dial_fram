@@ -74,6 +74,19 @@
 #  three possible values to land on, but keeps the behavior consistent
 #  and the write still debounced against a fast double-tap of the
 #  encoder.
+#
+#  Two more lag fixes, both about the DIAL not adding its own delay on
+#  top of the Truma's (user feedback: the Truma lag alone is already
+#  tedious from HA, doubling it via the dial made it "ungeniessbar") --
+#  identical to page_climate.yaml's, see that file's header for the
+#  fuller explanation:
+#  1. SOLL is now ALWAYS rendered from g_boiler_temp_pending, armed or
+#     not, instead of falling back to the stale confirmed value on
+#     disarm. g_boiler_temp_known gates the "---" placeholder.
+#  2. BOILER's button shows a local optimistic guess
+#     (g_boiler_heater_optimistic) the instant it's tapped, ahead of
+#     switch.womolin_controller_mqtt_activate_water_heater's own
+#     confirmation.
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -91,6 +104,15 @@ sensor:
     entity_id: climate.womolin_controller_mqtt_truma_water
     attribute: temperature
     on_value:
+      # Resync pending from the confirmed value, but only while NOT
+      # armed -- never fight an active edit. See header re: lag.
+      - if:
+          condition:
+            lambda: return id(g_edit_target) != 5;
+          then:
+            - lambda: |-
+                id(g_boiler_temp_pending) = id(s_boiler_target).state;
+                id(g_boiler_temp_known) = true;
       - script.execute: draw_boiler
 
 binary_sensor:
@@ -98,15 +120,38 @@ binary_sensor:
     id: s_boiler_heater_on
     entity_id: switch.womolin_controller_mqtt_activate_water_heater
     on_state:
+      # Real state just arrived -- stop trusting the optimistic guess.
+      - globals.set:
+          id: g_boiler_heater_optimistic_valid
+          value: "false"
       - script.execute: draw_boiler
 
 globals:
   # Page-local, same reasoning as page_power_2.yaml's
   # g_power_2_assist_pending / page_climate.yaml's g_climate_temp_pending.
+  # Kept in sync from s_boiler_target while not armed too -- see header.
   - id: g_boiler_temp_pending
     type: float
     restore_value: false
     initial_value: "40"
+
+  # Gates the "---" placeholder -- g_boiler_temp_pending can't be told
+  # apart from "genuinely 40°C" on its own.
+  - id: g_boiler_temp_known
+    type: bool
+    restore_value: false
+    initial_value: "false"
+
+  # Optimistic BOILER state shown instantly on tap, ahead of
+  # s_boiler_heater_on's own confirmation -- see header re: lag.
+  - id: g_boiler_heater_optimistic
+    type: bool
+    restore_value: false
+    initial_value: "false"
+  - id: g_boiler_heater_optimistic_valid
+    type: bool
+    restore_value: false
+    initial_value: "false"
 
   # Double-click cycle position (.m5dial_fram.yaml's dc_boiler_cycle):
   # 0 = arm temp SET next, 1 = toggle BOILER next.
@@ -118,6 +163,13 @@ globals:
 script:
   - id: act_boiler_heater
     then:
+      - lambda: |-
+          bool cur = id(g_boiler_heater_optimistic_valid)
+              ? id(g_boiler_heater_optimistic)
+              : (id(s_boiler_heater_on).has_state() && id(s_boiler_heater_on).state);
+          id(g_boiler_heater_optimistic) = !cur;
+          id(g_boiler_heater_optimistic_valid) = true;
+      - script.execute: draw_boiler
       - homeassistant.service:
           service: switch.toggle
           data:
@@ -137,6 +189,7 @@ script:
                 id(g_edit_target) = was_armed ? 0 : 5;
                 if (!was_armed) {
                   id(g_boiler_temp_pending) = id(s_boiler_target).has_state() ? id(s_boiler_target).state : 40.0f;
+                  id(g_boiler_temp_known) = true;
                 } else {
                   id(boiler_temp_write_debounced)->stop();
                   id(boiler_temp_write_now)->execute();
@@ -225,30 +278,35 @@ script:
             #ifdef USE_API
             if (!api_is_connected()) return std::string("SOLL ---°C");
             #endif
-            // Armed: show the pending (locally-dialed) value, not the
-            // HA-confirmed one -- see header re: lag. Tag the two
-            // known tiers (ECO/BOOST); the middle stays untagged until
-            // its real name is confirmed -- see header, don't guess it.
-            float v;
-            if (id(g_edit_target) == 5) v = id(g_boiler_temp_pending);
-            else if (id(s_boiler_target).has_state()) v = id(s_boiler_target).state;
-            else return std::string("SOLL ---°C");
+            // Always the pending value, armed or not -- see header
+            // re: lag (this is what stops SOLL jumping back to a
+            // stale number right after disarming). Tag the two known
+            // tiers (ECO/BOOST); the middle stays untagged until its
+            // real name is confirmed -- don't guess it.
+            if (!id(g_boiler_temp_known)) return std::string("SOLL ---°C");
+            float v = id(g_boiler_temp_pending);
             std::string tag = (v <= 40.0f) ? " ECO" : (v >= 80.0f) ? " BOOST" : "";
             return str_sprintf("SOLL %.0f°C", v) + tag;
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_boiler_target).has_state()) return lv_color_hex(0x555555);
+            if (!id(g_boiler_temp_known)) return lv_color_hex(0x555555);
             return lv_color_hex(0xBDC1C6);
 
       # ---- Button: boiler on/off -----------------------------------
+      # Optimistic (see header re: lag): trusts g_boiler_heater_optimistic
+      # right after a tap, until s_boiler_heater_on's own on_state
+      # clears _valid and hands authority back to the real state.
       - lvgl.label.update:
           id: lbl_boiler_heater
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("BOILER ---");
             #endif
+            if (id(g_boiler_heater_optimistic_valid)) {
+              return id(g_boiler_heater_optimistic) ? std::string("BOILER EIN") : std::string("BOILER AUS");
+            }
             if (!id(s_boiler_heater_on).has_state()) return std::string("BOILER ---");
             return id(s_boiler_heater_on).state ? std::string("BOILER EIN")
                                          : std::string("BOILER AUS");
@@ -256,6 +314,9 @@ script:
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
+            if (id(g_boiler_heater_optimistic_valid)) {
+              return id(g_boiler_heater_optimistic) ? lv_color_hex(0x2ECC71) : lv_color_hex(0xBDC1C6);
+            }
             if (!id(s_boiler_heater_on).has_state()) return lv_color_hex(0x555555);
             return id(s_boiler_heater_on).state ? lv_color_hex(0x2ECC71)
                                          : lv_color_hex(0xBDC1C6);
@@ -265,6 +326,9 @@ script:
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x202124);
             #endif
+            if (id(g_boiler_heater_optimistic_valid)) {
+              return id(g_boiler_heater_optimistic) ? lv_color_hex(0x1B5E3A) : lv_color_hex(0x202124);
+            }
             if (!id(s_boiler_heater_on).has_state()) return lv_color_hex(0x202124);
             return id(s_boiler_heater_on).state ? lv_color_hex(0x1B5E3A)
                                          : lv_color_hex(0x202124);
@@ -272,6 +336,9 @@ script:
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x3C4043);
             #endif
+            if (id(g_boiler_heater_optimistic_valid)) {
+              return id(g_boiler_heater_optimistic) ? lv_color_hex(0x2ECC71) : lv_color_hex(0x3C4043);
+            }
             if (!id(s_boiler_heater_on).has_state()) return lv_color_hex(0x3C4043);
             return id(s_boiler_heater_on).state ? lv_color_hex(0x2ECC71)
                                          : lv_color_hex(0x3C4043);

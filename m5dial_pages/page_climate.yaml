@@ -61,10 +61,36 @@
 #  Encoder feel: same lag fix as page_power_2.yaml (see that file's
 #  header) -- adjusts a local g_climate_temp_pending value and redraws
 #  from it immediately, only calling climate.set_temperature once the
-#  encoder's quiet for 400ms (or immediately on disarm). The display
-#  used to wait for the full HA-round-trip-plus-Truma-LIN echo before
-#  moving; the Truma's own ~2-4s lag is unchanged and unavoidable, but
-#  the number now tracks the knob instead of the (slow) confirmation.
+#  encoder's quiet for 400ms (or immediately on disarm). The Truma's
+#  own ~2-4s lag is unchanged and unavoidable, but the number now
+#  tracks the knob instead of the (slow) confirmation.
+#
+#  Two more lag fixes, both about the DIAL not adding its own delay on
+#  top of the Truma's (user feedback: the Truma lag alone is already
+#  tedious from HA, doubling it via the dial made it "ungeniessbar"):
+#
+#  1. SOLL is now ALWAYS rendered from g_climate_temp_pending, armed or
+#     not -- not just while armed. Disarming used to fall back to
+#     s_climate_target's last CONFIRMED value, which is exactly what's
+#     still stale for the next 2-4s after you just changed it -- so
+#     the line would visibly jump back to the old number right as you
+#     let go, before slowly catching up again. Now pending stays
+#     authoritative always; s_climate_target's on_value only resyncs
+#     it while NOT armed (never fighting an active edit), which is a
+#     no-op once the Truma actually confirms what was asked, and
+#     otherwise keeps pending accurate for the next time SOLL is
+#     tapped. g_climate_temp_known gates the "---" placeholder
+#     (nothing shown/armed yet) since a plain float can't tell "0" from
+#     "never initialized".
+#  2. The HEIZ button used to wait for switch.womolin_controller_mqtt_
+#     activate_room_heater's own confirmation (on_state) before its
+#     label/color moved at all -- another real round trip stacked on
+#     top of the Truma one. Now flips a local optimistic guess the
+#     instant it's tapped (g_climate_heater_optimistic) and shows THAT
+#     until the real switch state reports in, which then simply takes
+#     back over (g_climate_heater_optimistic_valid goes false on
+#     s_climate_heater_on's own on_state) -- self-corrects if the
+#     guess was wrong, costs nothing if it wasn't.
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -82,6 +108,15 @@ sensor:
     entity_id: climate.womolin_controller_mqtt_truma_room
     attribute: temperature
     on_value:
+      # Resync pending from the confirmed value, but only while NOT
+      # armed -- never fight an active edit. See header re: lag.
+      - if:
+          condition:
+            lambda: return id(g_edit_target) != 3;
+          then:
+            - lambda: |-
+                id(g_climate_temp_pending) = id(s_climate_target).state;
+                id(g_climate_temp_known) = true;
       - script.execute: draw_climate
 
 binary_sensor:
@@ -89,17 +124,42 @@ binary_sensor:
     id: s_climate_heater_on
     entity_id: switch.womolin_controller_mqtt_activate_room_heater
     on_state:
+      # Real state just arrived -- stop trusting the optimistic guess.
+      - globals.set:
+          id: g_climate_heater_optimistic_valid
+          value: "false"
       - script.execute: draw_climate
 
 globals:
   # Page-local (design.md §3's "On/off-only pages" precedent for
   # page-local globals applies here too): the temp being dialed while
   # armed, ahead of what HA's confirmed back (and long ahead of what
-  # the Truma's actually done -- see header re: lag).
+  # the Truma's actually done -- see header re: lag). Kept in sync
+  # from s_climate_target while not armed too, not just while turning
+  # the encoder -- see header, this is the fix for SOLL jumping back
+  # to a stale value right after disarming.
   - id: g_climate_temp_pending
     type: float
     restore_value: false
     initial_value: "20"
+
+  # Gates the "---" placeholder -- g_climate_temp_pending can't be
+  # told apart from "genuinely 20°C" on its own.
+  - id: g_climate_temp_known
+    type: bool
+    restore_value: false
+    initial_value: "false"
+
+  # Optimistic HEIZ state shown instantly on tap, ahead of
+  # s_climate_heater_on's own confirmation -- see header re: lag.
+  - id: g_climate_heater_optimistic
+    type: bool
+    restore_value: false
+    initial_value: "false"
+  - id: g_climate_heater_optimistic_valid
+    type: bool
+    restore_value: false
+    initial_value: "false"
 
   # Double-click cycle position (.m5dial_fram.yaml's dc_climate_cycle
   # calls this page's actions in turn): 0 = arm temp SET next, 1 =
@@ -112,6 +172,13 @@ globals:
 script:
   - id: act_climate_heater
     then:
+      - lambda: |-
+          bool cur = id(g_climate_heater_optimistic_valid)
+              ? id(g_climate_heater_optimistic)
+              : (id(s_climate_heater_on).has_state() && id(s_climate_heater_on).state);
+          id(g_climate_heater_optimistic) = !cur;
+          id(g_climate_heater_optimistic_valid) = true;
+      - script.execute: draw_climate
       - homeassistant.service:
           service: switch.toggle
           data:
@@ -133,6 +200,7 @@ script:
                 id(g_edit_target) = was_armed ? 0 : 3;
                 if (!was_armed) {
                   id(g_climate_temp_pending) = id(s_climate_target).has_state() ? id(s_climate_target).state : 20.0f;
+                  id(g_climate_temp_known) = true;
                 } else {
                   id(climate_temp_write_debounced)->stop();
                   id(climate_temp_write_now)->execute();
@@ -218,25 +286,31 @@ script:
             #ifdef USE_API
             if (!api_is_connected()) return std::string("SOLL ---°C");
             #endif
-            // Armed: show the pending (locally-dialed) value, not the
-            // HA-confirmed one -- see header re: lag.
-            if (id(g_edit_target) == 3) return str_sprintf("SOLL %.0f°C", id(g_climate_temp_pending));
-            if (!id(s_climate_target).has_state()) return std::string("SOLL ---°C");
-            return str_sprintf("SOLL %.0f°C", id(s_climate_target).state);
+            // Always the pending value, armed or not -- see header
+            // re: lag (this is what stops SOLL jumping back to a
+            // stale number right after disarming).
+            if (!id(g_climate_temp_known)) return std::string("SOLL ---°C");
+            return str_sprintf("SOLL %.0f°C", id(g_climate_temp_pending));
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_climate_target).has_state()) return lv_color_hex(0x555555);
+            if (!id(g_climate_temp_known)) return lv_color_hex(0x555555);
             return lv_color_hex(0xBDC1C6);
 
       # ---- Button: heater on/off --------------------------------
+      # Optimistic (see header re: lag): trusts g_climate_heater_optimistic
+      # right after a tap, until s_climate_heater_on's own on_state
+      # clears _valid and hands authority back to the real state.
       - lvgl.label.update:
           id: lbl_climate_heater
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("HEIZ ---");
             #endif
+            if (id(g_climate_heater_optimistic_valid)) {
+              return id(g_climate_heater_optimistic) ? std::string("HEIZ EIN") : std::string("HEIZ AUS");
+            }
             if (!id(s_climate_heater_on).has_state()) return std::string("HEIZ ---");
             return id(s_climate_heater_on).state ? std::string("HEIZ EIN")
                                           : std::string("HEIZ AUS");
@@ -244,6 +318,9 @@ script:
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
+            if (id(g_climate_heater_optimistic_valid)) {
+              return id(g_climate_heater_optimistic) ? lv_color_hex(0x2ECC71) : lv_color_hex(0xBDC1C6);
+            }
             if (!id(s_climate_heater_on).has_state()) return lv_color_hex(0x555555);
             return id(s_climate_heater_on).state ? lv_color_hex(0x2ECC71)
                                           : lv_color_hex(0xBDC1C6);
@@ -253,6 +330,9 @@ script:
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x202124);
             #endif
+            if (id(g_climate_heater_optimistic_valid)) {
+              return id(g_climate_heater_optimistic) ? lv_color_hex(0x1B5E3A) : lv_color_hex(0x202124);
+            }
             if (!id(s_climate_heater_on).has_state()) return lv_color_hex(0x202124);
             return id(s_climate_heater_on).state ? lv_color_hex(0x1B5E3A)
                                           : lv_color_hex(0x202124);
@@ -260,6 +340,9 @@ script:
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x3C4043);
             #endif
+            if (id(g_climate_heater_optimistic_valid)) {
+              return id(g_climate_heater_optimistic) ? lv_color_hex(0x2ECC71) : lv_color_hex(0x3C4043);
+            }
             if (!id(s_climate_heater_on).has_state()) return lv_color_hex(0x3C4043);
             return id(s_climate_heater_on).state ? lv_color_hex(0x2ECC71)
                                           : lv_color_hex(0x3C4043);
