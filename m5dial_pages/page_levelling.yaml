@@ -76,6 +76,13 @@
 #  along both axes for real clearance instead of just nudging one.
 #
 #  No button: reading only, nothing to act on from the dial.
+#
+#  on_load poll (design.md §9): poll_levelling forces a fresh push
+#  from HA for all six entities on page_levelling's own on_load
+#  trigger. Applied to every page now, including this one, even though
+#  the corner sensors don't have anything real behind them yet to poll
+#  (see the OPEN ITEM above) -- once they do, this page needs no
+#  further change.
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -116,6 +123,37 @@ sensor:
       - script.execute: draw_levelling
 
 script:
+  # Forces a fresh push from HA for this page's entities -- called
+  # from page_levelling's own on_load trigger below. See header re:
+  # why (and re: the corner sensors having nothing real behind them
+  # to poll yet).
+  - id: poll_levelling
+    then:
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: sensor.mpu6050_pitch
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: sensor.mpu6050_roll
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: sensor.mpu6050_womo_vl_cm
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: sensor.mpu6050_womo_vr_cm
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: sensor.mpu6050_womo_hl_cm
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: sensor.mpu6050_womo_hr_cm
+
   - id: draw_levelling
     mode: restart
     then:
@@ -253,6 +291,8 @@ esphome:
 lvgl:
   pages:
     - id: page_levelling
+      on_load:
+        - script.execute: poll_levelling
       bg_color: 0x000000
       bg_opa: COVER
       widgets:

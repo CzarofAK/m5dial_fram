@@ -16,6 +16,12 @@
 #  Status-line precedence (design.md §6): rank first, then damage before
 #  inconvenience. An overflowing grey tank is damage to the vehicle, an
 #  empty fresh tank is not.
+#
+#  on_load poll (design.md §9): poll_water forces a fresh push from HA
+#  for this page's entities on page_water's own on_load trigger.
+#  Applied to every page now, including ones that already tend to
+#  update promptly -- the call is cheap, and consistency beats
+#  guessing per page which integrations are fast enough to skip.
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -44,6 +50,23 @@ binary_sensor:
       - script.execute: draw_water
 
 script:
+  # Forces a fresh push from HA for this page's entities -- called
+  # from page_water's own on_load trigger below. See header re: why.
+  - id: poll_water
+    then:
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: sensor.fresh_stand
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: sensor.waste_stand
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: input_boolean.waterpump
+
   - id: act_water_pump
     then:
       - homeassistant.service:
@@ -253,6 +276,8 @@ esphome:
 lvgl:
   pages:
     - id: page_water
+      on_load:
+        - script.execute: poll_water
       # An LVGL page is by default an opaque WHITE object and sits over
       # the bottom_layer from the header. Without these two lines
       # everything sits on a white background (correction to design.md

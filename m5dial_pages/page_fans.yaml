@@ -36,6 +36,15 @@
 #  adjusts a local g_fans_board_pending value and redraws from it
 #  immediately, only calling number.set_value once the encoder's quiet
 #  for 400ms (or immediately on disarm).
+#
+#  on_load poll (design.md §9): poll_fans forces a fresh push from HA
+#  for number.fan_speed_control on page_fans's own on_load trigger.
+#  Applied to every page now, including ones that already tend to
+#  update promptly -- the call is cheap, and consistency beats
+#  guessing per page which integrations are fast enough to skip. NOT
+#  polling number.PLACEHOLDER_hvac_fan_speed -- that entity doesn't
+#  exist, forcing an update on it would just log a warning in HA for
+#  nothing; add it once the real HVAC entity replaces the placeholder.
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -63,6 +72,16 @@ globals:
     initial_value: "0"
 
 script:
+  # Forces a fresh push from HA for this page's real entity -- called
+  # from page_fans's own on_load trigger below. See header re: why
+  # (and re: not polling the HVAC placeholder).
+  - id: poll_fans
+    then:
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: number.fan_speed_control
+
   - id: act_fans_arm_board
     then:
       - lambda: |-
@@ -252,6 +271,8 @@ esphome:
 lvgl:
   pages:
     - id: page_fans
+      on_load:
+        - script.execute: poll_fans
       bg_color: 0x000000
       bg_opa: COVER
       widgets:
