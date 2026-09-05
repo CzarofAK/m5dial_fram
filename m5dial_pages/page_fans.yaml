@@ -4,18 +4,34 @@
 #
 #  Double ring (design.md §4), same geometry as page_gas.yaml:
 #    outer 224 x 224   FANBOARD -- real, number.fan_speed_control
-#    inner 200 x 200   HVAC     -- PLACEHOLDER. Sprinter's built-in
-#                                  HVAC fan; no entity yet, the PCB
-#                                  for it doesn't exist yet either.
-#                                  Swap the entity_id once it does.
+#    inner 200 x 200   HVAC     -- real, number.hvac_fan_battery. This
+#                                  is the Sprinter's OEM blower motor,
+#                                  driven by the separate relay-2ch-hvac
+#                                  ESPHome device (2 relays + MD30C PWM
+#                                  driver) via a template number entity
+#                                  named "HVAC Fan (Battery)" -- entity
+#                                  id VERIFIED against the real HA
+#                                  registry name-slug convention, not
+#                                  guessed; re-check if the device's
+#                                  `name:` ever changes. That device's
+#                                  own `set_action` only actually moves
+#                                  the motor when `battery_mode_allowed`
+#                                  is true there (ignition off + an
+#                                  after-run delay) -- setting it here
+#                                  while driving is accepted but has no
+#                                  effect until the van is parked; that
+#                                  logic lives entirely on the relay
+#                                  board's side, not duplicated here.
+#                                  Device steps in 10% increments (its
+#                                  own `step: 10`), so this page mirrors
+#                                  that instead of FANBOARD's 5%.
 #
 #  Interaction: tap a column's SET button to arm it (design.md §14,
 #  g_edit_target in .m5dial_fram.yaml) -- the encoder then adjusts
-#  that value in 5% steps instead of paging, until SET is tapped
+#  that value (5% steps for FANBOARD, 10% for HVAC, matching each
+#  entity's own step size) instead of paging, until SET is tapped
 #  again. Armed is shown by the SET button's border lighting up, and
-#  by the footer hint. Both columns share the mechanism; only
-#  FANBOARD does anything real yet -- HVAC's adjust scripts are stubs
-#  (see below).
+#  by the footer hint. Both columns now write to real entities.
 #
 #  Double-click on the physical front button cycles between the two
 #  columns' SET (.m5dial_fram.yaml's double-click handler -- home is
@@ -30,21 +46,20 @@
 #  encoder lock never released). Also correct if a touch tap (the
 #  on-screen SET buttons) changes the armed target in between
 #  double-clicks -- the cycle reads real state, not a remembered step.
+#  Leaving either column (via double-click OR re-tapping its own SET)
+#  flushes that column's debounced write immediately, same as before.
 #
-#  Encoder feel (FANBOARD only, HVAC has no real entity to write to
-#  yet): same lag fix as page_power_2.yaml (see that file's header) --
-#  adjusts a local g_fans_board_pending value and redraws from it
-#  immediately, only calling number.set_value once the encoder's quiet
-#  for 400ms (or immediately on disarm).
+#  Encoder feel (both columns): same lag fix as page_power_2.yaml (see
+#  that file's header) -- adjusts a local g_fans_*_pending value and
+#  redraws from it immediately, only calling number.set_value once the
+#  encoder's quiet for 400ms (or immediately on disarm).
 #
 #  on_load poll (design.md §9): poll_fans forces a fresh push from HA
-#  for number.fan_speed_control on page_fans's own on_load trigger.
-#  Applied to every page now, including ones that already tend to
-#  update promptly -- the call is cheap, and consistency beats
-#  guessing per page which integrations are fast enough to skip. NOT
-#  polling number.PLACEHOLDER_hvac_fan_speed -- that entity doesn't
-#  exist, forcing an update on it would just log a warning in HA for
-#  nothing; add it once the real HVAC entity replaces the placeholder.
+#  for number.fan_speed_control and number.hvac_fan_battery on
+#  page_fans's own on_load trigger. Applied to every page now,
+#  including ones that already tend to update promptly -- the call is
+#  cheap, and consistency beats guessing per page which integrations
+#  are fast enough to skip.
 # =====================================================================
 
 # ---------------------------------------------------------------------
@@ -59,7 +74,7 @@ sensor:
 
   - platform: homeassistant
     id: s_fans_hvac_speed
-    entity_id: number.PLACEHOLDER_hvac_fan_speed
+    entity_id: number.hvac_fan_battery
     on_value:
       - script.execute: draw_fans
 
@@ -71,16 +86,26 @@ globals:
     restore_value: false
     initial_value: "0"
 
+  - id: g_fans_hvac_pending
+    type: float
+    restore_value: false
+    initial_value: "0"
+
 script:
-  # Forces a fresh push from HA for this page's real entity -- called
-  # from page_fans's own on_load trigger below. See header re: why
-  # (and re: not polling the HVAC placeholder).
+  # Forces a fresh push from HA for this page's two real entities --
+  # called from page_fans's own on_load trigger below. Two separate
+  # calls, not a list -- homeassistant.service's data:/data_template:
+  # values must be plain strings (design.md §9).
   - id: poll_fans
     then:
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
             entity_id: number.fan_speed_control
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: number.hvac_fan_battery
 
   - id: act_fans_arm_board
     then:
@@ -97,9 +122,15 @@ script:
 
   - id: act_fans_arm_hvac
     then:
-      - globals.set:
-          id: g_edit_target
-          value: !lambda "return (id(g_edit_target) == 2) ? 0 : 2;"
+      - lambda: |-
+          bool was_armed = (id(g_edit_target) == 2);
+          id(g_edit_target) = was_armed ? 0 : 2;
+          if (!was_armed) {
+            id(g_fans_hvac_pending) = id(s_fans_hvac_speed).has_state() ? id(s_fans_hvac_speed).state : 0.0f;
+          } else {
+            id(fans_hvac_write_debounced)->stop();
+            id(fans_hvac_write_now)->execute();
+          }
       - script.execute: draw_fans
 
   # Called by .m5dial_fram.yaml's double-click handler -- see header
@@ -113,8 +144,11 @@ script:
           if (cur == 1) {
             id(fans_board_write_debounced)->stop();
             id(fans_board_write_now)->execute();
+            id(g_fans_hvac_pending) = id(s_fans_hvac_speed).has_state() ? id(s_fans_hvac_speed).state : 0.0f;
             id(g_edit_target) = 2;
           } else if (cur == 2) {
+            id(fans_hvac_write_debounced)->stop();
+            id(fans_hvac_write_now)->execute();
             id(g_edit_target) = 0;
           } else {
             id(g_fans_board_pending) = id(s_fans_board_speed).has_state() ? id(s_fans_board_speed).state : 0.0f;
@@ -162,17 +196,45 @@ script:
       - delay: 400ms
       - script.execute: fans_board_write_now
 
-  # PLACEHOLDER: no HVAC fan entity yet. Wired up so target 2 already
-  # works end-to-end once one exists -- give this the same
-  # number.set_value shape as act_fans_speed_up/_down above, pointed
-  # at the real entity_id.
+  # 10%-step (matches number.hvac_fan_battery's own `step: 10`),
+  # clamped 0-100. Same local-pending + debounced-write shape as
+  # FANBOARD above (see header re: lag).
   - id: act_fans_hvac_up
     then:
-      - logger.log: "HVAC fan adjust: no entity yet"
+      - lambda: |-
+          float v = id(g_fans_hvac_pending) + 10.0f;
+          if (v > 100.0f) v = 100.0f;
+          id(g_fans_hvac_pending) = v;
+      - script.execute: draw_fans
+      - script.execute: fans_hvac_write_debounced
 
   - id: act_fans_hvac_down
     then:
-      - logger.log: "HVAC fan adjust: no entity yet"
+      - lambda: |-
+          float v = id(g_fans_hvac_pending) - 10.0f;
+          if (v < 0.0f) v = 0.0f;
+          id(g_fans_hvac_pending) = v;
+      - script.execute: draw_fans
+      - script.execute: fans_hvac_write_debounced
+
+  # The actual write, split from the debounce delay so disarming can
+  # call it immediately (act_fans_arm_hvac / dc_fans_cycle above).
+  - id: fans_hvac_write_now
+    then:
+      - homeassistant.service:
+          service: number.set_value
+          data:
+            entity_id: number.hvac_fan_battery
+          data_template:
+            value: "{{ val }}"
+          variables:
+            val: !lambda "return str_sprintf(\"%.0f\", id(g_fans_hvac_pending));"
+
+  - id: fans_hvac_write_debounced
+    mode: restart
+    then:
+      - delay: 400ms
+      - script.execute: fans_hvac_write_now
 
   - id: draw_fans
     mode: restart
@@ -194,10 +256,13 @@ script:
               if (!id(s_fans_board_speed).has_state()) return lv_color_hex(0x555555);
               return lv_color_hex(0x4A9EFF);
 
-      # ---- Inner ring: HVAC (placeholder) -----------------------------
+      # ---- Inner ring: HVAC --------------------------------------------
       - lvgl.arc.update:
           id: arc_fans_hvac
           value: !lambda |-
+            // Armed: show the pending (locally-dialed) value, not the
+            // HA-confirmed one -- see header re: lag.
+            if (id(g_edit_target) == 2) return id(g_fans_hvac_pending);
             if (!id(s_fans_hvac_speed).has_state()) return 0.0f;
             return id(s_fans_hvac_speed).state;
           indicator:
@@ -230,13 +295,14 @@ script:
             if (id(g_edit_target) == 1) return lv_color_hex(0x4A9EFF);
             return lv_color_hex(0x3C4043);
 
-      # ---- Inner column: HVAC (placeholder) -----------------------------
+      # ---- Inner column: HVAC --------------------------------------------
       - lvgl.label.update:
           id: lbl_fans_pct_hvac
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("---%");
             #endif
+            if (id(g_edit_target) == 2) return str_sprintf("%.0f%%", id(g_fans_hvac_pending));
             if (!id(s_fans_hvac_speed).has_state()) return std::string("---%");
             return str_sprintf("%.0f%%", id(s_fans_hvac_speed).state);
           text_color: !lambda |-
@@ -349,7 +415,7 @@ lvgl:
             on_click:
               - script.execute: act_fans_arm_board
 
-        # ---- Inner column: HVAC (placeholder) --------------------------
+        # ---- Inner column: HVAC ----------------------------------------
         - label:
             id: lbl_fans_cap_hvac
             align: CENTER

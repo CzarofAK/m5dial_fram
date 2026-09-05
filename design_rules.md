@@ -588,11 +588,12 @@ real entity to poll — `page_clock`, `page_power_1`, `page_power_2`,
 `page_climate`, `page_boiler`, `page_fans`, `page_lights_outside`,
 `page_entrance`, `page_ipixel` — per user decision, deliberately not
 split by guessing which integrations are already fast enough to skip:
-the call is cheap, consistency won that tradeoff. The one exception is
-never a whole page, only individual PLACEHOLDER entities that don't
-exist yet (`page_fans`'s HVAC column) — polling those would just log a
-warning in HA for nothing; add the poll once the real entity replaces
-the placeholder.
+the call is cheap, consistency won that tradeoff. Every page's entities
+are polled now, including `page_fans`'s HVAC column
+(`number.hvac_fan_battery`, once its PLACEHOLDER was replaced with the
+real entity from the separate relay-2ch-hvac ESPHome device). The only
+still-valid exception would be an entity that plain doesn't exist yet —
+polling that would just log a warning in HA for nothing.
 
 ---
 
@@ -853,7 +854,7 @@ one line each) before relying on it.
 | 6 | `levelling` | Spirit level (bubble, MPU6050) + per-corner cm-to-add (VL/VR/HL/HR, from four already-computed sensors) | implemented |
 | 7 | `climate` | Truma Combi 4 (gas only) room-heating side, via the `womolin_controller` MQTT integration's activate switch + climate entity; AC not installed yet; fan mode/fault dropped pending a confirmed entity | implemented |
 | 8 | `boiler` | Truma Combi 4 water-heating side, same `womolin_controller` integration as `climate` | implemented |
-| 9 | `fans` | Fan board (real) + Sprinter HVAC fan (**placeholder** — that PCB doesn't exist yet) | implemented |
+| 9 | `fans` | Fan board (`number.fan_speed_control`) + Sprinter HVAC fan (`number.hvac_fan_battery`, real — driven by the separate relay-2ch-hvac ESPHome device; that board only actually moves the motor when parked, this page just sets the desired value) | implemented |
 | 10 | `lights_outside` | Entrance light (two switches, driven together), awning light — both plain switches, not the `light` domain | implemented |
 | 11 | `entrance` | Step, door lock — rows grouped by purpose: REIN+ZU (securing to drive) / RAUS+AUF (arriving), not by device; no double-click shortcut (safety) | implemented |
 | 12 | `ipixel` | On/off (`input_boolean`) + per-side LED status (two switches) | implemented |
