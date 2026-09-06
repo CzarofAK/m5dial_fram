@@ -693,13 +693,55 @@ reusable by any dial in the project, not just this one.
   turned out not to be — no scheme here is guess-proof, re-check
   against the registry directly if either device's `name:` ever
   changes, don't re-derive from the slug convention.
-* **FANBOARD's four per-channel readbacks, not yet surfaced.** Beyond
-  the one combined setpoint (`number.fan_board_fan_speed`, adjustable
-  above), the fan board also reports four individual channel speeds:
-  `sensor.fan_board_fan_speed_1` through `_4`. Not read anywhere yet —
-  pending a decision on whether/how to show them on `page_fans` (see
-  §15's fan/climate standards discussion; four more numbers don't fit
-  the existing double-ring shape without changing it).
+* **~~Climate/boiler interlock.~~** New standard, built for
+  `page_climate`/`page_boiler`, meant to generalize to any future AC
+  control the same way: user report — turning HEIZUNG/BOILER on or off
+  from the dial let SOLL (the target-temperature arm) keep being
+  adjusted the whole time the Truma took (2-4s+) to confirm the real
+  switch state, and the resulting writes just silently did nothing —
+  "everything looked adjustable, none of it visibly did anything".
+  SOLL's arm action already refused to ARM while not confirmed-on, but
+  nothing stopped an ALREADY-armed SOLL from staying armed once the
+  confirmed state flipped back to off. Now: (1) the heater/boiler
+  switch's `on_state` auto-disarms (flushing any pending write first)
+  the instant the CONFIRMED state goes to off while its target is
+  armed; (2) the SOLL button/label render a third, visually distinct
+  LOCKED state (dim border + dim label) whenever the device isn't
+  confirmed on, instead of looking identical to the normal
+  idle-available state; (3) the footer shows "HEIZUNG STARTET" /
+  "BOILER STARTET" during the specific window where the optimistic
+  guess already says on but confirmation hasn't arrived; (4) the
+  double-click cycle only advances past its "arm" step once arming
+  actually happened, instead of advancing regardless and flip-flopping
+  the switch on/off if double-clicked again mid-confirmation. The
+  general shape — a device's own confirmed on/off state gates its
+  dependent target control, both in logic and visibly — is the pattern
+  to copy for a future AC control, not a mode-cycle button (considered
+  and dropped: the user's actual ask was this interlock, not a
+  unified AUS/HEIZEN/KÜHLEN mode selector).
+* **~~Two-switch pages: wider spacing, more legible status.~~** User
+  report ("Sachen weiter auseinander, Status besser erkennbar") on
+  `page_lights_outside`/`page_entrance` — confirmed in scope for just
+  these two, not the still-reserved `page_lights_inside`. Both pages'
+  button columns/rows moved further from center (still comfortably
+  inside r=120 — see each file's own header for the new corner-radius
+  math): `page_lights_outside` ±48 → ±60, `page_entrance`'s row 1
+  ±48 → ±58 and row 2 ±42 → ±54. `page_lights_outside` additionally
+  gained a second status channel: the column caption label (EINGANG/
+  MARKISE) now carries the on-state color too (lit/dim), not just the
+  button fill — the same idiom design.md §3 already uses for gas/
+  water's column label carrying its ring's color, so this isn't a new
+  invented convention. `page_entrance` has no per-row status to
+  amplify (its buttons are momentary fire-once actions, not a stable
+  on/off state), so only the spacing changed there.
+* **~~FANBOARD's four per-channel readbacks, not yet surfaced.~~** Built,
+  per user decision: not shown individually (four more numbers don't
+  fit the double-ring shape) — instead `page_fans`'s `draw_fans` shows
+  their Ø (average) on `y_line2` (otherwise unused on this page) plus
+  a small red dot that lights up when any one channel is > 15
+  percentage points off that average. The 15-point tolerance is a
+  guess, not a measured one — revisit on the device, same status as
+  the boiler tiers/levelling cm thresholds below.
 * **Color of the secondary ring.** `0x9AA0A6` is set, but only judged
   in the simulator. Decide on the device whether the ring next to it
   is too loud or too quiet.
@@ -828,16 +870,38 @@ reusable by any dial in the project, not just this one.
   written to only ever consume four finished entities (see its own
   header), so nothing here needs to change once those HA-side sensors
   exist.
-* **~~Special characters.~~** Turned out to be a real bug, not a
-  someday concern: every Ä/Ö/Ü/ä/ö/ü/ß on the device showed as a tofu
-  box — LVGL's built-in `montserrat_NN` fonts are ASCII-only, no
-  Latin-1, and ESPHome can't add glyphs to an already-compiled font.
-  Fixed by switching to custom-rasterized fonts (`.m5dial_fram.yaml`'s
+* **Special characters — still reported broken on the device, audited,
+  no further code bug found.** Every Ä/Ö/Ü/ä/ö/ü/ß showed as a tofu box
+  under LVGL's built-in `montserrat_NN` fonts (ASCII-only, no Latin-1;
+  ESPHome can't add glyphs to an already-compiled font) — fixed once
+  already by switching to custom-rasterized fonts (`.m5dial_fram.yaml`'s
   `font:` block, `font_12`/`_16`/`_24`/`_40`) with an explicit glyph
-  list covering what's actually used, umlauts included. Not yet
-  confirmed on the device — next flash should show it either fixed or
-  not. The middle dot `·` is still untested and still avoided; add it
-  to the glyph list first if it's ever needed.
+  list. User report (2026-09-06): still seeing tofu boxes after that
+  fix, with an explicit warning not to repeat the smart-ebl-display
+  repo's OWN umlaut bug — there, the glyph list was a `|-` block
+  scalar with the leading space meant to be its first character, and
+  YAML's block-scalar indentation stripping silently ate exactly that
+  character, so every plain space (not just umlauts) rendered as a
+  tofu box too. Audited this repo's version specifically against that
+  failure mode and it does NOT have it: the glyph string here is a
+  quoted flow scalar (one line, in quotes), which has no such stripping
+  rule, and its leading space is intact. Also checked and ruled out:
+  every non-ASCII character actually used in any page's `text:`/lambda
+  strings is in the glyph list (cross-checked programmatically), and
+  no widget's `text_font:` was left pointing at a bare `montserrat_NN`
+  (only page_clock's `date_font`/`temperature_font` still are, and
+  neither renders German text). So the glyph declaration itself looks
+  correct in the current source — the leading theory is that the
+  device simply hadn't been reflashed since this fix landed. Still
+  open: confirm on a fresh flash; if it's STILL broken after that,
+  the bug is somewhere this audit didn't reach (worth checking next:
+  whether `gfonts://Montserrat` without an explicit weight actually
+  ships the accented glyphs it claims to, by trying a pinned weight
+  like `gfonts://Montserrat@700` or a local TTF instead). The middle
+  dot `·` is still untested and still avoided; add it to the glyph
+  list first if it's ever needed — the same one-line-string rule
+  applies to any future addition (Ø, added for `page_fans`'s channel
+  average, already follows it).
 * **Visual height of the main value.** `72%` and `540 W` sit on the
   same `y_main` but appear to be at different heights, because the
   percent sign reaches further up. Only decide whether this is a

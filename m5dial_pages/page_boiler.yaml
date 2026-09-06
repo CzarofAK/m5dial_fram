@@ -88,6 +88,29 @@
 #     switch.womolin_controller_mqtt_activate_water_heater's own
 #     confirmation.
 #
+#  Interlock (user report, new standard -- shared with page_climate.yaml,
+#  see that file's header for the fuller rationale; applies to any
+#  future AC control the same way): BOILER SOLL is only actually
+#  USABLE while confirmed on, not merely shown as on via the optimistic
+#  guess above. Before this fix, an already-armed SOLL stayed armed
+#  even after the confirmed state flipped back to off, so the encoder
+#  kept "working" and kept writing a target the Truma was no longer
+#  listening to -- the reported "riesen Durcheinander". Now:
+#  1. s_boiler_heater_on's on_state auto-disarms (flushing the pending
+#     write first) the moment the CONFIRMED state goes to off while
+#     target 5 is armed.
+#  2. btn_boiler_temp_set/lbl_boiler_temp_set (draw_boiler) render a
+#     third, visually distinct LOCKED state (dim border, dim label)
+#     whenever BOILER isn't confirmed on, instead of looking identical
+#     to the normal idle/available state.
+#  3. The footer shows "BOILER STARTET" during the window where the
+#     optimistic guess already says on but the real confirmation hasn't
+#     arrived yet.
+#  4. dc_boiler_cycle (below) only advances past its "arm" step once
+#     arming actually happened, instead of advancing regardless and
+#     flip-flopping the heater on/off if double-clicked again during
+#     the confirmation lag.
+#
 #  on_load poll (design.md §9): HA only pushes an entity's CURRENT
 #  value to this device at API-connect time if HA already has one --
 #  an entity that's still unknown/unavailable at that moment sends
@@ -136,6 +159,19 @@ binary_sensor:
       - globals.set:
           id: g_boiler_heater_optimistic_valid
           value: "false"
+      # Interlock (see header): if SOLL was armed and the CONFIRMED
+      # state just went to off, disarm it now instead of leaving the
+      # encoder live on a target that can't take effect any more.
+      - if:
+          condition:
+            lambda: |-
+              return id(g_edit_target) == 5 &&
+                     !(id(s_boiler_heater_on).has_state() && id(s_boiler_heater_on).state);
+          then:
+            - lambda: |-
+                id(boiler_temp_write_debounced)->stop();
+                id(boiler_temp_write_now)->execute();
+                id(g_edit_target) = 0;
       - script.execute: draw_boiler
 
 globals:
@@ -222,18 +258,28 @@ script:
       - script.execute: draw_boiler
 
   # Called by .m5dial_fram.yaml's double-click handler -- see header.
+  # Interlock follow-up (same fix as page_climate.yaml's dc_climate_cycle,
+  # see that file's comment for the fuller rationale): position only
+  # advances past the "arm" step once arming actually happened.
   - id: dc_boiler_cycle
     then:
       - if:
           condition:
             lambda: return id(g_boiler_dc_pos) == 0;
           then:
-            - script.execute: act_boiler_arm_temp
+            - if:
+                condition:
+                  lambda: return id(s_boiler_heater_on).has_state() && id(s_boiler_heater_on).state;
+                then:
+                  - script.execute: act_boiler_arm_temp
+                  - globals.set:
+                      id: g_boiler_dc_pos
+                      value: "1"
           else:
             - script.execute: act_boiler_heater
-      - globals.set:
-          id: g_boiler_dc_pos
-          value: !lambda "return (id(g_boiler_dc_pos) + 1) % 2;"
+            - globals.set:
+                id: g_boiler_dc_pos
+                value: "0"
 
   # Three fixed tiers, not a continuous range -- see header. Clamped
   # at the ends, not wrapping (consistent with every other
@@ -369,13 +415,24 @@ script:
                                          : lv_color_hex(0x3C4043);
 
       # ---- Row 2: SET, arms water temp (target 5) -----------------------
+      # Interlock (see header): three visual states, not two -- locked
+      # (BOILER not confirmed on) reads differently from idle-available
+      # and from armed, otherwise the button looked identical whether
+      # or not tapping it actually did anything.
       - lvgl.widget.update:
           id: btn_boiler_temp_set
           border_color: !lambda |-
             if (id(g_edit_target) == 5) return lv_color_hex(0x4A9EFF);
+            if (!(id(s_boiler_heater_on).has_state() && id(s_boiler_heater_on).state)) return lv_color_hex(0x2A2C2E);
             return lv_color_hex(0x3C4043);
+      - lvgl.label.update:
+          id: lbl_boiler_temp_set
+          text_color: !lambda |-
+            if (id(g_edit_target) == 5) return lv_color_hex(0xBDC1C6);
+            if (!(id(s_boiler_heater_on).has_state() && id(s_boiler_heater_on).state)) return lv_color_hex(0x555555);
+            return lv_color_hex(0xBDC1C6);
 
-      # ---- Footer: edit-mode hint ---------------------------------------
+      # ---- Footer: edit-mode hint / interlock hint -----------------------
       - lvgl.label.update:
           id: lbl_boiler_status
           text: !lambda |-
@@ -383,6 +440,9 @@ script:
             if (!api_is_connected()) return std::string("KEINE VERBINDUNG");
             #endif
             if (id(g_edit_target) == 5) return std::string("DREHEN ZUM ÄNDERN");
+            if (id(g_boiler_heater_optimistic_valid) && id(g_boiler_heater_optimistic) &&
+                !(id(s_boiler_heater_on).has_state() && id(s_boiler_heater_on).state))
+              return std::string("BOILER STARTET");
             return std::string("");
           text_color: !lambda |-
             #ifdef USE_API
@@ -456,6 +516,7 @@ lvgl:
             border_color: 0x3C4043
             widgets:
               - label:
+                  id: lbl_boiler_temp_set
                   align: CENTER
                   text: "SOLL"
                   text_font: font_16

@@ -41,6 +41,16 @@
 #  should feel like the equally-sized sibling of that, not an
 #  afterthought.
 #
+#  2nd readability pass (user report: "Sachen weiter auseinander,
+#  Status besser erkennbar"): widened again, ±48 -> ±60 (corner radius
+#  99.3 at 76x32/rad16 -- still clear of r=120). Status recognizability
+#  also gets a second channel, not just the button fill: the caption
+#  label (EINGANG/MARKISE) now carries the on-state color too
+#  (0xBDC1C6 lit / 0x555555 dim), the same idiom design.md §3 already
+#  uses for gas/water's column label carrying its ring's color -- a
+#  glance at the top of the column now already tells on/off, the
+#  button fill is confirmation rather than the only signal.
+#
 #  Double-click on the physical front button cycles between the two
 #  switches (.m5dial_fram.yaml's double-click handler -- home is
 #  long-press-only here now): 1st click toggles EINGANG, 2nd toggles
@@ -161,6 +171,20 @@ script:
     mode: restart
     then:
       # ---- Entrance light (either switch on = EIN) -------------------
+      # Status legibility follow-up (user report: state hard to tell
+      # at a glance) -- the caption label now carries the on-state too,
+      # not just the button fill, same idiom design.md §3 already uses
+      # for the gas/water column label carrying its ring's color.
+      - lvgl.label.update:
+          id: lbl_lights_cap_entrance
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_lights_entrance_pir).has_state() || !id(s_lights_entrance_step).has_state())
+              return lv_color_hex(0x555555);
+            bool on = id(s_lights_entrance_pir).state || id(s_lights_entrance_step).state;
+            return on ? lv_color_hex(0xBDC1C6) : lv_color_hex(0x555555);
       - lvgl.label.update:
           id: lbl_lights_entrance
           text: !lambda |-
@@ -199,6 +223,14 @@ script:
             return on ? lv_color_hex(0x2ECC71) : lv_color_hex(0x3C4043);
 
       # ---- Awning light -----------------------------------------
+      - lvgl.label.update:
+          id: lbl_lights_cap_awning
+          text_color: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return lv_color_hex(0x555555);
+            #endif
+            if (!id(s_lights_awning).has_state()) return lv_color_hex(0x555555);
+            return id(s_lights_awning).state ? lv_color_hex(0xBDC1C6) : lv_color_hex(0x555555);
       - lvgl.label.update:
           id: lbl_lights_awning
           text: !lambda |-
@@ -251,7 +283,7 @@ lvgl:
         - label:
             id: lbl_lights_cap_entrance
             align: CENTER
-            x: -48
+            x: -60
             y: ${y_cap}
             text: "EINGANG"
             text_font: font_12
@@ -259,7 +291,7 @@ lvgl:
         - button:
             id: btn_lights_entrance
             align: CENTER
-            x: -48
+            x: -60
             y: ${y_row}
             width: 76
             height: 32
@@ -280,7 +312,7 @@ lvgl:
         - label:
             id: lbl_lights_cap_awning
             align: CENTER
-            x: 48
+            x: 60
             y: ${y_cap}
             text: "MARKISE"
             text_font: font_12
@@ -288,7 +320,7 @@ lvgl:
         - button:
             id: btn_lights_awning
             align: CENTER
-            x: 48
+            x: 60
             y: ${y_row}
             width: 76
             height: 32

@@ -92,6 +92,36 @@
 #     s_climate_heater_on's own on_state) -- self-corrects if the
 #     guess was wrong, costs nothing if it wasn't.
 #
+#  Interlock (user report, new standard -- also applies to
+#  page_boiler.yaml, and to any future AC control the same way): SOLL
+#  is only actually USABLE while the heater is CONFIRMED on -- not
+#  merely shown as on via the optimistic guess above. Before this fix,
+#  arming was already guarded by the confirmed state (below), but
+#  nothing stopped an ALREADY-armed SOLL from staying armed once the
+#  heater's confirmed state flipped back to off (manually, or from
+#  elsewhere in HA) -- the encoder kept "working" and kept writing a
+#  target the Truma was no longer listening to, which is exactly the
+#  "riesen Durcheinander" reported: everything looked adjustable, none
+#  of it visibly did anything. Now:
+#  1. s_climate_heater_on's on_state auto-disarms (flushes the pending
+#     write first) the moment the CONFIRMED state goes to off while
+#     target 3 is armed -- the encoder then falls back to page
+#     navigation instead of quietly editing a locked-out target.
+#  2. btn_climate_temp_set/lbl_climate_temp_set (draw_climate) render a
+#     third, visually distinct LOCKED state (dim border, dim label)
+#     whenever the heater isn't confirmed on -- previously this looked
+#     identical to the normal idle/available state, so tapping it did
+#     nothing with no visible reason why.
+#  3. The footer shows "HEIZUNG STARTET" during the specific window
+#     where the optimistic guess already says on but the real
+#     confirmation hasn't arrived yet -- the one case a driver could
+#     otherwise read as "broken" rather than "still confirming".
+#  4. dc_climate_cycle (below) only advances past its "arm" step once
+#     arming actually happened -- the old version advanced regardless,
+#     so double-clicking again during the confirmation lag called
+#     act_climate_heater next and flip-flopped the heater on/off for as
+#     long as the lag lasted.
+#
 #  on_load poll (design.md §9): HA only pushes an entity's CURRENT
 #  value to this device at API-connect time if HA already has one --
 #  an entity that's still unknown/unavailable at that moment sends
@@ -140,6 +170,26 @@ binary_sensor:
       - globals.set:
           id: g_climate_heater_optimistic_valid
           value: "false"
+      # Interlock (user report: turning HEIZUNG on/off from the dial
+      # let SOLL keep being adjusted the whole time the Truma took to
+      # confirm, and the resulting writes just silently did nothing --
+      # "riesen Durcheinander"). SOLL's arm button already refused to
+      # ARM while not confirmed-on (act_climate_arm_temp's own guard,
+      # below); this closes the other half: if it was already armed
+      # and the CONFIRMED state just went to off, disarm it right now
+      # instead of leaving the encoder live on a target that can't
+      # take effect any more. Flushes any not-yet-sent edit first, same
+      # as a manual disarm would.
+      - if:
+          condition:
+            lambda: |-
+              return id(g_edit_target) == 3 &&
+                     !(id(s_climate_heater_on).has_state() && id(s_climate_heater_on).state);
+          then:
+            - lambda: |-
+                id(climate_temp_write_debounced)->stop();
+                id(climate_temp_write_now)->execute();
+                id(g_edit_target) = 0;
       - script.execute: draw_climate
 
 globals:
@@ -233,18 +283,33 @@ script:
       - script.execute: draw_climate
 
   # Called by .m5dial_fram.yaml's double-click handler -- see header.
+  # Interlock follow-up: position only advances past the "arm" step
+  # when arming actually happened (heater confirmed on) -- the old
+  # version advanced unconditionally, so double-clicking again while
+  # the Truma was still confirming a just-requested "on" would call
+  # act_climate_heater next, i.e. toggle it straight back off, and the
+  # cycle after that would toggle it back on again, and so on for as
+  # long as the confirmation lag lasted. Now a blocked arm attempt
+  # just retries the same step next time instead.
   - id: dc_climate_cycle
     then:
       - if:
           condition:
             lambda: return id(g_climate_dc_pos) == 0;
           then:
-            - script.execute: act_climate_arm_temp
+            - if:
+                condition:
+                  lambda: return id(s_climate_heater_on).has_state() && id(s_climate_heater_on).state;
+                then:
+                  - script.execute: act_climate_arm_temp
+                  - globals.set:
+                      id: g_climate_dc_pos
+                      value: "1"
           else:
             - script.execute: act_climate_heater
-      - globals.set:
-          id: g_climate_dc_pos
-          value: !lambda "return (id(g_climate_dc_pos) + 1) % 2;"
+            - globals.set:
+                id: g_climate_dc_pos
+                value: "0"
 
   # 1°C step, clamped 5-30 (a guess at a sane range, not the Truma's
   # actual documented min/max -- verify on the device).
@@ -373,13 +438,26 @@ script:
                                           : lv_color_hex(0x3C4043);
 
       # ---- Row 2: SET button, arms room temp (target 3) ----------------
+      # Interlock (see binary_sensor's on_state and act_climate_arm_temp's
+      # own guard): SOLL only actually works while the heater is
+      # CONFIRMED on, not just optimistically shown as on. Three visual
+      # states, not two -- unavailable/locked reads differently from
+      # armed and from idle-but-usable, otherwise the button looks the
+      # same whether or not tapping it does anything.
       - lvgl.widget.update:
           id: btn_climate_temp_set
           border_color: !lambda |-
             if (id(g_edit_target) == 3) return lv_color_hex(0x4A9EFF);
+            if (!(id(s_climate_heater_on).has_state() && id(s_climate_heater_on).state)) return lv_color_hex(0x2A2C2E);
             return lv_color_hex(0x3C4043);
+      - lvgl.label.update:
+          id: lbl_climate_temp_set
+          text_color: !lambda |-
+            if (id(g_edit_target) == 3) return lv_color_hex(0xBDC1C6);
+            if (!(id(s_climate_heater_on).has_state() && id(s_climate_heater_on).state)) return lv_color_hex(0x555555);
+            return lv_color_hex(0xBDC1C6);
 
-      # ---- Footer: edit-mode hint ---------------------------------------
+      # ---- Footer: edit-mode hint / interlock hint -----------------------
       - lvgl.label.update:
           id: lbl_climate_status
           text: !lambda |-
@@ -387,6 +465,12 @@ script:
             if (!api_is_connected()) return std::string("KEINE VERBINDUNG");
             #endif
             if (id(g_edit_target) == 3) return std::string("DREHEN ZUM ÄNDERN");
+            // Optimistic tap already shown, real confirmation still
+            // pending -- SOLL is locked during this window (see
+            // header), say so instead of leaving it unexplained.
+            if (id(g_climate_heater_optimistic_valid) && id(g_climate_heater_optimistic) &&
+                !(id(s_climate_heater_on).has_state() && id(s_climate_heater_on).state))
+              return std::string("HEIZUNG STARTET");
             return std::string("");
           text_color: !lambda |-
             #ifdef USE_API
@@ -460,6 +544,7 @@ lvgl:
             border_color: 0x3C4043
             widgets:
               - label:
+                  id: lbl_climate_temp_set
                   align: CENTER
                   text: "SOLL"
                   text_font: font_16

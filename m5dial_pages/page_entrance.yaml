@@ -37,12 +37,16 @@
 #
 #  Both rows use a literal x offset instead of ${x_col} (page-local
 #  geometry, same reasoning as page_levelling's literal y:42 /
-#  page_lights_outside's literal x:±48) -- x_col=40 was sized for
+#  page_lights_outside's literal x:±60) -- x_col=40 was sized for
 #  narrow text columns, not these buttons, and left them nearly
-#  touching. y_row buttons are 76x30 at x:±48 (~106px corner radius);
-#  y_row2 buttons are smaller, 64x24 at x:±42 (~117px corner radius,
+#  touching. y_row buttons are 76x30 at x:±58 (corner radius ≈97.2);
+#  y_row2 buttons are smaller, 64x24 at x:±54 (corner radius ≈86.8,
 #  design.md §3: y_row2 sits further out, needs to stay smaller to
-#  clear the round display's r=120 limit).
+#  clear the round display's r=120 limit). Widened from an earlier
+#  ±48/±42 pass (user report, same "Sachen weiter auseinander" ask as
+#  page_lights_outside.yaml) -- no per-row status color to add here
+#  unlike that page, since these are momentary fire-once actions, not
+#  a stable on/off state to reflect.
 #
 #  No double-click shortcut on this page, unlike most others (design
 #  feedback: double-click should reach a page's fixed settings too,
@@ -162,7 +166,7 @@ lvgl:
         - button:
             id: btn_entrance_step_in
             align: CENTER
-            x: -48
+            x: -58
             y: ${y_row}
             width: 76
             height: 30
@@ -181,7 +185,7 @@ lvgl:
         - button:
             id: btn_entrance_lock
             align: CENTER
-            x: 48
+            x: 58
             y: ${y_row}
             width: 76
             height: 30
@@ -202,7 +206,7 @@ lvgl:
         - button:
             id: btn_entrance_step_out
             align: CENTER
-            x: -42
+            x: -54
             y: ${y_row2}
             width: 64
             height: 24
@@ -221,7 +225,7 @@ lvgl:
         - button:
             id: btn_entrance_unlock
             align: CENTER
-            x: 42
+            x: 54
             y: ${y_row2}
             width: 64
             height: 24
