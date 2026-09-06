@@ -44,7 +44,7 @@ packages:
   p4: !include m5dial_pages/page_gas.yaml
   p5: !include m5dial_pages/page_water.yaml
   # p6-p12: real entity_ids now (design.md §15's catalog), including
-  # page_fans's HVAC column (number.hvac_fan_battery, the separate
+  # page_fans's HVAC column (number.relay_2ch_hvac_hvac_fan_battery, the separate
   # relay-2ch-hvac ESPHome device's fan entity).
   p6: !include m5dial_pages/page_levelling.yaml
   p7: !include m5dial_pages/page_climate.yaml

@@ -590,10 +590,11 @@ real entity to poll — `page_clock`, `page_power_1`, `page_power_2`,
 split by guessing which integrations are already fast enough to skip:
 the call is cheap, consistency won that tradeoff. Every page's entities
 are polled now, including `page_fans`'s HVAC column
-(`number.hvac_fan_battery`, once its PLACEHOLDER was replaced with the
-real entity from the separate relay-2ch-hvac ESPHome device). The only
-still-valid exception would be an entity that plain doesn't exist yet —
-polling that would just log a warning in HA for nothing.
+(`number.relay_2ch_hvac_hvac_fan_battery`, the real entity from the
+separate relay-2ch-hvac ESPHome device, user-confirmed — see §14 for
+this entity's own correction history). The only still-valid exception
+would be an entity that plain doesn't exist yet — polling that would
+just log a warning in HA for nothing.
 
 ---
 
@@ -684,6 +685,21 @@ reusable by any dial in the project, not just this one.
 
 ## 14. Open items
 
+* **`page_fans` entity_ids corrected (2nd round).** Both were wrong
+  before: `number.fan_speed_control` → `number.fan_board_fan_speed`,
+  `number.hvac_fan_battery` → `number.relay_2ch_hvac_hvac_fan_battery`
+  — user-confirmed against the real HA registry, not guessed. The
+  first of the two had already gone through one "verified" round that
+  turned out not to be — no scheme here is guess-proof, re-check
+  against the registry directly if either device's `name:` ever
+  changes, don't re-derive from the slug convention.
+* **FANBOARD's four per-channel readbacks, not yet surfaced.** Beyond
+  the one combined setpoint (`number.fan_board_fan_speed`, adjustable
+  above), the fan board also reports four individual channel speeds:
+  `sensor.fan_board_fan_speed_1` through `_4`. Not read anywhere yet —
+  pending a decision on whether/how to show them on `page_fans` (see
+  §15's fan/climate standards discussion; four more numbers don't fit
+  the existing double-ring shape without changing it).
 * **Color of the secondary ring.** `0x9AA0A6` is set, but only judged
   in the simulator. Decide on the device whether the ring next to it
   is too loud or too quiet.
@@ -854,7 +870,7 @@ one line each) before relying on it.
 | 6 | `levelling` | Spirit level (bubble, MPU6050) + per-corner cm-to-add (VL/VR/HL/HR, from four already-computed sensors) | implemented |
 | 7 | `climate` | Truma Combi 4 (gas only) room-heating side, via the `womolin_controller` MQTT integration's activate switch + climate entity; AC not installed yet; fan mode/fault dropped pending a confirmed entity | implemented |
 | 8 | `boiler` | Truma Combi 4 water-heating side, same `womolin_controller` integration as `climate` | implemented |
-| 9 | `fans` | Fan board (`number.fan_speed_control`) + Sprinter HVAC fan (`number.hvac_fan_battery`, real — driven by the separate relay-2ch-hvac ESPHome device; that board only actually moves the motor when parked, this page just sets the desired value) | implemented |
+| 9 | `fans` | Fan board (`number.fan_board_fan_speed`) + Sprinter HVAC fan (`number.relay_2ch_hvac_hvac_fan_battery`, real — driven by the separate relay-2ch-hvac ESPHome device; that board only actually moves the motor when parked, this page just sets the desired value) | implemented |
 | 10 | `lights_outside` | Entrance light (two switches, driven together), awning light — both plain switches, not the `light` domain | implemented |
 | 11 | `entrance` | Step, door lock — rows grouped by purpose: REIN+ZU (securing to drive) / RAUS+AUF (arriving), not by device; no double-click shortcut (safety) | implemented |
 | 12 | `ipixel` | On/off (`input_boolean`) + per-side LED status (two switches) | implemented |
