@@ -75,9 +75,14 @@ substitutions:
 ```
 
 `y_row2` is a second button row, for the rare page that needs four
-buttons instead of two (`page_entrance`: step + lock, both two
-momentary actions). Tighter than `y_row` because it's further from
+buttons instead of two. Tighter than `y_row` because it's further from
 center on a round display (§1) — check visually on the device.
+(`page_entrance` needed exactly this shape once — step + lock, both
+two momentary actions — but has since moved to its own page-local,
+symmetric-about-center geometry instead of `y_row`/`y_row2`, once its
+central status readout was removed freed up room to recenter the
+whole group; see that file's own header for why. `y_row2` still
+exists in this shared block for the next page that needs it.)
 
 `y_cap` and `x_col` are only needed by the two-value layout further
 below. They still appear in every file, because otherwise the block
@@ -170,10 +175,13 @@ than reinventing it per page:
   few px between the two, easy to misregister a tap on the wrong one.
   Use a literal, page-local x offset instead (same reasoning as a
   page-local y — §3's `y_cap`/`y_row` intro), wide enough for a
-  comfortable ~20px gap at the button width in use, and check the
-  outer corner still clears r=120 (`page_lights_outside`: x:±48 at
-  76x30; a row further from center needs to shrink further, same
-  logic as `y_row2` — `page_entrance`'s outer row is 64x24 at x:±42).
+  comfortable gap at the button width in use, and check the outer
+  corner still clears r=120 (`page_lights_outside`: x:±60 at 76x32;
+  `page_entrance`'s four buttons are all the same 76x30 at x:±56,
+  y:∓22 — a symmetric 2x2 grid about true center, not a row-further-
+  from-center-needs-to-shrink shape, once its central status readout
+  was removed and there was no longer anything forcing two differently
+  sized rows).
 * A switch's on/off state reads via `binary_sensor:` on
   `platform: homeassistant` (works for `switch.*` and `input_boolean.*`
   alike — HA reports both as a plain on/off state), never `sensor:`.
@@ -586,14 +594,17 @@ same way any other state change would. Wired on every page that has a
 real entity to poll — `page_clock`, `page_power_1`, `page_power_2`,
 `page_power_3`, `page_gas`, `page_water`, `page_levelling`,
 `page_climate`, `page_boiler`, `page_fans`, `page_lights_outside`,
-`page_entrance`, `page_ipixel` — per user decision, deliberately not
-split by guessing which integrations are already fast enough to skip:
-the call is cheap, consistency won that tradeoff. Every page's entities
-are polled now, including `page_fans`'s HVAC column
+`page_ipixel` — per user decision, deliberately not split by guessing
+which integrations are already fast enough to skip: the call is cheap,
+consistency won that tradeoff. Every page's entities are polled now,
+including `page_fans`'s HVAC column
 (`number.relay_2ch_hvac_hvac_fan_battery`, the real entity from the
 separate relay-2ch-hvac ESPHome device, user-confirmed — see §14 for
-this entity's own correction history). The only still-valid exception
-would be an entity that plain doesn't exist yet — polling that would
+this entity's own correction history). `page_entrance` dropped off
+this list — it lost its one polled entity (the STUFE status readout)
+entirely, see §14; its remaining actions are all fire-once, nothing to
+poll. The only still-valid exception otherwise would be an entity that
+plain doesn't exist yet — polling that would
 just log a warning in HA for nothing.
 
 ---
@@ -685,6 +696,31 @@ reusable by any dial in the project, not just this one.
 
 ## 14. Open items
 
+* **`page_entrance` REIN/RAUS entities corrected, STUFE readout
+  removed.** REIN/RAUS didn't work on the previously-guessed
+  `switch.relay_4ch_step_relay_step_in`/`_out` — user-confirmed real
+  entities are `input_button.zv_lock_button` (REIN) /
+  `input_button.zv_unlock_button` (RAUS), pressed via
+  `input_button.press`. Naming trap flagged in the file's own header:
+  despite the "zv" (Zentralverriegelung) in both names, these drive
+  the STEP, not the door lock — ZU/AUF (the actual lock, confirmed
+  already working, untouched) stay on the esphome custom services.
+  Separately, the central AKTIV/RUHE STUFE readout
+  (`binary_sensor.relay_4ch_step_step_out_engine_on`) was removed
+  entirely, per user decision: its one useful case (step still out
+  while the ignition is on) is already covered by
+  `overlay_preflight.yaml`, and the readout couldn't tell that case
+  apart from "ignition simply off" anyway (a pre-existing, documented
+  hardware limit). Removing it freed the page to be redesigned as a
+  uniform 2x2 button grid — see the "wider spacing" entry below.
+* **`page_lights_outside` MARKISE entity corrected (2nd round).**
+  `switch.shelly1g4_7c2c6772123c` didn't work — user-confirmed real
+  entities are TWO `light` domain entities, `light.light_awning_front`
+  / `light.light_awning_rear`, same any-on/toggle-both shape as
+  EINGANG's two switches (which the user confirmed DO already work,
+  untouched here). Note the domain split: EINGANG stays `switch.*`,
+  MARKISE is `light.*` — not a shared convention across the two
+  columns, don't assume one from the other.
 * **`page_fans` entity_ids corrected (2nd round).** Both were wrong
   before: `number.fan_speed_control` → `number.fan_board_fan_speed`,
   `number.hvac_fan_battery` → `number.relay_2ch_hvac_hvac_fan_battery`
@@ -719,29 +755,49 @@ reusable by any dial in the project, not just this one.
   to copy for a future AC control, not a mode-cycle button (considered
   and dropped: the user's actual ask was this interlock, not a
   unified AUS/HEIZEN/KÜHLEN mode selector).
-* **~~Two-switch pages: wider spacing, more legible status.~~** User
-  report ("Sachen weiter auseinander, Status besser erkennbar") on
-  `page_lights_outside`/`page_entrance` — confirmed in scope for just
-  these two, not the still-reserved `page_lights_inside`. Both pages'
-  button columns/rows moved further from center (still comfortably
-  inside r=120 — see each file's own header for the new corner-radius
-  math): `page_lights_outside` ±48 → ±60, `page_entrance`'s row 1
-  ±48 → ±58 and row 2 ±42 → ±54. `page_lights_outside` additionally
-  gained a second status channel: the column caption label (EINGANG/
-  MARKISE) now carries the on-state color too (lit/dim), not just the
-  button fill — the same idiom design.md §3 already uses for gas/
-  water's column label carrying its ring's color, so this isn't a new
-  invented convention. `page_entrance` has no per-row status to
-  amplify (its buttons are momentary fire-once actions, not a stable
-  on/off state), so only the spacing changed there.
+* **~~Two-switch pages: wider spacing, more legible status, uniform
+  buttons.~~** User report, in two rounds — confirmed in scope for
+  just `page_lights_outside`/`page_entrance`, not the still-reserved
+  `page_lights_inside`.
+  Round 1 ("Sachen weiter auseinander, Status besser erkennbar"):
+  `page_lights_outside`'s two columns moved ±48 → ±60 (still
+  comfortably inside r=120), and its column caption label (EINGANG/
+  MARKISE) gained a second status channel — the on-state color, not
+  just the button fill — the same idiom design.md §3 already uses for
+  gas/water's column label carrying its ring's color, not a new
+  invented convention. `page_entrance`'s two rows also moved out at
+  the time (±48 → ±58 / ±42 → ±54).
+  Round 2 ("button gleich gross und schön vertikal mittig", plus a
+  separate decision to remove `page_entrance`'s STUFE readout — see
+  its own entry below): with the STUFE readout gone, `page_entrance`
+  had nothing left forcing two differently-sized rows, so it was
+  redesigned as a plain 2x2 grid — all four buttons the shared
+  design.md §8 76x30/radius15 "two buttons" size, symmetric about true
+  center at x:±56, y:∓22 (corner radius ≈101, still clear of r=120),
+  replacing the old below-center, two-different-sizes layout entirely.
+  `page_lights_outside` keeps its round-1 shape (already uniform,
+  already reasonably centered) — its captions stay short (EINGANG/
+  MARKISE), per user decision against lengthening them to "LICHT
+  EINGANG"/"LICHT MARKISE": the width doesn't work out anyway at this
+  column spacing (see the calc in `page_lights_outside.yaml` if this
+  is ever revisited — roughly 52px of half-width budget at font_12,
+  y_cap, x:±60, well short of what 13 characters needs).
 * **~~FANBOARD's four per-channel readbacks, not yet surfaced.~~** Built,
   per user decision: not shown individually (four more numbers don't
   fit the double-ring shape) — instead `page_fans`'s `draw_fans` shows
   their Ø (average) on `y_line2` (otherwise unused on this page) plus
-  a small red dot that lights up when any one channel is > 15
-  percentage points off that average. The 15-point tolerance is a
-  guess, not a measured one — revisit on the device, same status as
-  the boiler tiers/levelling cm thresholds below.
+  a small red dot that lights up when any one channel deviates from
+  that average. Unit corrected (user report): these four are
+  tachometer RPM readbacks, not the same 0-100% quantity as
+  `number.fan_board_fan_speed`'s duty-cycle SETPOINT they sit behind —
+  a genuinely different measurement, not the same one mislabeled twice.
+  The deviation dot's threshold is therefore relative now (> 15% of
+  the average), not a fixed point spread — an absolute RPM spread
+  doesn't mean anything without a known "normal" RPM range to anchor
+  it to. Both the 15% figure and the "RPM readback vs. %-setpoint"
+  split are still guesses to the extent they're unconfirmed against
+  the actual device — revisit on the device, same status as the
+  boiler tiers/levelling cm thresholds below.
 * **Color of the secondary ring.** `0x9AA0A6` is set, but only judged
   in the simulator. Decide on the device whether the ring next to it
   is too loud or too quiet.
@@ -841,11 +897,24 @@ reusable by any dial in the project, not just this one.
   directly — wrong; the real path is a MQTT-based `womolin_controller`
   integration (`switch.womolin_controller_mqtt_activate_room_heater` /
   `_water_heater`, `climate.womolin_controller_mqtt_truma_room` /
-  `_water`). Current/target temperature and the on/off gate are wired
-  to that now. Fan mode/level and a fault flag existed on the old
-  assumption and were dropped rather than re-guessed — add them back
-  once the real attribute/entity for either is confirmed on the
-  `womolin_controller` climate entities.
+  `_water` for current temperature). The on/off gate and current
+  temperature are wired to that. Fan mode/level and a fault flag
+  existed on the old assumption and were dropped rather than
+  re-guessed — add them back once the real attribute/entity for either
+  is confirmed on the `womolin_controller` climate entities.
+* **~~Target temperature entity, 2nd correction.~~** User-confirmed:
+  target temperature is NOT the climate entity's own `temperature`
+  attribute (climate.set_temperature) as both pages originally assumed
+  — the integration exposes it as its own first-class number entity
+  instead: `number.womolin_controller_mqtt_target_room_temperature`
+  (`page_climate`) / `number.womolin_controller_mqtt_target_water_temperature`
+  (`page_boiler`). Read directly via `sensor: platform: homeassistant`
+  (no `attribute:` needed) and written via `number.set_value`. Likely
+  cause of a real "Can't convert 'None' to number!" warning seen
+  against the water climate entity — an attribute read on a not-yet-
+  settled climate entity is exactly the kind of read that comes back
+  `None`, where a genuine `number.` entity reports its own state
+  directly.
 * **PowerAssist setpoint vs. applied value (`page_power_2`).** The
   ASSIST button shows `number.multiplus_strombegrenzung`, the
   setpoint — there's no separate entity confirming the MultiPlus has

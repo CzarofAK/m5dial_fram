@@ -2,20 +2,26 @@
 #  m5dial_pages/page_lights_outside.yaml — page: Outside lights
 #  FRAM M5Dial Cockpit · page package
 #
-#  Real entities, not the light-domain placeholders originally
-#  guessed (design.md §15 flagged both as unverified) -- both are
-#  plain switches, not the `light` domain, so the service calls below
-#  are switch.turn_on/_off/toggle, not light.*:
+#  Real entities, corrected in two rounds (design.md §15 flagged both
+#  columns as unverified originally) -- and the two columns landed on
+#  DIFFERENT domains, not a shared switch/light convention:
 #
-#  EINGANG (entrance): TWO switches, not one -- switch.light_pir (the
-#  PIR-triggered entrance light) and switch.light_step (the step
-#  light). Read and driven as one group: the button shows EIN if
-#  EITHER is on, and toggling always drives both to the SAME target
-#  state (both on, or both off) rather than toggling each
-#  independently -- a mixed on/off state would otherwise be
-#  unreachable from one button and confusing to read.
+#  EINGANG (entrance): TWO switches, not one, `switch` domain --
+#  switch.light_pir (the PIR-triggered entrance light) and
+#  switch.light_step (the step light). Read and driven as one group:
+#  the button shows EIN if EITHER is on, and toggling always drives
+#  both to the SAME target state (both on, or both off) rather than
+#  toggling each independently -- a mixed on/off state would otherwise
+#  be unreachable from one button and confusing to read.
 #
-#  MARKISE (awning): one switch, switch.shelly1g4_7c2c6772123c.
+#  MARKISE (awning): 2nd correction (user-confirmed) -- NOT the single
+#  switch.shelly1g4_7c2c6772123c originally guessed (that one simply
+#  didn't work). Real entities are TWO `light` domain entities, same
+#  any-on-reads-on/toggle-drives-both-the-same-way shape as EINGANG's
+#  two switches above: light.light_awning_front and
+#  light.light_awning_rear. So light.turn_on/_off, not switch.*, for
+#  this column specifically -- EINGANG stays on switch.* (untouched,
+#  user confirmed EINGANG already works).
 #
 #  Dimming isn't exposed here: the dial has no slider convention
 #  (design.md has none either — only arcs, buttons, labels), and these
@@ -50,6 +56,19 @@
 #  uses for gas/water's column label carrying its ring's color -- a
 #  glance at the top of the column now already tells on/off, the
 #  button fill is confirmation rather than the only signal.
+#
+#  Caption wording (user question: rename EINGANG/MARKISE to the fuller
+#  "LICHT EINGANG"/"LICHT MARKISE", or add a shared "LIGHTS" page
+#  title?) -- kept short, per user decision, and the width genuinely
+#  doesn't work out for the longer form at this spacing anyway: at
+#  y_cap (-42) with a physical-edge bound of r=120 (no arc reserves
+#  inner space on this page) and column center x=∓60, the available
+#  half-width is sqrt(120²-42²) - 60 ≈ 52px -- "GAS I" (5 chars) comes
+#  to ~57.5px total per design.md §3, so 13 characters like "LICHT
+#  EINGANG" would need roughly 3x that. A shared page title was also
+#  considered and dropped: design.md §3's TOP_MID slot above y_cap is
+#  reserved for the alarm icon, so there's no free row to put one in
+#  without colliding with that reservation.
 #
 #  Double-click on the physical front button cycles between the two
 #  switches (.m5dial_fram.yaml's double-click handler -- home is
@@ -91,8 +110,13 @@ binary_sensor:
     on_state:
       - script.execute: draw_lights_outside
   - platform: homeassistant
-    id: s_lights_awning
-    entity_id: switch.shelly1g4_7c2c6772123c
+    id: s_lights_awning_front
+    entity_id: light.light_awning_front
+    on_state:
+      - script.execute: draw_lights_outside
+  - platform: homeassistant
+    id: s_lights_awning_rear
+    entity_id: light.light_awning_rear
     on_state:
       - script.execute: draw_lights_outside
 
@@ -113,7 +137,11 @@ script:
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: switch.shelly1g4_7c2c6772123c
+            entity_id: light.light_awning_front
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: light.light_awning_rear
 
   # Any-on-reads-on, toggle-drives-both-the-same-way -- see header.
   # Two separate homeassistant.service calls, not one call with a YAML
@@ -146,12 +174,34 @@ script:
                 data:
                   entity_id: switch.light_step
 
+  # Any-on-reads-on, toggle-drives-both-the-same-way -- same shape as
+  # act_lights_entrance above, now that MARKISE is two `light` entities
+  # too (2nd correction, see header).
   - id: act_lights_awning
     then:
-      - homeassistant.service:
-          service: switch.toggle
-          data:
-            entity_id: switch.shelly1g4_7c2c6772123c
+      - if:
+          condition:
+            lambda: |-
+              return (id(s_lights_awning_front).has_state() && id(s_lights_awning_front).state) ||
+                     (id(s_lights_awning_rear).has_state() && id(s_lights_awning_rear).state);
+          then:
+            - homeassistant.service:
+                service: light.turn_off
+                data:
+                  entity_id: light.light_awning_front
+            - homeassistant.service:
+                service: light.turn_off
+                data:
+                  entity_id: light.light_awning_rear
+          else:
+            - homeassistant.service:
+                service: light.turn_on
+                data:
+                  entity_id: light.light_awning_front
+            - homeassistant.service:
+                service: light.turn_on
+                data:
+                  entity_id: light.light_awning_rear
 
   # Called by .m5dial_fram.yaml's double-click handler -- see header.
   - id: dc_lights_outside_cycle
@@ -222,46 +272,53 @@ script:
             bool on = id(s_lights_entrance_pir).state || id(s_lights_entrance_step).state;
             return on ? lv_color_hex(0x2ECC71) : lv_color_hex(0x3C4043);
 
-      # ---- Awning light -----------------------------------------
+      # ---- Awning light (either light on = EIN) -----------------------
       - lvgl.label.update:
           id: lbl_lights_cap_awning
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_lights_awning).has_state()) return lv_color_hex(0x555555);
-            return id(s_lights_awning).state ? lv_color_hex(0xBDC1C6) : lv_color_hex(0x555555);
+            if (!id(s_lights_awning_front).has_state() || !id(s_lights_awning_rear).has_state())
+              return lv_color_hex(0x555555);
+            bool on = id(s_lights_awning_front).state || id(s_lights_awning_rear).state;
+            return on ? lv_color_hex(0xBDC1C6) : lv_color_hex(0x555555);
       - lvgl.label.update:
           id: lbl_lights_awning
           text: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return std::string("---");
             #endif
-            if (!id(s_lights_awning).has_state()) return std::string("---");
-            return id(s_lights_awning).state ? std::string("EIN") : std::string("AUS");
+            if (!id(s_lights_awning_front).has_state() || !id(s_lights_awning_rear).has_state())
+              return std::string("---");
+            bool on = id(s_lights_awning_front).state || id(s_lights_awning_rear).state;
+            return on ? std::string("EIN") : std::string("AUS");
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
-            if (!id(s_lights_awning).has_state()) return lv_color_hex(0x555555);
-            return id(s_lights_awning).state ? lv_color_hex(0x2ECC71)
-                                        : lv_color_hex(0xBDC1C6);
+            if (!id(s_lights_awning_front).has_state() || !id(s_lights_awning_rear).has_state())
+              return lv_color_hex(0x555555);
+            bool on = id(s_lights_awning_front).state || id(s_lights_awning_rear).state;
+            return on ? lv_color_hex(0x2ECC71) : lv_color_hex(0xBDC1C6);
       - lvgl.widget.update:
           id: btn_lights_awning
           bg_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x202124);
             #endif
-            if (!id(s_lights_awning).has_state()) return lv_color_hex(0x202124);
-            return id(s_lights_awning).state ? lv_color_hex(0x1B5E3A)
-                                        : lv_color_hex(0x202124);
+            if (!id(s_lights_awning_front).has_state() || !id(s_lights_awning_rear).has_state())
+              return lv_color_hex(0x202124);
+            bool on = id(s_lights_awning_front).state || id(s_lights_awning_rear).state;
+            return on ? lv_color_hex(0x1B5E3A) : lv_color_hex(0x202124);
           border_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x3C4043);
             #endif
-            if (!id(s_lights_awning).has_state()) return lv_color_hex(0x3C4043);
-            return id(s_lights_awning).state ? lv_color_hex(0x2ECC71)
-                                        : lv_color_hex(0x3C4043);
+            if (!id(s_lights_awning_front).has_state() || !id(s_lights_awning_rear).has_state())
+              return lv_color_hex(0x3C4043);
+            bool on = id(s_lights_awning_front).state || id(s_lights_awning_rear).state;
+            return on ? lv_color_hex(0x2ECC71) : lv_color_hex(0x3C4043);
 
 esphome:
   on_boot:

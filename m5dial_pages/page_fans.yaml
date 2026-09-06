@@ -31,16 +31,22 @@
 #
 #  FANBOARD also exposes four individual channel-speed readbacks
 #  (sensor.fan_board_fan_speed_1.._4, user-confirmed) behind the one
-#  combined setpoint above. Per user decision, not shown individually
-#  (four more numbers don't fit the two-arc shape) -- instead
-#  draw_fans shows their Ø (average) on y_line2, otherwise unused on
-#  this page, plus a small red dot (dot_fans_board_dev) that lights up
-#  when any one channel is > 15 percentage points off that average
-#  (a guess, not a measured tolerance -- revisit on the device, same
-#  as the boiler tiers/levelling cm thresholds elsewhere in this repo).
-#  Needs >= 2 channels reporting to mean anything as a "deviation";
-#  with 0 or 1 the dot just stays hidden. HVAC's own y_line2 stays
-#  empty -- it has no channels to average.
+#  combined setpoint above -- in RPM, not %, user-corrected: these are
+#  tachometer readbacks off the fan board's own hardware, a physically
+#  different measurement from the 0-100% duty-cycle setpoint
+#  (number.fan_board_fan_speed) they sit behind, not the same
+#  quantity in two different units. Per user decision, not shown
+#  individually (four more numbers don't fit the two-arc shape) --
+#  instead draw_fans shows their Ø (average, in RPM) on y_line2,
+#  otherwise unused on this page, plus a small red dot
+#  (dot_fans_board_dev) that lights up when any one channel is > 15%
+#  (relative, not a fixed RPM spread -- there's no known "normal" RPM
+#  range to anchor an absolute number to) off that average (a guess,
+#  not a measured tolerance -- revisit on the device, same as the
+#  boiler tiers/levelling cm thresholds elsewhere in this repo). Needs
+#  >= 2 channels reporting to mean anything as a "deviation"; with 0 or
+#  1 the dot just stays hidden. HVAC's own y_line2 stays empty -- it
+#  has no channels to average.
 #
 #  Interaction: tap a column's SET button to arm it (design.md §14,
 #  g_edit_target in .m5dial_fram.yaml) -- the encoder then adjusts
@@ -354,17 +360,31 @@ script:
       # ---- Outer column: FANBOARD channel average + deviation dot ------
       # Ø of whichever of the four channel sensors currently have a
       # state (not all four are required -- one slow-to-report sensor
-      # shouldn't blank the whole readout). The dot lights up when any
-      # available channel is more than 15 percentage points off the
-      # average -- a guess, not a measured tolerance (design.md §14
-      # convention: flagged as a guess to revisit on the device, same
-      # as the boiler tiers/levelling cm thresholds). Needs at least
-      # two channels reporting to mean anything as a "deviation".
+      # shouldn't blank the whole readout). RPM, not %, per user
+      # correction: these four are tachometer readbacks off the fan
+      # board's own hardware (a physically different measurement from
+      # number.fan_board_fan_speed's 0-100% duty-cycle SETPOINT above --
+      # set a percentage in, read RPM back out is the normal shape for
+      # a fan controller, so the setpoint stays a percentage here; only
+      # this readout was mislabeled). No unit suffix beyond "RPM" fits
+      # this column at font_16 (~124px budget, see page_lights_outside's
+      # width-calc comment for the method) -- kept as a bare number plus
+      # unit, no space, to stay inside it.
+      #
+      # The dot lights up when any available channel is > 15% off the
+      # average, RELATIVE now, not a fixed point spread -- a fixed
+      # absolute number doesn't mean anything once the unit is RPM
+      # (could be a few hundred to a few thousand); a percentage of the
+      # average scales with whatever range these actually report. Still
+      # a guess, not a measured tolerance (design.md §14 convention:
+      # flagged to revisit on the device, same as the boiler tiers/
+      # levelling cm thresholds). Needs at least two channels reporting
+      # to mean anything as a "deviation".
       - lvgl.label.update:
           id: lbl_fans_board_avg
           text: !lambda |-
             #ifdef USE_API
-            if (!api_is_connected()) return std::string("Ø ---%");
+            if (!api_is_connected()) return std::string("Ø---RPM");
             #endif
             float sum = 0.0f;
             int n = 0;
@@ -372,8 +392,8 @@ script:
             if (id(s_fans_board_ch2).has_state()) { sum += id(s_fans_board_ch2).state; n++; }
             if (id(s_fans_board_ch3).has_state()) { sum += id(s_fans_board_ch3).state; n++; }
             if (id(s_fans_board_ch4).has_state()) { sum += id(s_fans_board_ch4).state; n++; }
-            if (n == 0) return std::string("Ø ---%");
-            return str_sprintf("Ø%.0f%%", sum / n);
+            if (n == 0) return std::string("Ø---RPM");
+            return str_sprintf("Ø%.0fRPM", sum / n);
           text_color: 0x555555
       - lvgl.widget.update:
           id: dot_fans_board_dev
@@ -387,10 +407,11 @@ script:
             if (id(s_fans_board_ch4).has_state()) { vals[n] = id(s_fans_board_ch4).state; sum += vals[n]; n++; }
             if (n < 2) return true;
             float avg = sum / n;
+            if (avg == 0.0f) return true;  // avoid div-by-zero; all-zero is not a "deviation"
             for (int i = 0; i < n; i++) {
               float diff = vals[i] - avg;
               if (diff < 0.0f) diff = -diff;
-              if (diff > 15.0f) return false;
+              if (diff / avg > 0.15f) return false;
             }
             return true;
 
@@ -504,7 +525,7 @@ lvgl:
             align: CENTER
             x: -${x_col}
             y: ${y_line2}
-            text: "Ø ---%"
+            text: "Ø---RPM"
             text_font: font_16
             text_color: 0x555555
         - obj:
