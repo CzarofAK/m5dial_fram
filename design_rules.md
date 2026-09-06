@@ -696,16 +696,26 @@ reusable by any dial in the project, not just this one.
 
 ## 14. Open items
 
-* **`page_entrance` REIN/RAUS entities corrected, STUFE readout
-  removed.** REIN/RAUS didn't work on the previously-guessed
-  `switch.relay_4ch_step_relay_step_in`/`_out` — user-confirmed real
-  entities are `input_button.zv_lock_button` (REIN) /
-  `input_button.zv_unlock_button` (RAUS), pressed via
-  `input_button.press`. Naming trap flagged in the file's own header:
-  despite the "zv" (Zentralverriegelung) in both names, these drive
-  the STEP, not the door lock — ZU/AUF (the actual lock, confirmed
-  already working, untouched) stay on the esphome custom services.
-  Separately, the central AKTIV/RUHE STUFE readout
+* **`page_entrance` REIN/RAUS entities, reverted back to the switches
+  (3rd round), STUFE readout removed.** REIN/RAUS were reported not
+  working on `switch.relay_4ch_step_relay_step_in`/`_out`, so a 2nd
+  round switched them to two `input_button` helpers instead
+  (`input_button.zv_lock_button`/`zv_unlock_button`, pressed via
+  `input_button.press`) — which then did nothing at all (no motor
+  reaction). Checked against the relay-4ch-step device's own ESPHome
+  source directly (not re-guessed): it has no `input_button` anywhere
+  — those helpers drive no hardware — and defines exactly
+  `relay_step_in`/`relay_step_out` as self-resetting momentary GPIO
+  switches (`on_turn_on: delay 4s -> turn_off`), i.e. the entities from
+  round 1 were correct all along. Reverted to
+  `switch.turn_on: switch.relay_4ch_step_relay_step_in`/`_out` (no
+  matching turn_off needed, the relay board resets itself); called via
+  `homeassistant.service` now too, matching every other page (the
+  input_button round had drifted to `homeassistant.action`, unrelated
+  to why it didn't work, but inconsistent regardless). ZU/AUF (the
+  actual lock, confirmed already working, untouched) stay on the
+  esphome custom services. Separately, the central AKTIV/RUHE STUFE
+  readout
   (`binary_sensor.relay_4ch_step_step_out_engine_on`) was removed
   entirely, per user decision: its one useful case (step still out
   while the ignition is on) is already covered by
@@ -930,15 +940,22 @@ reusable by any dial in the project, not just this one.
   wedge under this corner", and a negative source reading just means
   "this one's fine", not "let air out" (there's no air suspension
   here to relate a minus sign to).
-* **`page_levelling`'s four corner sensors all read 0 right now** —
-  `sensor.mpu6050_womo_vl_cm`/`_vr_cm`/`_hl_cm`/`_hr_cm` exist as
-  entity_ids but nothing upstream computes real values into them yet.
-  Per user decision: build the degrees-to-cm conversion in HA (one
-  template sensor per corner, using the vehicle's real track
-  width/wheelbase) rather than in this page — this page was already
-  written to only ever consume four finished entities (see its own
-  header), so nothing here needs to change once those HA-side sensors
-  exist.
+* **`page_levelling`'s four corner sensors now read real values** — the
+  HA-side degrees-to-cm conversion mentioned below has since been
+  built; `sensor.mpu6050_womo_vl_cm`/`_vr_cm`/`_hl_cm`/`_hr_cm` are no
+  longer all 0.
+* **`page_levelling` diagonal corner mismatch (user report, resolved
+  at the source).** With the WoMo actually sitting down at the rear
+  left, the page showed the diagonally opposite corner (front right)
+  as worst, on both the bubble and the cm labels — a full 180°-yaw
+  mpu6050 mount error, not a single-axis mix-up (checked; doesn't fit
+  either front/back-only or left/right-only). Fixed on the mpu6050
+  device itself (its own invert toggles were off, now on) — NOT in
+  this repo; an earlier attempt to compensate for it here (negating
+  both bubble axes, diagonally swapping the four cm sensors) was
+  reverted once the real fix landed on the mpu6050 side, so `sensor.
+  mpu6050_womo_vl_cm` etc. keep their plain 1:1 entity mapping in
+  `page_levelling.yaml`.
 * **Special characters — still reported broken on the device, audited,
   no further code bug found.** Every Ä/Ö/Ü/ä/ö/ü/ß showed as a tofu box
   under LVGL's built-in `montserrat_NN` fonts (ASCII-only, no Latin-1;

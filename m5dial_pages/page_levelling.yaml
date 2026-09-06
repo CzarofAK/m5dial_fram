@@ -29,16 +29,23 @@
 #
 #  Bubble travel: R_MAX = 85px maps to DEG_MAX = 4° (matches the old
 #  alarm threshold) on each axis independently, clamped beyond that so
-#  it can't leave the outer ring. Direction convention -- UNVERIFIED,
-#  there's no established "which way is screen-up vs. vehicle-front"
-#  for this page yet: a real bubble floats toward the HIGH side, so
-#  QUER positive (right-down) moves it left, LÄNGS positive
-#  (front-down) moves it toward the back (down on screen, assuming the
-#  dial's "up" faces the front). If that reads backwards on the actual
-#  device, flip the sign in draw_levelling's ox/oy lambdas -- one line
-#  each, not a redesign. Bubble COLOR now follows the cm readout
-#  instead (below), so a wrong bubble direction wouldn't show as a
-#  wrong color, only a wrong position.
+#  it can't leave the outer ring. Direction convention: a real bubble
+#  floats toward the HIGH side, so QUER positive (right-down) moves it
+#  left, LÄNGS positive (front-down) moves it toward the back (down on
+#  screen, assuming the dial's "up" faces the front). Bubble COLOR
+#  follows the cm readout instead (below), so a wrong bubble direction
+#  wouldn't show as a wrong color, only a wrong position.
+#
+#  Diagonal corner mismatch (user report, now resolved): the WoMo sat
+#  down at the rear left while this page showed the diagonally
+#  opposite corner (front right) as worst, on both the bubble and the
+#  cm labels -- a 180°-yaw mpu6050 mount error (it flips pitch and
+#  roll, and anything computed from them, together; a single-axis
+#  swap doesn't produce a diagonal flip, checked). Fixed AT THE SOURCE
+#  via the mpu6050 device's own invert toggles (were off, now on) --
+#  not in this file. Nothing to change here; noted in case the
+#  direction ever looks wrong again, so a future fix isn't re-applied
+#  on both ends at once.
 #
 #  No arc: a tilt isn't a 0-100% quantity (design.md §8), and the
 #  rings aren't arcs either -- full circles via LVGL's radius = width/2
@@ -58,15 +65,11 @@
 #  toward the bubble's severity color -- nothing to do there isn't a
 #  problem.
 #
-#  OPEN ITEM: sensor.mpu6050_womo_vl_cm/_vr_cm/_hl_cm/_hr_cm all read
-#  0 right now -- nothing upstream computes them yet (the header above
-#  already assumed a real conversion exists "elsewhere", which turned
-#  out not to be built). Per user decision: do the degrees-to-cm math
-#  in HA (a template sensor per corner, using the vehicle's actual
-#  track width/wheelbase) and have these four stay exactly what they
-#  are here -- a page that only reads four already-computed entities,
-#  no conversion of its own. Nothing to change in this file once those
-#  HA-side sensors exist; this page was already built for that.
+#  sensor.mpu6050_womo_vl_cm/_vr_cm/_hl_cm/_hr_cm now read real values
+#  -- the degrees-to-cm math got built in HA per the original plan (a
+#  template sensor per corner, using the vehicle's actual track
+#  width/wheelbase), and this page still just reads the four finished
+#  entities, no conversion of its own.
 #
 #  Corner labels sit on a page-local x:±44 / y:∓54 (not ${x_col}/
 #  ${y_cap}, same page-local-literal reasoning as page_lights_outside's
@@ -79,10 +82,7 @@
 #
 #  on_load poll (design.md §9): poll_levelling forces a fresh push
 #  from HA for all six entities on page_levelling's own on_load
-#  trigger. Applied to every page now, including this one, even though
-#  the corner sensors don't have anything real behind them yet to poll
-#  (see the OPEN ITEM above) -- once they do, this page needs no
-#  further change.
+#  trigger. Applied to every page.
 # =====================================================================
 
 # ---------------------------------------------------------------------

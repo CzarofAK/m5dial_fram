@@ -2,20 +2,43 @@
 #  m5dial_pages/page_entrance.yaml — page: Entrance (step, door lock)
 #  FRAM M5Dial Cockpit · page package
 #
-#  Real hardware, corrected in two rounds:
+#  Real hardware, corrected in three rounds:
 #
 #  Step (Trittstufe): no toggleable on/off state exists -- REIN
 #  (retract) and RAUS (extend) are fire-once momentary actions, not a
-#  toggle. 2nd correction (user-confirmed): the relay switches
-#  originally guessed, switch.relay_4ch_step_relay_step_in/_out,
-#  simply didn't work. The real entities are two `input_button`
-#  helpers -- input_button.zv_lock_button (REIN) and
-#  input_button.zv_unlock_button (RAUS), pressed via
-#  input_button.press. Naming note: despite the "zv" (Zentralverriegelung
-#  = central locking) in both names, these are user-confirmed to drive
-#  the STEP, not the door lock below -- a naming holdover on the HA
-#  side, not a mix-up here; don't "fix" this pairing from the names
-#  alone if it's ever questioned again.
+#  toggle. 2nd correction (now itself reverted, see 3rd below): the
+#  relay switches originally guessed, switch.relay_4ch_step_relay_step_
+#  in/_out, were reported as not working, so this page was switched to
+#  press two `input_button` helpers instead -- input_button.zv_lock_
+#  button (REIN) / input_button.zv_unlock_button (RAUS) -- which then
+#  turned out to do nothing at all (no motor sound, no reaction).
+#
+#  3rd correction, from the relay-4ch-step device's own ESPHome source
+#  (obtained directly, not re-guessed): it defines exactly two GPIO
+#  switches for the step -- relay_step_in (GPIO14) and relay_step_out
+#  (GPIO16) -- each wired `on_turn_on: delay 4s -> turn_off`, i.e.
+#  already self-resetting momentary relays; turn_on is the whole
+#  interaction, nothing here needs to turn them off again. Those are
+#  the switch.relay_4ch_step_relay_step_in/_out entities from the 2nd
+#  correction above -- the ORIGINAL guess was right. The device source
+#  has no `input_button` anywhere: those two helpers are ordinary HA
+#  helper entities with no automation behind them, so pressing one
+#  (however it's pressed, dial or HA UI alike) only updates the
+#  helper's own state and drives no hardware -- silence was the
+#  correct, expected result of the 2nd correction, not a fluke. Why the
+#  switches were reported broken before is unresolved (a bad test, a
+#  transient issue, or something in the relay-4ch-step device unrelated
+#  to these two switches -- e.g. it also auto-retracts via
+#  binary_sensor.step_out_engine_on -> switch.turn_on: relay_step_in on
+#  that device, which could look like RAUS "not working" if the
+#  ignition state fought it during a test); the switches themselves are
+#  confirmed straight from the firmware now, so back to those, this
+#  time on firmer ground than a remembered "user-confirmed."
+#
+#  Turned on via homeassistant.service (matching every other page and
+#  design_rules.md §9's own documented pattern -- the previous round's
+#  homeassistant.action was a one-off deviation, not a deliberate
+#  choice, and not what made the input_button calls silent anyway).
 #
 #  Lock (Zentralverriegelung, rear doors): no state entity exists at
 #  all -- HA only has ZV status for the FRONT doors, via MercedesME,
@@ -71,27 +94,27 @@
 script:
   - id: act_entrance_step_in
     then:
-      - homeassistant.action:
-          action: input_button.press
+      - homeassistant.service:
+          service: switch.turn_on
           data:
-            entity_id: input_button.zv_lock_button
+            entity_id: switch.relay_4ch_step_relay_step_in
 
   - id: act_entrance_step_out
     then:
-      - homeassistant.action:
-          action: input_button.press
+      - homeassistant.service:
+          service: switch.turn_on
           data:
-            entity_id: input_button.zv_unlock_button
+            entity_id: switch.relay_4ch_step_relay_step_out
 
   - id: act_entrance_lock
     then:
-      - homeassistant.action:
-          action: esphome.relay_4ch_step_zv_lock
+      - homeassistant.service:
+          service: esphome.relay_4ch_step_zv_lock
 
   - id: act_entrance_unlock
     then:
-      - homeassistant.action:
-          action: esphome.relay_4ch_step_zv_unlock
+      - homeassistant.service:
+          service: esphome.relay_4ch_step_zv_unlock
 
 # ---------------------------------------------------------------------
 #  D  Widgets
