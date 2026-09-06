@@ -484,6 +484,15 @@ script:
 #  still compiles, it just silently opts back out of umlaut support if
 #  anything ever reintroduces it.
 #
+#  Ø added for page_fans.yaml's FANBOARD channel-average readout
+#  ("Ø42%") -- same rule applies: it's a flow scalar (quoted, one
+#  line), not a `|-` block scalar, specifically so a leading/embedded
+#  space can never be silently stripped as indentation the way it was
+#  in the smart-ebl-display repo's font block (real bug there, fixed
+#  by switching away from a block scalar -- see that repo's
+#  smart-ebl-display.yaml for the postmortem). Keep any future
+#  addition to this glyph string on one line for the same reason.
+#
 #  NOT covered: page_clock.yaml's `date_font`/`temperature_font`,
 #  which are sbb_clock's own config (a separate external component) --
 #  still on montserrat_16. Revisit only if that text ever shows a tofu
@@ -492,19 +501,19 @@ font:
   - file: "gfonts://Montserrat"
     id: font_12
     size: 12
-    glyphs: " !%(),.+-/0123456789:;ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°ÄÖÜäöüß"
+    glyphs: " !%(),.+-/0123456789:;ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°ÄÖÜäöüßØ"
   - file: "gfonts://Montserrat"
     id: font_16
     size: 16
-    glyphs: " !%(),.+-/0123456789:;ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°ÄÖÜäöüß"
+    glyphs: " !%(),.+-/0123456789:;ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°ÄÖÜäöüßØ"
   - file: "gfonts://Montserrat"
     id: font_24
     size: 24
-    glyphs: " !%(),.+-/0123456789:;ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°ÄÖÜäöüß"
+    glyphs: " !%(),.+-/0123456789:;ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°ÄÖÜäöüßØ"
   - file: "gfonts://Montserrat"
     id: font_40
     size: 40
-    glyphs: " !%(),.+-/0123456789:;ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°ÄÖÜäöüß"
+    glyphs: " !%(),.+-/0123456789:;ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°ÄÖÜäöüßØ"
 
 # =====================================================================
 #  LVGL frame

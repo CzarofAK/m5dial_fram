@@ -3,28 +3,44 @@
 #  FRAM M5Dial Cockpit · page package
 #
 #  Double ring (design.md §4), same geometry as page_gas.yaml:
-#    outer 224 x 224   FANBOARD -- real, number.fan_speed_control
-#    inner 200 x 200   HVAC     -- real, number.hvac_fan_battery. This
-#                                  is the Sprinter's OEM blower motor,
-#                                  driven by the separate relay-2ch-hvac
-#                                  ESPHome device (2 relays + MD30C PWM
-#                                  driver) via a template number entity
-#                                  named "HVAC Fan (Battery)" -- entity
-#                                  id VERIFIED against the real HA
-#                                  registry name-slug convention, not
-#                                  guessed; re-check if the device's
-#                                  `name:` ever changes. That device's
-#                                  own `set_action` only actually moves
-#                                  the motor when `battery_mode_allowed`
-#                                  is true there (ignition off + an
-#                                  after-run delay) -- setting it here
-#                                  while driving is accepted but has no
-#                                  effect until the van is parked; that
-#                                  logic lives entirely on the relay
-#                                  board's side, not duplicated here.
-#                                  Device steps in 10% increments (its
-#                                  own `step: 10`), so this page mirrors
-#                                  that instead of FANBOARD's 5%.
+#    outer 224 x 224   FANBOARD -- real, number.fan_board_fan_speed
+#    inner 200 x 200   HVAC     -- real,
+#                                  number.relay_2ch_hvac_hvac_fan_battery.
+#                                  This is the Sprinter's OEM blower
+#                                  motor, driven by the separate
+#                                  relay-2ch-hvac ESPHome device (2
+#                                  relays + MD30C PWM driver) via a
+#                                  template number entity -- entity_id
+#                                  user-confirmed (2nd correction; an
+#                                  earlier guess, number.hvac_fan_battery,
+#                                  was wrong -- re-check again if the
+#                                  device's `name:` ever changes, this
+#                                  isn't a guess-proof scheme). That
+#                                  device's own `set_action` only
+#                                  actually moves the motor when
+#                                  `battery_mode_allowed` is true there
+#                                  (ignition off + an after-run delay) --
+#                                  setting it here while driving is
+#                                  accepted but has no effect until the
+#                                  van is parked; that logic lives
+#                                  entirely on the relay board's side,
+#                                  not duplicated here. Device steps in
+#                                  10% increments (its own `step: 10`),
+#                                  so this page mirrors that instead of
+#                                  FANBOARD's 5%.
+#
+#  FANBOARD also exposes four individual channel-speed readbacks
+#  (sensor.fan_board_fan_speed_1.._4, user-confirmed) behind the one
+#  combined setpoint above. Per user decision, not shown individually
+#  (four more numbers don't fit the two-arc shape) -- instead
+#  draw_fans shows their Ø (average) on y_line2, otherwise unused on
+#  this page, plus a small red dot (dot_fans_board_dev) that lights up
+#  when any one channel is > 15 percentage points off that average
+#  (a guess, not a measured tolerance -- revisit on the device, same
+#  as the boiler tiers/levelling cm thresholds elsewhere in this repo).
+#  Needs >= 2 channels reporting to mean anything as a "deviation";
+#  with 0 or 1 the dot just stays hidden. HVAC's own y_line2 stays
+#  empty -- it has no channels to average.
 #
 #  Interaction: tap a column's SET button to arm it (design.md §14,
 #  g_edit_target in .m5dial_fram.yaml) -- the encoder then adjusts
@@ -55,7 +71,7 @@
 #  encoder's quiet for 400ms (or immediately on disarm).
 #
 #  on_load poll (design.md §9): poll_fans forces a fresh push from HA
-#  for number.fan_speed_control and number.hvac_fan_battery on
+#  for number.fan_board_fan_speed and number.relay_2ch_hvac_hvac_fan_battery on
 #  page_fans's own on_load trigger. Applied to every page now,
 #  including ones that already tend to update promptly -- the call is
 #  cheap, and consistency beats guessing per page which integrations
@@ -68,13 +84,37 @@
 sensor:
   - platform: homeassistant
     id: s_fans_board_speed
-    entity_id: number.fan_speed_control
+    entity_id: number.fan_board_fan_speed
     on_value:
       - script.execute: draw_fans
 
   - platform: homeassistant
     id: s_fans_hvac_speed
-    entity_id: number.hvac_fan_battery
+    entity_id: number.relay_2ch_hvac_hvac_fan_battery
+    on_value:
+      - script.execute: draw_fans
+
+  # FANBOARD's four individual channel readbacks, user-confirmed --
+  # feed the Ø average + deviation dot in draw_fans below, not shown
+  # individually (see header).
+  - platform: homeassistant
+    id: s_fans_board_ch1
+    entity_id: sensor.fan_board_fan_speed_1
+    on_value:
+      - script.execute: draw_fans
+  - platform: homeassistant
+    id: s_fans_board_ch2
+    entity_id: sensor.fan_board_fan_speed_2
+    on_value:
+      - script.execute: draw_fans
+  - platform: homeassistant
+    id: s_fans_board_ch3
+    entity_id: sensor.fan_board_fan_speed_3
+    on_value:
+      - script.execute: draw_fans
+  - platform: homeassistant
+    id: s_fans_board_ch4
+    entity_id: sensor.fan_board_fan_speed_4
     on_value:
       - script.execute: draw_fans
 
@@ -101,11 +141,27 @@ script:
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: number.fan_speed_control
+            entity_id: number.fan_board_fan_speed
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: number.hvac_fan_battery
+            entity_id: number.relay_2ch_hvac_hvac_fan_battery
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: sensor.fan_board_fan_speed_1
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: sensor.fan_board_fan_speed_2
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: sensor.fan_board_fan_speed_3
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: sensor.fan_board_fan_speed_4
 
   - id: act_fans_arm_board
     then:
@@ -184,7 +240,7 @@ script:
       - homeassistant.service:
           service: number.set_value
           data:
-            entity_id: number.fan_speed_control
+            entity_id: number.fan_board_fan_speed
           data_template:
             value: "{{ val }}"
           variables:
@@ -196,7 +252,7 @@ script:
       - delay: 400ms
       - script.execute: fans_board_write_now
 
-  # 10%-step (matches number.hvac_fan_battery's own `step: 10`),
+  # 10%-step (matches number.relay_2ch_hvac_hvac_fan_battery's own `step: 10`),
   # clamped 0-100. Same local-pending + debounced-write shape as
   # FANBOARD above (see header re: lag).
   - id: act_fans_hvac_up
@@ -224,7 +280,7 @@ script:
       - homeassistant.service:
           service: number.set_value
           data:
-            entity_id: number.hvac_fan_battery
+            entity_id: number.relay_2ch_hvac_hvac_fan_battery
           data_template:
             value: "{{ val }}"
           variables:
@@ -294,6 +350,49 @@ script:
           border_color: !lambda |-
             if (id(g_edit_target) == 1) return lv_color_hex(0x4A9EFF);
             return lv_color_hex(0x3C4043);
+
+      # ---- Outer column: FANBOARD channel average + deviation dot ------
+      # Ø of whichever of the four channel sensors currently have a
+      # state (not all four are required -- one slow-to-report sensor
+      # shouldn't blank the whole readout). The dot lights up when any
+      # available channel is more than 15 percentage points off the
+      # average -- a guess, not a measured tolerance (design.md §14
+      # convention: flagged as a guess to revisit on the device, same
+      # as the boiler tiers/levelling cm thresholds). Needs at least
+      # two channels reporting to mean anything as a "deviation".
+      - lvgl.label.update:
+          id: lbl_fans_board_avg
+          text: !lambda |-
+            #ifdef USE_API
+            if (!api_is_connected()) return std::string("Ø ---%");
+            #endif
+            float sum = 0.0f;
+            int n = 0;
+            if (id(s_fans_board_ch1).has_state()) { sum += id(s_fans_board_ch1).state; n++; }
+            if (id(s_fans_board_ch2).has_state()) { sum += id(s_fans_board_ch2).state; n++; }
+            if (id(s_fans_board_ch3).has_state()) { sum += id(s_fans_board_ch3).state; n++; }
+            if (id(s_fans_board_ch4).has_state()) { sum += id(s_fans_board_ch4).state; n++; }
+            if (n == 0) return std::string("Ø ---%");
+            return str_sprintf("Ø%.0f%%", sum / n);
+          text_color: 0x555555
+      - lvgl.widget.update:
+          id: dot_fans_board_dev
+          hidden: !lambda |-
+            float sum = 0.0f;
+            float vals[4];
+            int n = 0;
+            if (id(s_fans_board_ch1).has_state()) { vals[n] = id(s_fans_board_ch1).state; sum += vals[n]; n++; }
+            if (id(s_fans_board_ch2).has_state()) { vals[n] = id(s_fans_board_ch2).state; sum += vals[n]; n++; }
+            if (id(s_fans_board_ch3).has_state()) { vals[n] = id(s_fans_board_ch3).state; sum += vals[n]; n++; }
+            if (id(s_fans_board_ch4).has_state()) { vals[n] = id(s_fans_board_ch4).state; sum += vals[n]; n++; }
+            if (n < 2) return true;
+            float avg = sum / n;
+            for (int i = 0; i < n; i++) {
+              float diff = vals[i] - avg;
+              if (diff < 0.0f) diff = -diff;
+              if (diff > 15.0f) return false;
+            }
+            return true;
 
       # ---- Inner column: HVAC --------------------------------------------
       - lvgl.label.update:
@@ -395,6 +494,30 @@ lvgl:
             text: "---%"
             text_font: font_24
             text_color: 0x555555
+        # Ø of the four channel readbacks (draw_fans) -- y_line2 is
+        # otherwise unused on this page (y_row hosts SET instead), and
+        # only the FANBOARD column has channels to average, so the
+        # HVAC column's own y_line2 stays empty rather than showing
+        # something asymmetric there.
+        - label:
+            id: lbl_fans_board_avg
+            align: CENTER
+            x: -${x_col}
+            y: ${y_line2}
+            text: "Ø ---%"
+            text_font: font_16
+            text_color: 0x555555
+        - obj:
+            id: dot_fans_board_dev
+            align: CENTER
+            x: -8
+            y: ${y_line2}
+            width: 8
+            height: 8
+            radius: 4
+            bg_color: 0xE74C3C
+            border_width: 0
+            hidden: true
         - button:
             id: btn_fans_set_board
             align: CENTER
