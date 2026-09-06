@@ -24,8 +24,10 @@
 #  you looked" -- this page reacts to the SAME underlying signal
 #  (ignition) whenever it changes, so it catches the same moment
 #  without needing gps_speed wired into this device's header (it isn't
-#  currently) or re-deriving the step-engine-on ambiguity page_entrance
-#  already flags. OPEN ITEM: doesn't cover "was already driving before
+#  currently) or re-deriving the step-engine-on ambiguity page_entrance's
+#  own header documents (that entity's readout was removed there for
+#  exactly this reason -- this overlay is now the only place that case
+#  is actually surfaced). OPEN ITEM: doesn't cover "was already driving before
 #  the dial noticed" (the automation's gps_speed-for-30s branch) --
 #  add gps_speed to the shared header and gate on that too if that gap
 #  matters in practice.

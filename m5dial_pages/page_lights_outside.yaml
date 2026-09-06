@@ -57,6 +57,19 @@
 #  glance at the top of the column now already tells on/off, the
 #  button fill is confirmation rather than the only signal.
 #
+#  Caption wording (user question: rename EINGANG/MARKISE to the fuller
+#  "LICHT EINGANG"/"LICHT MARKISE", or add a shared "LIGHTS" page
+#  title?) -- kept short, per user decision, and the width genuinely
+#  doesn't work out for the longer form at this spacing anyway: at
+#  y_cap (-42) with a physical-edge bound of r=120 (no arc reserves
+#  inner space on this page) and column center x=∓60, the available
+#  half-width is sqrt(120²-42²) - 60 ≈ 52px -- "GAS I" (5 chars) comes
+#  to ~57.5px total per design.md §3, so 13 characters like "LICHT
+#  EINGANG" would need roughly 3x that. A shared page title was also
+#  considered and dropped: design.md §3's TOP_MID slot above y_cap is
+#  reserved for the alarm icon, so there's no free row to put one in
+#  without colliding with that reservation.
+#
 #  Double-click on the physical front button cycles between the two
 #  switches (.m5dial_fram.yaml's double-click handler -- home is
 #  long-press-only here now): 1st click toggles EINGANG, 2nd toggles

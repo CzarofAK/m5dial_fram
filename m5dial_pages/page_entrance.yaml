@@ -2,51 +2,59 @@
 #  m5dial_pages/page_entrance.yaml — page: Entrance (step, door lock)
 #  FRAM M5Dial Cockpit · page package
 #
-#  Real hardware, not the shape originally guessed:
+#  Real hardware, corrected in two rounds:
 #
-#  Step (Trittstufe): no toggleable on/off state exists. The relay
-#  board has two momentary pulse relays, RAUS (extend) and REIN
-#  (retract), each auto-releasing after 4s -- so this is two fire-once
-#  buttons, not one toggle. Status is approximate: the central AKTIV/
-#  RUHE readout (lbl_entrance_step_state, y_main) is
-#  binary_sensor.relay_4ch_step_step_out_engine_on and NOTHING else --
-#  that's the one entity behind it. It reads OFF ("---" if HA has no
-#  value for it at all, RUHE if it does) both when the step is
-#  retracted AND when the ignition is off -- it can't tell those two
-#  apart, that's the hardware's own limit, not a bug here. Shown as-is,
-#  not invented into something more precise than the source data.
+#  Step (Trittstufe): no toggleable on/off state exists -- REIN
+#  (retract) and RAUS (extend) are fire-once momentary actions, not a
+#  toggle. 2nd correction (user-confirmed): the relay switches
+#  originally guessed, switch.relay_4ch_step_relay_step_in/_out,
+#  simply didn't work. The real entities are two `input_button`
+#  helpers -- input_button.zv_lock_button (REIN) and
+#  input_button.zv_unlock_button (RAUS), pressed via
+#  input_button.press. Naming note: despite the "zv" (Zentralverriegelung
+#  = central locking) in both names, these are user-confirmed to drive
+#  the STEP, not the door lock below -- a naming holdover on the HA
+#  side, not a mix-up here; don't "fix" this pairing from the names
+#  alone if it's ever questioned again.
 #
 #  Lock (Zentralverriegelung, rear doors): no state entity exists at
 #  all -- HA only has ZV status for the FRONT doors, via MercedesME,
 #  which doesn't cover this lock. ZU/AUF are fire-only buttons calling
 #  the relay board's own custom ESPHome services (esphome:
 #  relay_4ch_step_zv_lock / _zv_unlock), same as the Homematic wall
-#  switch does. No status readout is possible, so none is shown.
+#  switch does -- user-confirmed these already work, untouched here.
+#  No status readout is possible for this one either.
 #
-#  Layout (readability follow-up, 2nd pass): rows group by ACTION now,
-#  not by device -- y_row is REIN + ZU (securing the vehicle: retract
-#  the step, lock the doors -- what you'd do right before driving off,
-#  matching the pre-flight-check overlay's own concern), y_row2 is
-#  RAUS + AUF (the opposite: what you'd do on arrival). The previous
-#  pass grouped by device instead (STUFE column / ZV column) -- traded
-#  back for this because the two actions IN one row now share a
-#  purpose, not just a device. The central AKTIV/RUHE readout stays
-#  put; it's the page's only real telemetry, still not tied to either
-#  row (STUFE's own state, shown regardless of which row you're
-#  looking at).
+#  STUFE status readout REMOVED (user decision): this page used to
+#  show a central AKTIV/RUHE readout off
+#  binary_sensor.relay_4ch_step_step_out_engine_on, but that entity
+#  reads OFF both when the step is retracted AND when the ignition is
+#  off (can't tell those two apart, a hardware limit) -- and the
+#  actually load-bearing case (step still out while the ignition is on)
+#  is already covered by the pre-flight-check overlay
+#  (overlay_preflight.yaml). Kept as a redundant, imprecise readout
+#  wasn't worth the screen space once that overlap was pointed out, so
+#  it's gone: no more s_entrance_step_active binary_sensor, no more
+#  poll of that entity, no more y_cap/y_main content on this page at
+#  all.
 #
-#  Both rows use a literal x offset instead of ${x_col} (page-local
-#  geometry, same reasoning as page_levelling's literal y:42 /
-#  page_lights_outside's literal x:±60) -- x_col=40 was sized for
-#  narrow text columns, not these buttons, and left them nearly
-#  touching. y_row buttons are 76x30 at x:±58 (corner radius ≈97.2);
-#  y_row2 buttons are smaller, 64x24 at x:±54 (corner radius ≈86.8,
-#  design.md §3: y_row2 sits further out, needs to stay smaller to
-#  clear the round display's r=120 limit). Widened from an earlier
-#  ±48/±42 pass (user report, same "Sachen weiter auseinander" ask as
-#  page_lights_outside.yaml) -- no per-row status color to add here
-#  unlike that page, since these are momentary fire-once actions, not
-#  a stable on/off state to reflect.
+#  Layout, redesigned now that the STUFE readout is gone (user report:
+#  "button gleich gross und schön vertikal mittig" -- uniform size,
+#  nicely vertically centered, echoing the same ask made for
+#  page_lights_outside.yaml): a plain 2x2 grid, ALL FOUR buttons the
+#  same 76x30/radius15 size (the shared design.md §8 "two buttons"
+#  spec, not a page-specific size any more), symmetric about true
+#  center (y:∓22, x:∓56 -- corner radius ≈101.0, comfortably clear of
+#  r=120) instead of the old two-different-sized-rows-below-center
+#  layout the STUFE readout used to force. Rows still group by ACTION,
+#  not by device (unchanged from the previous pass): top row REIN + ZU
+#  (securing the vehicle -- what you'd do right before driving off,
+#  matching the pre-flight-check overlay's own concern), bottom row
+#  RAUS + AUF (the opposite, arriving). Literal x/y (not
+#  ${x_col}/${y_row}/${y_row2}) -- page-local geometry, same reasoning
+#  as page_levelling's literal y:42 / page_lights_outside's literal
+#  x:±60: this page no longer uses the shared main-value grid at all,
+#  so there's nothing to line up with.
 #
 #  No double-click shortcut on this page, unlike most others (design
 #  feedback: double-click should reach a page's fixed settings too,
@@ -55,51 +63,25 @@
 #  lock/step while moving is exactly the kind of thing design.md
 #  §14's open item about MP OFF/RETRACT already flags as needing a
 #  deliberate confirmation, not a fast gesture. Touch only for now.
-#
-#  on_load poll (design.md §9): HA only pushes an entity's CURRENT
-#  value to this device at API-connect time if HA already has one --
-#  an entity that's still unknown/unavailable at that moment sends
-#  nothing, and then only catches up whenever it next changes on its
-#  own. poll_entrance calls homeassistant.update_entity on
-#  page_entrance's own on_load trigger, forcing a fresh push of the
-#  one entity that matters here every time this page is shown.
 # =====================================================================
 
 # ---------------------------------------------------------------------
 #  C  Bindings
 # ---------------------------------------------------------------------
-binary_sensor:
-  # See header note: OFF means "step in" OR "ignition off", not
-  # distinguishable from this sensor alone.
-  - platform: homeassistant
-    id: s_entrance_step_active
-    entity_id: binary_sensor.relay_4ch_step_step_out_engine_on
-    on_state:
-      - script.execute: draw_entrance
-
 script:
-  # Forces a fresh push from HA for this page's entity -- called from
-  # page_entrance's own on_load trigger below. See header re: why.
-  - id: poll_entrance
+  - id: act_entrance_step_in
     then:
       - homeassistant.service:
-          service: homeassistant.update_entity
+          service: input_button.press
           data:
-            entity_id: binary_sensor.relay_4ch_step_step_out_engine_on
+            entity_id: input_button.zv_lock_button
 
   - id: act_entrance_step_out
     then:
       - homeassistant.service:
-          service: switch.turn_on
+          service: input_button.press
           data:
-            entity_id: switch.relay_4ch_step_relay_step_out
-
-  - id: act_entrance_step_in
-    then:
-      - homeassistant.service:
-          service: switch.turn_on
-          data:
-            entity_id: switch.relay_4ch_step_relay_step_in
+            entity_id: input_button.zv_unlock_button
 
   - id: act_entrance_lock
     then:
@@ -111,63 +93,21 @@ script:
       - homeassistant.service:
           service: esphome.relay_4ch_step_zv_unlock
 
-  - id: draw_entrance
-    mode: restart
-    then:
-      - lvgl.label.update:
-          id: lbl_entrance_step_state
-          text: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return std::string("---");
-            #endif
-            if (!id(s_entrance_step_active).has_state()) return std::string("---");
-            return id(s_entrance_step_active).state ? std::string("AKTIV") : std::string("RUHE");
-          text_color: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return lv_color_hex(0x555555);
-            #endif
-            if (!id(s_entrance_step_active).has_state()) return lv_color_hex(0x555555);
-            return id(s_entrance_step_active).state ? lv_color_hex(0x2ECC71)
-                                               : lv_color_hex(0xBDC1C6);
-
-esphome:
-  on_boot:
-    - priority: -100
-      then:
-        - script.execute: draw_entrance
-
 # ---------------------------------------------------------------------
 #  D  Widgets
 # ---------------------------------------------------------------------
 lvgl:
   pages:
     - id: page_entrance
-      on_load:
-        - script.execute: poll_entrance
       bg_color: 0x000000
       bg_opa: COVER
       widgets:
-        - label:
-            id: lbl_entrance_cap
-            align: CENTER
-            y: ${y_cap}
-            text: "STUFE"
-            text_font: font_12
-            text_color: 0x555555
-        - label:
-            id: lbl_entrance_step_state
-            align: CENTER
-            y: ${y_main}
-            text: "---"
-            text_font: font_40
-            text_color: 0x555555
-
-        # ---- Row 1: securing (REIN + ZU) -----------------------------
+        # ---- Row 1 (y:-22): securing (REIN + ZU) ----------------------
         - button:
             id: btn_entrance_step_in
             align: CENTER
-            x: -58
-            y: ${y_row}
+            x: -56
+            y: -22
             width: 76
             height: 30
             radius: 15
@@ -185,8 +125,8 @@ lvgl:
         - button:
             id: btn_entrance_lock
             align: CENTER
-            x: 58
-            y: ${y_row}
+            x: 56
+            y: -22
             width: 76
             height: 30
             radius: 15
@@ -202,15 +142,15 @@ lvgl:
             on_click:
               - script.execute: act_entrance_lock
 
-        # ---- Row 2: arriving (RAUS + AUF) -----------------------------
+        # ---- Row 2 (y:+22): arriving (RAUS + AUF) ----------------------
         - button:
             id: btn_entrance_step_out
             align: CENTER
-            x: -54
-            y: ${y_row2}
-            width: 64
-            height: 24
-            radius: 12
+            x: -56
+            y: 22
+            width: 76
+            height: 30
+            radius: 15
             bg_color: 0x202124
             border_width: 1
             border_color: 0x3C4043
@@ -225,11 +165,11 @@ lvgl:
         - button:
             id: btn_entrance_unlock
             align: CENTER
-            x: 54
-            y: ${y_row2}
-            width: 64
-            height: 24
-            radius: 12
+            x: 56
+            y: 22
+            width: 76
+            height: 30
+            radius: 15
             bg_color: 0x202124
             border_width: 1
             border_color: 0x3C4043
