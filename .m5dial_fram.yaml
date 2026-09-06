@@ -493,6 +493,17 @@ script:
 #  smart-ebl-display.yaml for the postmortem). Keep any future
 #  addition to this glyph string on one line for the same reason.
 #
+#  = added: real bug (user report, on-device tofu box), found on a
+#  full audit of every literal string this repo renders -- the
+#  earlier "special characters" fix (design.md §14) had only checked
+#  for missing NON-ASCII characters, but this glyph list REPLACES
+#  ESPHome's default set entirely (see above), so a missing ASCII
+#  punctuation mark is exactly the same class of bug. `=` was used in
+#  all three overlays' "2X KLICK = AUS" dismiss hint and simply wasn't
+#  in the list. Re-run the full audit (every character actually used
+#  in a `text:`/`std::string(...)`/`str_sprintf(...)` literal, not
+#  just the non-ASCII ones) after adding any new on-screen string.
+#
 #  NOT covered: page_clock.yaml's `date_font`/`temperature_font`,
 #  which are sbb_clock's own config (a separate external component) --
 #  still on montserrat_16. Revisit only if that text ever shows a tofu
@@ -501,19 +512,19 @@ font:
   - file: "gfonts://Montserrat"
     id: font_12
     size: 12
-    glyphs: " !%(),.+-/0123456789:;ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°ÄÖÜäöüßØ"
+    glyphs: " !%(),.+-/0123456789:;=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°ÄÖÜäöüßØ"
   - file: "gfonts://Montserrat"
     id: font_16
     size: 16
-    glyphs: " !%(),.+-/0123456789:;ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°ÄÖÜäöüßØ"
+    glyphs: " !%(),.+-/0123456789:;=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°ÄÖÜäöüßØ"
   - file: "gfonts://Montserrat"
     id: font_24
     size: 24
-    glyphs: " !%(),.+-/0123456789:;ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°ÄÖÜäöüßØ"
+    glyphs: " !%(),.+-/0123456789:;=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°ÄÖÜäöüßØ"
   - file: "gfonts://Montserrat"
     id: font_40
     size: 40
-    glyphs: " !%(),.+-/0123456789:;ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°ÄÖÜäöüßØ"
+    glyphs: " !%(),.+-/0123456789:;=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°ÄÖÜäöüßØ"
 
 # =====================================================================
 #  LVGL frame

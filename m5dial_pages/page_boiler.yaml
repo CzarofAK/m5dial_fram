@@ -6,17 +6,28 @@
 #  — see that file's header for the integration background (real path
 #  is the MQTT-based "womolin_controller" integration, not the
 #  truma_inetbox guess this page originally assumed):
-#    switch.womolin_controller_mqtt_activate_water_heater  on/off gate
-#    climate.womolin_controller_mqtt_truma_water            the heater
-#  Same caveat: the activate switch must be ON before the climate
-#  entity carries live values, and every change (switch or target
-#  temperature) has real lag -- ca. 2-4s, Truma's own LIN round trip,
-#  not something to work around here.
+#    switch.womolin_controller_mqtt_activate_water_heater             on/off gate
+#    climate.womolin_controller_mqtt_truma_water                     current temp (attribute)
+#    number.womolin_controller_mqtt_target_water_temperature         target temp
+#  Same caveat: the activate switch must be ON before either entity
+#  carries live values, and every change (switch or target temperature)
+#  has real lag -- ca. 2-4s, Truma's own LIN round trip, not something
+#  to work around here.
 #
-#  Current/target water temperature come off the climate entity's own
-#  current_temperature/temperature attributes, same as page_climate.yaml
-#  — no separate sensor/number entity, and climate.set_temperature
-#  instead of number.set_value.
+#  Current water temperature still comes off the climate entity's own
+#  current_temperature attribute (no separate sensor entity for it).
+#  Target temperature, 2nd correction (user-confirmed): originally
+#  assumed the climate entity's own `temperature` attribute + a
+#  climate.set_temperature write, same as page_climate.yaml -- wrong,
+#  the integration exposes it as its OWN first-class number entity
+#  instead. That mismatch is the likely cause of a real
+#  "Can't convert 'None' to number!" warning seen against this climate
+#  entity: reading `temperature` as a plain attribute is exactly the
+#  kind of read that comes back empty while the device is still
+#  settling, whereas a genuine `number.` entity reports its own state
+#  directly. Reads via `sensor: platform: homeassistant` on the number
+#  entity (no `attribute:` needed -- its own state IS the number) and
+#  writes via number.set_value, not climate.set_temperature.
 #
 #  OPEN ITEM: a shared fault flag existed on the old (wrong)
 #  truma_inetbox assumption; dropped here rather than guessed again
@@ -48,7 +59,7 @@
 #  guessing, Truma's own naming isn't consistent enough across models
 #  to assume), and BOOST (80°C). The encoder/double-click step
 #  therefore jumps between exactly those three values, not ±1°C --
-#  sending an in-between temperature to climate.set_temperature would
+#  sending an in-between temperature to number.set_value would
 #  either get silently clamped by the Truma or just not correspond to
 #  anything the physical control panel can select, so stepping through
 #  the three real options is the correct behavior here, not a
@@ -68,7 +79,7 @@
 #
 #  Encoder feel: same lag fix as page_power_2.yaml/page_climate.yaml
 #  (see either header) -- adjusts a local g_boiler_temp_pending value
-#  and redraws from it immediately, only calling climate.set_temperature
+#  and redraws from it immediately, only calling number.set_value
 #  once the encoder's quiet for 400ms (or immediately on disarm). Less
 #  load-bearing here than on the continuous pages since there are only
 #  three possible values to land on, but keeps the behavior consistent
@@ -136,8 +147,7 @@ sensor:
       - script.execute: draw_boiler
   - platform: homeassistant
     id: s_boiler_target
-    entity_id: climate.womolin_controller_mqtt_truma_water
-    attribute: temperature
+    entity_id: number.womolin_controller_mqtt_target_water_temperature
     on_value:
       # Resync pending from the confirmed value, but only while NOT
       # armed -- never fight an active edit. See header re: lag.
@@ -221,6 +231,10 @@ script:
           service: homeassistant.update_entity
           data:
             entity_id: switch.womolin_controller_mqtt_activate_water_heater
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: number.womolin_controller_mqtt_target_water_temperature
 
   - id: act_boiler_heater
     then:
@@ -309,11 +323,11 @@ script:
   - id: boiler_temp_write_now
     then:
       - homeassistant.service:
-          service: climate.set_temperature
+          service: number.set_value
           data:
-            entity_id: climate.womolin_controller_mqtt_truma_water
+            entity_id: number.womolin_controller_mqtt_target_water_temperature
           data_template:
-            temperature: "{{ val }}"
+            value: "{{ val }}"
           variables:
             val: !lambda "return str_sprintf(\"%.0f\", id(g_boiler_temp_pending));"
 

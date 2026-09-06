@@ -685,6 +685,14 @@ reusable by any dial in the project, not just this one.
 
 ## 14. Open items
 
+* **`page_lights_outside` MARKISE entity corrected (2nd round).**
+  `switch.shelly1g4_7c2c6772123c` didn't work — user-confirmed real
+  entities are TWO `light` domain entities, `light.light_awning_front`
+  / `light.light_awning_rear`, same any-on/toggle-both shape as
+  EINGANG's two switches (which the user confirmed DO already work,
+  untouched here). Note the domain split: EINGANG stays `switch.*`,
+  MARKISE is `light.*` — not a shared convention across the two
+  columns, don't assume one from the other.
 * **`page_fans` entity_ids corrected (2nd round).** Both were wrong
   before: `number.fan_speed_control` → `number.fan_board_fan_speed`,
   `number.hvac_fan_battery` → `number.relay_2ch_hvac_hvac_fan_battery`
@@ -841,11 +849,24 @@ reusable by any dial in the project, not just this one.
   directly — wrong; the real path is a MQTT-based `womolin_controller`
   integration (`switch.womolin_controller_mqtt_activate_room_heater` /
   `_water_heater`, `climate.womolin_controller_mqtt_truma_room` /
-  `_water`). Current/target temperature and the on/off gate are wired
-  to that now. Fan mode/level and a fault flag existed on the old
-  assumption and were dropped rather than re-guessed — add them back
-  once the real attribute/entity for either is confirmed on the
-  `womolin_controller` climate entities.
+  `_water` for current temperature). The on/off gate and current
+  temperature are wired to that. Fan mode/level and a fault flag
+  existed on the old assumption and were dropped rather than
+  re-guessed — add them back once the real attribute/entity for either
+  is confirmed on the `womolin_controller` climate entities.
+* **~~Target temperature entity, 2nd correction.~~** User-confirmed:
+  target temperature is NOT the climate entity's own `temperature`
+  attribute (climate.set_temperature) as both pages originally assumed
+  — the integration exposes it as its own first-class number entity
+  instead: `number.womolin_controller_mqtt_target_room_temperature`
+  (`page_climate`) / `number.womolin_controller_mqtt_target_water_temperature`
+  (`page_boiler`). Read directly via `sensor: platform: homeassistant`
+  (no `attribute:` needed) and written via `number.set_value`. Likely
+  cause of a real "Can't convert 'None' to number!" warning seen
+  against the water climate entity — an attribute read on a not-yet-
+  settled climate entity is exactly the kind of read that comes back
+  `None`, where a genuine `number.` entity reports its own state
+  directly.
 * **PowerAssist setpoint vs. applied value (`page_power_2`).** The
   ASSIST button shows `number.multiplus_strombegrenzung`, the
   setpoint — there's no separate entity confirming the MultiPlus has
