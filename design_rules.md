@@ -786,10 +786,18 @@ reusable by any dial in the project, not just this one.
   per user decision: not shown individually (four more numbers don't
   fit the double-ring shape) — instead `page_fans`'s `draw_fans` shows
   their Ø (average) on `y_line2` (otherwise unused on this page) plus
-  a small red dot that lights up when any one channel is > 15
-  percentage points off that average. The 15-point tolerance is a
-  guess, not a measured one — revisit on the device, same status as
-  the boiler tiers/levelling cm thresholds below.
+  a small red dot that lights up when any one channel deviates from
+  that average. Unit corrected (user report): these four are
+  tachometer RPM readbacks, not the same 0-100% quantity as
+  `number.fan_board_fan_speed`'s duty-cycle SETPOINT they sit behind —
+  a genuinely different measurement, not the same one mislabeled twice.
+  The deviation dot's threshold is therefore relative now (> 15% of
+  the average), not a fixed point spread — an absolute RPM spread
+  doesn't mean anything without a known "normal" RPM range to anchor
+  it to. Both the 15% figure and the "RPM readback vs. %-setpoint"
+  split are still guesses to the extent they're unconfirmed against
+  the actual device — revisit on the device, same status as the
+  boiler tiers/levelling cm thresholds below.
 * **Color of the secondary ring.** `0x9AA0A6` is set, but only judged
   in the simulator. Decide on the device whether the ring next to it
   is too loud or too quiet.
