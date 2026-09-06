@@ -944,17 +944,18 @@ reusable by any dial in the project, not just this one.
   HA-side degrees-to-cm conversion mentioned below has since been
   built; `sensor.mpu6050_womo_vl_cm`/`_vr_cm`/`_hl_cm`/`_hr_cm` are no
   longer all 0.
-* **`page_levelling` diagonal corner swap (user report).** With the
-  WoMo actually sitting down at the rear left, the page showed the
-  diagonally opposite corner (front right) as worst, on both the
-  bubble and the cm labels — a full 180°-yaw mpu6050 mount error, not
-  a single-axis mix-up (checked; doesn't fit either front/back-only or
-  left/right-only). Fixed by negating both bubble axes and diagonally
-  swapping which cm sensor feeds which on-screen label (VL<->HR,
-  VR<->HL) in the page's own `sensor:` block — see that file's header
-  for the full reasoning. UNVERIFIED beyond the one reported corner;
-  confirm against the physical mpu6050 mounting if this ever needs
-  re-deriving.
+* **`page_levelling` diagonal corner mismatch (user report, resolved
+  at the source).** With the WoMo actually sitting down at the rear
+  left, the page showed the diagonally opposite corner (front right)
+  as worst, on both the bubble and the cm labels — a full 180°-yaw
+  mpu6050 mount error, not a single-axis mix-up (checked; doesn't fit
+  either front/back-only or left/right-only). Fixed on the mpu6050
+  device itself (its own invert toggles were off, now on) — NOT in
+  this repo; an earlier attempt to compensate for it here (negating
+  both bubble axes, diagonally swapping the four cm sensors) was
+  reverted once the real fix landed on the mpu6050 side, so `sensor.
+  mpu6050_womo_vl_cm` etc. keep their plain 1:1 entity mapping in
+  `page_levelling.yaml`.
 * **Special characters — still reported broken on the device, audited,
   no further code bug found.** Every Ä/Ö/Ü/ä/ö/ü/ß showed as a tofu box
   under LVGL's built-in `montserrat_NN` fonts (ASCII-only, no Latin-1;
