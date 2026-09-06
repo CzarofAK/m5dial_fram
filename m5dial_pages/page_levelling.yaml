@@ -29,16 +29,34 @@
 #
 #  Bubble travel: R_MAX = 85px maps to DEG_MAX = 4° (matches the old
 #  alarm threshold) on each axis independently, clamped beyond that so
-#  it can't leave the outer ring. Direction convention -- UNVERIFIED,
-#  there's no established "which way is screen-up vs. vehicle-front"
-#  for this page yet: a real bubble floats toward the HIGH side, so
-#  QUER positive (right-down) moves it left, LÄNGS positive
-#  (front-down) moves it toward the back (down on screen, assuming the
-#  dial's "up" faces the front). If that reads backwards on the actual
-#  device, flip the sign in draw_levelling's ox/oy lambdas -- one line
-#  each, not a redesign. Bubble COLOR now follows the cm readout
-#  instead (below), so a wrong bubble direction wouldn't show as a
-#  wrong color, only a wrong position.
+#  it can't leave the outer ring. Direction convention: a real bubble
+#  floats toward the HIGH side, so QUER positive (right-down) moves it
+#  left, LÄNGS positive (front-down) moves it toward the back (down on
+#  screen, assuming the dial's "up" faces the front). Bubble COLOR
+#  follows the cm readout instead (below), so a wrong bubble direction
+#  wouldn't show as a wrong color, only a wrong position.
+#
+#  SIGN FLIP (user report, both axes): with the WoMo actually sitting
+#  down at the REAR LEFT, this page showed VR (front right -- the
+#  diagonally OPPOSITE corner) as the worst one, on both the bubble
+#  and the cm labels. A single-axis mix-up (only front/back or only
+#  left/right swapped) doesn't produce a diagonal flip -- checked both,
+#  neither fits the reported corner. A full 180°-yaw mount error does:
+#  if the mpu6050 board sits rotated 180° about vertical relative to
+#  the vehicle (its "front" pointing at the WoMo's rear), BOTH its
+#  pitch and roll read with the opposite sign from vehicle-relative
+#  LÄNGS/QUER, and so does anything computed downstream from them --
+#  including the four per-corner cm sensors, which come from "elsewhere"
+#  (see below) but off that same raw mpu6050 orientation. One root
+#  cause, two symptoms: negate BOTH ox and oy below (not swap them --
+#  this is a 180° rotation, not a 90° one), and diagonally swap which
+#  cm sensor feeds which on-screen corner label (VL<->HR, VR<->HL) in
+#  the `sensor:` block below, so the label the driver reads matches the
+#  real corner again. UNVERIFIED beyond that one report -- confirm
+#  against the physical mpu6050 mounting (or a second known-tilt test)
+#  if this ever needs re-deriving; if it turns out to be wrong, flip
+#  the signs back and undo the diagonal swap, don't re-guess a
+#  different combination.
 #
 #  No arc: a tilt isn't a 0-100% quantity (design.md §8), and the
 #  rings aren't arcs either -- full circles via LVGL's radius = width/2
@@ -101,24 +119,29 @@ sensor:
       - script.execute: draw_levelling
 
   # ---- Per-corner cm-to-add, already computed upstream ---------------
+  # Diagonally swapped vs. the entity names (VL<->HR, VR<->HL) -- see
+  # the SIGN FLIP header note above. sensor.mpu6050_womo_vl_cm etc. are
+  # named for the mpu6050 device's own (180°-yaw-rotated) frame, not
+  # the vehicle's; s_levelling_vl is this page's real-world VL corner,
+  # which is that device's "hr" reading.
   - platform: homeassistant
     id: s_levelling_vl
-    entity_id: sensor.mpu6050_womo_vl_cm
+    entity_id: sensor.mpu6050_womo_hr_cm
     on_value:
       - script.execute: draw_levelling
   - platform: homeassistant
     id: s_levelling_vr
-    entity_id: sensor.mpu6050_womo_vr_cm
-    on_value:
-      - script.execute: draw_levelling
-  - platform: homeassistant
-    id: s_levelling_hl
     entity_id: sensor.mpu6050_womo_hl_cm
     on_value:
       - script.execute: draw_levelling
   - platform: homeassistant
+    id: s_levelling_hl
+    entity_id: sensor.mpu6050_womo_vr_cm
+    on_value:
+      - script.execute: draw_levelling
+  - platform: homeassistant
     id: s_levelling_hr
-    entity_id: sensor.mpu6050_womo_hr_cm
+    entity_id: sensor.mpu6050_womo_vl_cm
     on_value:
       - script.execute: draw_levelling
 
@@ -163,14 +186,18 @@ script:
           x: !lambda |-
             if (!id(s_levelling_lat).has_state()) return 0;
             const float R_MAX = 85.0f, DEG_MAX = 4.0f;
-            float ox = -(id(s_levelling_lat).state / DEG_MAX) * R_MAX;
+            // Sign flipped -- see the SIGN FLIP header note (180°-yaw
+            // mount error, both axes negated).
+            float ox = (id(s_levelling_lat).state / DEG_MAX) * R_MAX;
             if (ox > R_MAX) ox = R_MAX;
             if (ox < -R_MAX) ox = -R_MAX;
             return (int) ox;
           y: !lambda |-
             if (!id(s_levelling_lon).has_state()) return 0;
             const float R_MAX = 85.0f, DEG_MAX = 4.0f;
-            float oy = (id(s_levelling_lon).state / DEG_MAX) * R_MAX;
+            // Sign flipped -- see the SIGN FLIP header note (180°-yaw
+            // mount error, both axes negated).
+            float oy = -(id(s_levelling_lon).state / DEG_MAX) * R_MAX;
             if (oy > R_MAX) oy = R_MAX;
             if (oy < -R_MAX) oy = -R_MAX;
             return (int) oy;
