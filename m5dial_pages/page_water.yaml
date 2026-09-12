@@ -109,7 +109,11 @@ script:
               float v = id(s_water_g).state;
               if (v >= 95.0f) return lv_color_hex(0xE74C3C);
               if (v >= 80.0f) return lv_color_hex(0xF39C12);
-              return lv_color_hex(0x9AA0A6);
+              // Normal-state color unified to blue (0x4A9EFF), matching
+              // the fresh ring and the esphome display's own Levels
+              // page (2026-09-12 repo-owner request, both displays) -
+              // was 0x9AA0A6 (grey-blue).
+              return lv_color_hex(0x4A9EFF);
 
       # ---- Column label, carries the ring color ----------------------
       - lvgl.label.update:
@@ -133,7 +137,7 @@ script:
             float v = id(s_water_g).state;
             if (v >= 95.0f) return lv_color_hex(0xE74C3C);
             if (v >= 80.0f) return lv_color_hex(0xF39C12);
-            return lv_color_hex(0x9AA0A6);
+            return lv_color_hex(0x4A9EFF);
 
       # ---- Percentage values -----------------------------------------
       - lvgl.label.update:
@@ -173,7 +177,9 @@ script:
 
       # ---- Absolute values -----------------------------------------------
       # Vehicle-fixed constants as literals (design.md §9):
-      # fresh 180 L, grey 90 L.
+      # fresh 120 L, grey 80 L (repo-owner update, 2026-09-12 - was
+      # 180 L/90 L, kept in sync with the esphome display's own Levels
+      # page, which took the same update).
       - lvgl.label.update:
           id: lbl_water_l_f
           text: !lambda |-
@@ -181,7 +187,7 @@ script:
             if (!api_is_connected()) return std::string("--- L");
             #endif
             if (!id(s_water_f).has_state()) return std::string("--- L");
-            return str_sprintf("%.0f L", id(s_water_f).state * 1.80f);
+            return str_sprintf("%.0f L", id(s_water_f).state * 1.20f);
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
@@ -195,7 +201,7 @@ script:
             if (!api_is_connected()) return std::string("--- L");
             #endif
             if (!id(s_water_g).has_state()) return std::string("--- L");
-            return str_sprintf("%.0f L", id(s_water_g).state * 0.90f);
+            return str_sprintf("%.0f L", id(s_water_g).state * 0.80f);
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
