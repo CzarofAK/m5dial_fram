@@ -102,7 +102,13 @@ script:
               float v = id(s_gas_i).state;
               if (v < 10.0f) return lv_color_hex(0xE74C3C);
               if (v < 25.0f) return lv_color_hex(0xF39C12);
-              return lv_color_hex(0x9AA0A6);
+              // Normal-state color unified to blue (0x4A9EFF), matching
+              // GAS A and the esphome display's own Levels page
+              // (2026-09-12 repo-owner request, both displays) - was
+              // 0x9AA0A6 (grey-blue), which used to distinguish
+              // "in use"/"reserve"; that distinction is gone, only the
+              // GAS A/GAS I label still tells the two bottles apart.
+              return lv_color_hex(0x4A9EFF);
 
       # ---- Column label, carries the ring color --------------------
       - lvgl.label.update:
@@ -126,7 +132,7 @@ script:
             float v = id(s_gas_i).state;
             if (v < 10.0f) return lv_color_hex(0xE74C3C);
             if (v < 25.0f) return lv_color_hex(0xF39C12);
-            return lv_color_hex(0x9AA0A6);
+            return lv_color_hex(0x4A9EFF);
 
       # ---- Percentage values -----------------------------------------
       - lvgl.label.update:

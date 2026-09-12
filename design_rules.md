@@ -314,7 +314,6 @@ brightness, never in the color scheme.
 | Warning | `0xF39C12` |
 | Alarm / error | `0xE74C3C` |
 | Neutral active (grid, water, gas) | `0x4A9EFF` |
-| Secondary ring, unobtrusively active | `0x9AA0A6` |
 | Arc background track | `0x1A1C1E` |
 | Button, inactive (fill / border) | `0x202124` / `0x3C4043` |
 | Button, active green | `0x1B5E3A` / `0x2ECC71` |
@@ -324,11 +323,17 @@ brightness, never in the color scheme.
 Color is never the sole carrier of information — the state is always
 also shown as text on the button.
 
-`0x9AA0A6` is new and hasn't been judged on the device yet. It's meant
-for a ring whose fill level nobody normally cares about (grey water,
-second gas bottle). `0xBDC1C6` would be brighter and would look, next
-to the blue outer ring, like a value you're supposed to watch;
-`0x707070` all but disappears at low fill levels. See §13.
+`0x9AA0A6` ("secondary ring, unobtrusively active") retired 2026-09-12,
+repo-owner request: `page_water`'s grey ring and `page_gas`'s GAS I ring
+both used it to stay visually secondary to their primary ring (blue) -
+now unified to that same `0x4A9EFF` instead, on both this device and the
+esphome display's own Levels page, so every ring/column reads identically
+when its value is simply fine. Row removed from the table above since
+nothing uses the color any more; the reasoning that originally picked it
+(kept for reference, not because it's still live) - `0xBDC1C6` would
+have been brighter and read, next to the blue outer ring, like a value
+you're supposed to watch; `0x707070` all but disappears at low fill
+levels.
 
 ### Thresholds
 
@@ -550,8 +555,9 @@ first sensor value arrives, which on the device can take minutes.
 Vehicle-fixed constants (tank sizes, bottle weights) live as a literal
 in the script, with a comment. Not in `substitutions:` — those must
 stay identical across all pages — and not as `globals:`, because no
-state is held on the dial. Currently: fresh 180 L, grey 90 L, gas
-bottle 10.5 kg net.
+state is held on the dial. Currently: fresh 120 L, grey 80 L (updated
+2026-09-12, repo-owner, was 180 L/90 L - kept in sync with the esphome
+display's own Levels page), gas bottle 10.5 kg net.
 
 ### on_load poll
 
@@ -808,9 +814,11 @@ reusable by any dial in the project, not just this one.
   split are still guesses to the extent they're unconfirmed against
   the actual device — revisit on the device, same status as the
   boiler tiers/levelling cm thresholds below.
-* **Color of the secondary ring.** `0x9AA0A6` is set, but only judged
-  in the simulator. Decide on the device whether the ring next to it
-  is too loud or too quiet.
+* ~~**Color of the secondary ring.**~~ Moot, 2026-09-12: `0x9AA0A6` is
+  no longer used anywhere (`page_water`'s grey ring, `page_gas`'s GAS I
+  ring) - repo-owner request unified both to the same `0x4A9EFF` the
+  primary ring already used, on the esphome display's own Levels page
+  and here, so there's no separate color left to judge.
 * **`GAS A` / `GAS I`.** The label names the ring and assumes that
   "outer/inner" is understood as referring to the rings and not the gas
   locker. Check on the device whether that holds up without an
