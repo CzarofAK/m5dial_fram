@@ -4,9 +4,9 @@
 #
 #  Real entities, not the placeholders originally guessed:
 #
-#  On/off: input_boolean.ipixel -- a scene/automation trigger, not the
-#  iPixel's own hardware switch, so it's driven with input_boolean.*
-#  services rather than switch.*.
+#  On/off: switch.ipixel_front -- HA switch group (Helper) with both
+#  LED switches as members; state = any member on. Toggled with
+#  switch.toggle, which HA fans out to both panels in one call.
 #
 #  Status: two real per-side switches, not one text status sensor --
 #  switch.ipixel_front_left_led_left and
@@ -15,10 +15,10 @@
 #  since there's no single combined status string to read anymore.
 #
 #  Slots (design.md §3):
-#    y_main   AN / AUS          montserrat_40 — input_boolean.ipixel
+#    y_main   AN / AUS          montserrat_40 — switch.ipixel_front
 #    y_line2  L EIN · R AUS     montserrat_16 — the two LED switches,
 #                                split across x: ±${x_col}
-#    y_row    one button        140 x 36 — toggle input_boolean.ipixel
+#    y_row    one button        140 x 36 — toggle switch.ipixel_front
 #
 #  Button grew from 104x30 (readability follow-up: a single small
 #  button under a big AN/AUS value read as too sparse) -- bigger,
@@ -45,7 +45,7 @@
 binary_sensor:
   - platform: homeassistant
     id: s_ipixel_power
-    entity_id: input_boolean.ipixel
+    entity_id: switch.ipixel_front
     on_state:
       - script.execute: draw_ipixel
   - platform: homeassistant
@@ -67,7 +67,7 @@ script:
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: input_boolean.ipixel
+            entity_id: switch.ipixel_front
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
@@ -80,9 +80,9 @@ script:
   - id: act_ipixel_power
     then:
       - homeassistant.service:
-          service: input_boolean.toggle
+          service: switch.toggle
           data:
-            entity_id: input_boolean.ipixel
+            entity_id: switch.ipixel_front
 
   - id: draw_ipixel
     mode: restart
