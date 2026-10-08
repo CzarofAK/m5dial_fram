@@ -60,3 +60,7 @@ packages:
   ov_litterbox: !include m5dial_pages/overlay_litterbox.yaml
   ov_ipixel: !include m5dial_pages/overlay_ipixel.yaml
   ov_preflight: !include m5dial_pages/overlay_preflight.yaml
+
+  # Optional units (m5dial_units/): hardware plugged into THIS dial
+  # only. No page, no page order.
+  u_dlight: !include m5dial_units/unit_dlight.yaml

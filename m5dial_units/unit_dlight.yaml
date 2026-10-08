@@ -1,0 +1,38 @@
+# =====================================================================
+#  m5dial_units/unit_dlight.yaml — M5Stack DLight Unit (BH1750)
+#  YouTrack FR-67: ambient light at the windscreen, basis for
+#  automatic dimming of the displays.
+#
+#  Optional hardware, so it's NOT in the shared header: a dial only
+#  gets it if a DLight Unit is actually plugged in. Include it from the
+#  device file like a page package, but without a p<n> slot (no page,
+#  no page order).
+#
+#  Wiring: Grove cable into the RED port (Port A, I2C):
+#  G13 = SDA, G15 = SCL. The WHITE port (Port B, G1/G2) has no I2C.
+#  Own bus `bus_ext`, separate from the internal `bus_int`
+#  (GPIO11/12), so an external cable can't disturb the onboard bus.
+#  100 kHz is fine for the short 20 cm Grove cable.
+#
+#  Step 1: readings only. Automatic dimming of `lgt_backlight` comes
+#  in a separate step once the lux range at the windscreen is known.
+#  Recorder: throttled at the source (delta), per the FRAM rule in
+#  KB FR-A-15.
+# =====================================================================
+
+i2c:
+  - id: bus_ext
+    sda: GPIO13
+    scl: GPIO15
+    frequency: 100kHz
+    scan: true
+
+sensor:
+  - platform: bh1750
+    i2c_id: bus_ext
+    id: s_lux
+    name: "Ambient Light"
+    address: 0x23
+    update_interval: 5s
+    filters:
+      - delta: 10%
