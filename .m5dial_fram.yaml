@@ -27,6 +27,20 @@
 # =====================================================================
 
 substitutions:
+  # ---- Automatic dimming from ambient light (FR-67) -----------------
+  # Only active in AUTO mode and only if a light sensor feeds
+  # g_auto_lux (m5dial_units/unit_dlight.yaml). Log-linear: lux at or
+  # below dim_lux_min -> dim_bri_min, at or above dim_lux_max -> 100 %.
+  # Brightness values are BEFORE the light's gamma 2.8 (like the fixed
+  # night level 0.25). Clock night face switches with hysteresis
+  # between dim_night_on / dim_night_off (lux). Tune after measuring
+  # day/sun values at the windscreen.
+  dim_lux_min: "1.0"
+  dim_lux_max: "2000.0"
+  dim_bri_min: "0.20"
+  dim_night_on: "5.0"
+  dim_night_off: "15.0"
+
   # ---- Layout grid, design.md §3 ------------------------------------
   # Lives only here now. The pages inherit it.
   #
@@ -353,6 +367,16 @@ globals:
     restore_value: true
     initial_value: "0" # 0 AUTO, 1 DAY, 2 NIGHT
 
+  # Smoothed ambient light in lux, written by an optional light-sensor
+  # unit (m5dial_units/unit_dlight.yaml). -1 = no sensor / no valid
+  # reading -> AUTO falls back to sun.sun. Kept as a global so this
+  # shared header never references the unit's sensor id directly (a
+  # dial without the unit must still compile).
+  - id: g_auto_lux
+    type: float
+    restore_value: false
+    initial_value: "-1.0"
+
   # Encoder edit mode (design.md §14 "Level 2 with two buttons"): 0 =
   # encoder navigates pages. >0 = which value it adjusts instead; a
   # page assigns itself a number and arms/disarms it on a button
@@ -446,20 +470,47 @@ script:
   - id: apply_daynight
     mode: restart
     then:
+      # Runs on every smoothed lux value (1/s) when a light sensor is
+      # present, so it only writes the backlight when the level really
+      # changed (>= 2 %) and only touches the clock face when day/night
+      # flips -- otherwise this would re-render every second.
       - lambda: |-
           bool night;
+          float bri;
           int m = id(g_daynight);
+          float lux = id(g_auto_lux);
+          static bool lux_night = false;
+          static int last_night = -1;
           if (m == 1) {
             night = false;
+            bri = 1.0f;
           } else if (m == 2) {
             night = true;
+            bri = 0.25f;
+          } else if (lux >= 0.0f) {
+            const float lmin = ${dim_lux_min};
+            const float lmax = ${dim_lux_max};
+            const float bmin = ${dim_bri_min};
+            float l = std::min(std::max(lux, lmin), lmax);
+            float f = (log10f(l) - log10f(lmin)) / (log10f(lmax) - log10f(lmin));
+            bri = bmin + f * (1.0f - bmin);
+            if (lux < ${dim_night_on}) lux_night = true;
+            else if (lux > ${dim_night_off}) lux_night = false;
+            night = lux_night;
           } else {
             night = id(s_sun).has_state() && id(s_sun).state != "above_horizon";
+            bri = night ? 0.25f : 1.0f;
           }
-          auto call = id(lgt_backlight).turn_on();
-          call.set_brightness(night ? 0.25f : 1.0f);
-          call.perform();
-          id(clock_face).set_night_mode(night);
+          auto &cur = id(lgt_backlight).remote_values;
+          if (!cur.is_on() || fabsf(cur.get_brightness() - bri) >= 0.02f) {
+            auto call = id(lgt_backlight).turn_on();
+            call.set_brightness(bri);
+            call.perform();
+          }
+          if ((int) night != last_night) {
+            id(clock_face).set_night_mode(night);
+            last_night = (int) night;
+          }
 
 # =====================================================================
 #  Fonts
