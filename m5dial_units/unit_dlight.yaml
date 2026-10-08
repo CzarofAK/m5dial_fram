@@ -14,10 +14,16 @@
 #  (GPIO11/12), so an external cable can't disturb the onboard bus.
 #  100 kHz is fine for the short 20 cm Grove cable.
 #
-#  Step 1: readings only. Automatic dimming of `lgt_backlight` comes
-#  in a separate step once the lux range at the windscreen is known.
-#  Recorder: throttled at the source (delta), per the FRAM rule in
-#  KB FR-A-15.
+#  Automatic dimming: this dial sits in front of the DRIVER, so it has
+#  to follow the light right away (tunnel, garage, oncoming sun), not
+#  slowly like the living-area displays. Read every 1 s, smoothed with
+#  an exponential moving average (alpha 0.3, ~3 s to settle), and each
+#  smoothed value goes straight to the header's apply_daynight via
+#  g_auto_lux. The curve itself lives in the header (substitutions
+#  dim_*). Only in AUTO mode; triple-click DAY/NIGHT still overrides.
+#
+#  Recorder: the fast value stays internal; HA only gets a copy that
+#  publishes on a 10 % change (FRAM rule, KB FR-A-15).
 # =====================================================================
 
 i2c:
@@ -31,8 +37,20 @@ sensor:
   - platform: bh1750
     i2c_id: bus_ext
     id: s_lux
-    name: "Ambient Light"
+    internal: true
     address: 0x23
-    update_interval: 5s
+    update_interval: 1s
+    filters:
+      - exponential_moving_average:
+          alpha: 0.3
+          send_every: 1
+    on_value:
+      - lambda: |-
+          id(g_auto_lux) = std::isnan(x) ? -1.0f : x;
+      - script.execute: apply_daynight
+
+  - platform: copy
+    source_id: s_lux
+    name: "Ambient Light"
     filters:
       - delta: 10%
