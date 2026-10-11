@@ -913,8 +913,8 @@ reusable by any dial in the project, not just this one.
 * **Real integration behind `climate`/`boiler`.** Both originally
   assumed a `truma_inetbox` external ESPHome component talking LIN
   directly — wrong; the real path is a MQTT-based `womolin_controller`
-  integration (`switch.womolin_controller_mqtt_activate_room_heater` /
-  `_water_heater`, `climate.womolin_controller_mqtt_truma_room` /
+  integration (`switch.smart_ebl_truma_activate_room_heater` /
+  `_water_heater`, `climate.smart_ebl_truma_heater` /
   `_water` for current temperature). The on/off gate and current
   temperature are wired to that. Fan mode/level and a fault flag
   existed on the old assumption and were dropped rather than
@@ -924,8 +924,8 @@ reusable by any dial in the project, not just this one.
   target temperature is NOT the climate entity's own `temperature`
   attribute (climate.set_temperature) as both pages originally assumed
   — the integration exposes it as its own first-class number entity
-  instead: `number.womolin_controller_mqtt_target_room_temperature`
-  (`page_climate`) / `number.womolin_controller_mqtt_target_water_temperature`
+  instead: `number.smart_ebl_truma_target_room_temp`
+  (`page_climate`) / `number.smart_ebl_truma_target_water_temp`
   (`page_boiler`). Read directly via `sensor: platform: homeassistant`
   (no `attribute:` needed) and written via `number.set_value`. Likely
   cause of a real "Can't convert 'None' to number!" warning seen
@@ -1026,8 +1026,8 @@ one line each) before relying on it.
 | 4 | `gas` | Two gas bottles (double ring, §4) | implemented |
 | 5 | `water` | Fresh / grey water (double ring, §4) | implemented |
 | 6 | `levelling` | Spirit level (bubble, MPU6050) + per-corner cm-to-add (VL/VR/HL/HR, from four already-computed sensors) | implemented |
-| 7 | `climate` | Truma Combi 4 (gas only) room-heating side, via the `womolin_controller` MQTT integration's activate switch + climate entity; AC not installed yet; fan mode/fault dropped pending a confirmed entity | implemented |
-| 8 | `boiler` | Truma Combi 4 water-heating side, same `womolin_controller` integration as `climate` | implemented |
+| 7 | `climate` | Truma Combi 4 (gas only) room-heating side, via the Smart EBL's Truma entities (activate switch + climate/number, FR-71; formerly `womolin_controller`); AC not installed yet; fan mode/fault dropped pending a confirmed entity | implemented |
+| 8 | `boiler` | Truma Combi 4 water-heating side, same Smart EBL Truma entities as `climate` | implemented |
 | 9 | `fans` | Fan board (`number.fan_board_fan_speed`) + Sprinter HVAC fan (`number.relay_2ch_hvac_hvac_fan_battery`, real — driven by the separate relay-2ch-hvac ESPHome device; that board only actually moves the motor when parked, this page just sets the desired value) | implemented |
 | 10 | `lights_outside` | Entrance light (two switches, driven together), awning light — both plain switches, not the `light` domain | implemented |
 | 11 | `entrance` | Step, door lock — rows grouped by purpose: REIN+ZU (securing to drive) / RAUS+AUF (arriving), not by device; no double-click shortcut (safety) | implemented |

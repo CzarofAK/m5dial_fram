@@ -1,14 +1,18 @@
 # =====================================================================
 #  m5dial_pages/page_boiler.yaml — page: Boiler (water heating)
 #  FRAM M5Dial Cockpit · page package
+#  FR-71 (2026-10-11): Truma source switched from the womolin controller
+#  (MQTT, womolin_controller_mqtt_*) to the Smart EBL's own truma_inetbox
+#  entities (smart_ebl_truma_*). Same havanti component on both, so the
+#  semantics are unchanged; mentions of womolin_controller below are history.
 #
 #  The water-heating side of the same Truma Combi 4 as page_climate.yaml
 #  — see that file's header for the integration background (real path
 #  is the MQTT-based "womolin_controller" integration, not the
 #  truma_inetbox guess this page originally assumed):
-#    switch.womolin_controller_mqtt_activate_water_heater             on/off gate
-#    climate.womolin_controller_mqtt_truma_water                     current temp (attribute)
-#    number.womolin_controller_mqtt_target_water_temperature         target temp
+#    switch.smart_ebl_truma_activate_water_heater             on/off gate
+#    climate.smart_ebl_truma_water_heater                     current temp (attribute)
+#    number.smart_ebl_truma_target_water_temp         target temp
 #  Same caveat: the activate switch must be ON before either entity
 #  carries live values, and every change (switch or target temperature)
 #  has real lag -- ca. 2-4s, Truma's own LIN round trip, not something
@@ -96,7 +100,7 @@
 #     disarm. g_boiler_temp_known gates the "---" placeholder.
 #  2. BOILER's button shows a local optimistic guess
 #     (g_boiler_heater_optimistic) the instant it's tapped, ahead of
-#     switch.womolin_controller_mqtt_activate_water_heater's own
+#     switch.smart_ebl_truma_activate_water_heater's own
 #     confirmation.
 #
 #  Interlock (user report, new standard -- shared with page_climate.yaml,
@@ -141,13 +145,13 @@
 sensor:
   - platform: homeassistant
     id: s_boiler_temp
-    entity_id: climate.womolin_controller_mqtt_truma_water
+    entity_id: climate.smart_ebl_truma_water_heater
     attribute: current_temperature
     on_value:
       - script.execute: draw_boiler
   - platform: homeassistant
     id: s_boiler_target
-    entity_id: number.womolin_controller_mqtt_target_water_temperature
+    entity_id: number.smart_ebl_truma_target_water_temp
     on_value:
       # Resync pending from the confirmed value, but only while NOT
       # armed -- never fight an active edit. See header re: lag.
@@ -163,7 +167,7 @@ sensor:
 binary_sensor:
   - platform: homeassistant
     id: s_boiler_heater_on
-    entity_id: switch.womolin_controller_mqtt_activate_water_heater
+    entity_id: switch.smart_ebl_truma_activate_water_heater
     on_state:
       # Real state just arrived -- stop trusting the optimistic guess.
       - globals.set:
@@ -226,15 +230,15 @@ script:
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: climate.womolin_controller_mqtt_truma_water
+            entity_id: climate.smart_ebl_truma_water_heater
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: switch.womolin_controller_mqtt_activate_water_heater
+            entity_id: switch.smart_ebl_truma_activate_water_heater
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: number.womolin_controller_mqtt_target_water_temperature
+            entity_id: number.smart_ebl_truma_target_water_temp
 
   - id: act_boiler_heater
     then:
@@ -248,7 +252,7 @@ script:
       - homeassistant.service:
           service: switch.toggle
           data:
-            entity_id: switch.womolin_controller_mqtt_activate_water_heater
+            entity_id: switch.smart_ebl_truma_activate_water_heater
 
   # Water temp (target 5), same guard as page_climate.yaml's target 3:
   # refuses to arm while BOILER is off, since a target set while off
@@ -325,7 +329,7 @@ script:
       - homeassistant.service:
           service: number.set_value
           data:
-            entity_id: number.womolin_controller_mqtt_target_water_temperature
+            entity_id: number.smart_ebl_truma_target_water_temp
           data_template:
             value: "{{ val }}"
           variables:
