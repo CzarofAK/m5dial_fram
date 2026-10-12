@@ -1,6 +1,12 @@
 # m5dial_fram
 This repo holds my yaml files for the m5dials in my motorhome (FRAM).
 
+> [!WARNING]
+> **Safety & liability / Sicherheit & Haftung** – Private hobby project, provided "as is" and used **at your own risk**.
+> These configurations control motorhome systems via Home Assistant (heating, lights, power, water). A wrong configuration can switch devices unexpectedly.
+> Displayed values (gas, battery, tanks, levelling, pre-flight checks) can be wrong or stale. Always verify safety-relevant states yourself before driving or sleeping in the vehicle.
+> See [DISCLAIMER.md](DISCLAIMER.md) (EN/DE).
+
 See [`design_rules.md`](design_rules.md) for the full design and build
 specification — layout grid, geometry, colors, naming scheme, and the
 checklist for merging a page into a device file.
@@ -23,3 +29,7 @@ It needs to provide: `wifi`, `ota`, `api`, `web_server`, `logger`, the
 copy it to `/config/esphome/.basics.yaml` and fill in your own secrets.
 It expects these keys in `secrets.yaml`: `wifi_ssid`, `wifi_password`,
 `password` (OTA), `api_encryption_key`, `ap_password`.
+
+## License
+
+MIT, see [LICENSE](LICENSE). Use at your own risk – see [DISCLAIMER.md](DISCLAIMER.md).
