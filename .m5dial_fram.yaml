@@ -267,7 +267,7 @@ binary_sensor:
       #    while driving, touch works fine parked, so both stay
       #    available on every page that has one). A page with two
       #    things worth reaching (page_fans, page_climate,
-      #    page_boiler, page_lights_outside) exposes a dedicated
+      #    page_boiler, page_lights) exposes a dedicated
       #    dc_<page>_cycle script that alternates between them, one per
       #    click, rather than one fixed action always winning. A page
       #    with nothing to act on (page_clock, page_gas, page_levelling)
@@ -304,7 +304,7 @@ binary_sensor:
                     else if (id(page_fans)->is_showing()) { id(dc_fans_cycle)->execute(); }
                     else if (id(page_climate)->is_showing()) { id(dc_climate_cycle)->execute(); }
                     else if (id(page_boiler)->is_showing()) { id(dc_boiler_cycle)->execute(); }
-                    else if (id(page_lights_outside)->is_showing()) { id(dc_lights_outside_cycle)->execute(); }
+                    else if (id(page_lights)->is_showing()) { id(dc_lights_all_off)->execute(); }
                     else if (id(page_ipixel)->is_showing()) { id(act_ipixel_power)->execute(); }
                     // page_clock, page_gas, page_levelling, page_entrance:
                     // nothing to act on / deliberately excluded -- see
@@ -342,6 +342,8 @@ text_sensor:
     entity_id: sensor.nw19939_ignition_state
     on_value:
       - script.execute: draw_ov_preflight
+      # page_lights: outside lights are relay-cut at D+ (footer hint)
+      - script.execute: draw_lights
 
   # ---- shared: sun.sun follows the vehicle's GPS position ------------
   - platform: homeassistant

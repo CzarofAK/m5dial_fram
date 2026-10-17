@@ -91,7 +91,64 @@
 # ---------------------------------------------------------------------
 #  C  Bindings
 # ---------------------------------------------------------------------
+# ---- Status (17.10.2026): Aufbautür contact + step ----------------
+# Lock/Unlock act on the Aufbautür (esphome.relay_4ch_step_zv_lock /
+# _unlock, same service the "Aufbautüre schliessen bei Ignition on"
+# automation uses). There is no lock-state entity, only the door
+# contact binary_sensor.eingangsture_contact -> shown as TÜR ZU/OFFEN.
+# Step position: no real sensor yet (FR-115); stand-in is
+# binary_sensor.relay_4ch_step_step_out_engine_on, the same one the
+# HA pre-flight check uses -> footer "STUFE DRAUSSEN" when on.
+binary_sensor:
+  - platform: homeassistant
+    id: s_entrance_door
+    entity_id: binary_sensor.eingangsture_contact
+    trigger_on_initial_state: true
+    on_state:
+      - script.execute: draw_entrance
+  - platform: homeassistant
+    id: s_entrance_step_out
+    entity_id: binary_sensor.relay_4ch_step_step_out_engine_on
+    trigger_on_initial_state: true
+    on_state:
+      - script.execute: draw_entrance
+
 script:
+  - id: poll_entrance
+    then:
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: binary_sensor.eingangsture_contact, binary_sensor.relay_4ch_step_step_out_engine_on
+
+  - id: draw_entrance
+    mode: restart
+    then:
+      - lambda: |-
+          bool api = true;
+          #ifdef USE_API
+          api = api_is_connected();
+          #endif
+          // Door: contact "on" = open
+          const char *dt = "TÜR ---";
+          uint32_t dc = 0x555555;
+          if (api && id(s_entrance_door).has_state()) {
+            bool open = id(s_entrance_door).state;
+            dt = open ? "TÜR OFFEN" : "TÜR ZU";
+            dc = open ? 0xF39C12 : 0x2ECC71;
+          }
+          lv_label_set_text(id(lbl_entrance_door), dt);
+          lv_obj_set_style_text_color(id(lbl_entrance_door), lv_color_hex(dc), 0);
+          // Footer: step out, otherwise empty (design.md §6)
+          const char *ft = "";
+          uint32_t fc = 0x707070;
+          if (!api) { ft = "KEINE VERBINDUNG"; fc = 0x555555; }
+          else if (id(s_entrance_step_out).has_state() && id(s_entrance_step_out).state) {
+            ft = "STUFE DRAUSSEN"; fc = 0xF39C12;
+          }
+          lv_label_set_text(id(lbl_entrance_status), ft);
+          lv_obj_set_style_text_color(id(lbl_entrance_status), lv_color_hex(fc), 0);
+
   - id: act_entrance_step_in
     then:
       - homeassistant.service:
@@ -122,9 +179,25 @@ script:
 lvgl:
   pages:
     - id: page_entrance
+      on_load:
+        - script.execute: poll_entrance
       bg_color: 0x000000
       bg_opa: COVER
       widgets:
+        - label:
+            id: lbl_entrance_door
+            align: CENTER
+            y: -66
+            text: "TÜR ---"
+            text_font: font_16
+            text_color: 0x555555
+        - label:
+            id: lbl_entrance_status
+            align: BOTTOM_MID
+            y: ${y_footer}
+            text: ""
+            text_font: font_12
+            text_color: 0x555555
         # ---- Row 1 (y:-22): securing (REIN + ZU) ----------------------
         - button:
             id: btn_entrance_step_in
@@ -204,3 +277,9 @@ lvgl:
                   text_color: 0xBDC1C6
             on_click:
               - script.execute: act_entrance_unlock
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - script.execute: draw_entrance

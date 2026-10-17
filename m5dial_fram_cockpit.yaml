@@ -55,7 +55,7 @@ packages:
   p8: !include m5dial_pages/page_climate.yaml
   p9: !include m5dial_pages/page_boiler.yaml
   p10: !include m5dial_pages/page_fans.yaml
-  p11: !include m5dial_pages/page_lights_outside.yaml
+  p11: !include m5dial_pages/page_lights.yaml
   p12: !include m5dial_pages/page_entrance.yaml
   p13: !include m5dial_pages/page_ipixel.yaml
 
