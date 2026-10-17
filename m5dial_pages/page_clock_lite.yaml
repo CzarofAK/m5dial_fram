@@ -1,0 +1,79 @@
+# =====================================================================
+#  m5dial_pages/page_clock_lite.yaml — page: Clock (SBB, dark, light)
+#  FRAM M5Dial Cockpit · page package
+#
+#  Drop-in replacement for page_clock.yaml (same page id page_clock,
+#  same poll_clock / clock_apply_night scripts) using the canvas-free
+#  `sbb_clock_lite` widget from CzarofAK/m5dial_clock_sbb:
+#
+#    - no canvas: page_clock.yaml's sbb_clock allocates a 240x240
+#      RGB565 canvas = 115 kB internal SRAM (no PSRAM on the Dial) -
+#      by far the biggest heap block in this firmware. The lite widget
+#      draws straight into LVGL's render buffer instead (a few hundred
+#      bytes), and does no work while the page isn't shown.
+#    - dark only: white ink on the black page, red second hand, day
+#      and night. Day/night is therefore backlight brightness only,
+#      exactly as design.md §6 wants for every other page - the §6
+#      clock exception doesn't apply to this variant.
+#
+#  Back to the white SBB face: swap p0 in m5dial_fram_cockpit.yaml to
+#  page_clock.yaml again (only one of the two may be included).
+# =====================================================================
+
+script:
+  # Header's apply_daynight runs this on every day/night flip. Dark
+  # only - nothing to switch.
+  - id: clock_apply_night
+    then:
+      - lambda: "return;"
+
+  - id: poll_clock
+    then:
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: weather.forecast_home
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/CzarofAK/m5dial_clock_sbb
+      ref: main
+    refresh: 1d
+    components: [sbb_clock_lite]
+
+# Marker key — without it ESPHome won't load the component's code.
+sbb_clock_lite:
+
+color:
+  - id: col_ink
+    hex: FFFFFF
+  - id: col_second
+    hex: E74C3C
+
+lvgl:
+  pages:
+    - id: page_clock
+      on_load:
+        - script.execute: poll_clock
+      bg_color: 0x000000
+      bg_opa: COVER
+      widgets:
+        - sbb_clock_lite:
+            id: clock_face
+            align: CENTER
+            width: 240
+            height: 240
+            time_id: homeassistant_time
+            foreground: col_ink
+            second_hand_color: col_second
+            render_interval: 100ms
+            show_seconds: true
+            second_hand_sweep: 58s
+            show_ticks: true
+            show_ring: true
+            show_date: true
+            date_font: font_16
+            show_temperature: true
+            temperature_sensor_id: s_aussentemp
+            temperature_font: font_16

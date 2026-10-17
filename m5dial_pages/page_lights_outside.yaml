@@ -102,21 +102,25 @@ binary_sensor:
   - platform: homeassistant
     id: s_lights_entrance_pir
     entity_id: switch.light_pir
+    trigger_on_initial_state: true
     on_state:
       - script.execute: draw_lights_outside
   - platform: homeassistant
     id: s_lights_entrance_step
     entity_id: switch.light_step
+    trigger_on_initial_state: true
     on_state:
       - script.execute: draw_lights_outside
   - platform: homeassistant
     id: s_lights_awning_front
     entity_id: light.light_awning_front
+    trigger_on_initial_state: true
     on_state:
       - script.execute: draw_lights_outside
   - platform: homeassistant
     id: s_lights_awning_rear
     entity_id: light.light_awning_rear
+    trigger_on_initial_state: true
     on_state:
       - script.execute: draw_lights_outside
 
