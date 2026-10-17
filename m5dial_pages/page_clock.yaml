@@ -15,9 +15,8 @@
 #  theme everywhere else, per design.md §6. That's too bright for a
 #  dark cabin at night, so it inverts instead of just dimming: black
 #  face / white hands, the look this page used before the switch to
-#  this component. The header's `apply_daynight` script drives the
-#  switch via `id(clock_face).set_night_mode(...)` — see the comment
-#  there for the coupling that creates. The second hand stays red in
+#  this component. The header's `apply_daynight` script sets g_night
+#  and runs `clock_apply_night` below. The second hand stays red in
 #  both modes either way (component behavior, matches the real clock).
 #
 #  `show_face: true` draws a filled circle in `background` with a
@@ -35,6 +34,12 @@
 # =====================================================================
 
 script:
+  # Called by the header's apply_daynight whenever day/night flips
+  # (g_night). This page inverts the SBB face at night.
+  - id: clock_apply_night
+    then:
+      - lambda: id(clock_face).set_night_mode(id(g_night));
+
   - id: poll_clock
     then:
       - homeassistant.service:

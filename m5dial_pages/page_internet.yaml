@@ -1,0 +1,299 @@
+# =====================================================================
+#  m5dial_pages/page_internet.yaml — page: Internet (Mobilfunk)
+#  FRAM M5Dial Cockpit · page package
+#
+#  Netz-Level, Empfang und Roaming-Verbrauch des RUT955 auf einen Blick.
+#  Gleiches Doppelring-Raster wie page_gas / page_water (design.md):
+#
+#    outer ring 224  SIGNAL   sensor.teltonika_signal_starke (0..100 %)
+#    inner ring 200  ROAMING  sensor.fram_mobil_monat_ausland (MB) / 40 GB
+#
+#    left  column  SIGNAL   xx %   |  Verbindungstyp (LTE / 3G ...)
+#    right column  ROAMING  x.x GB |  "von 40 GB"
+#    y_row  button  "LVL 1" / "LVL 2"  -> input_boolean.fram_netlevel_2
+#    footer status  ROUTER OFFLINE > KEIN NETZ > ROAMING >90 % > Land
+#
+#  Quellen (fram-homeassistant): teltonika_mqtt.yaml (Signal, Network,
+#  Connection, Verbunden), fram_datenvolumen.yaml (Monatszähler,
+#  1 GB = 1000 MB wie in der Telegram-Meldung), web_traffic_level_2.yaml
+#  (Netz-Level 2, FRAM in CH). Roaming-Volumen 40 GB/Monat (Highspeed-
+#  Anteil der Auslands-Option).
+#
+#  Netz-Level: Level 3 «Lockdown» existiert in HA noch nicht - der
+#  Button kennt deshalb nur 1/2. Achtung: die Automation «Lvl 1 nur in
+#  CH» setzt im Ausland wieder auf 2 zurück; Lvl 1 im Ausland hält also
+#  nur, bis sie das nächste Mal triggert. Doppelklick = Button.
+#
+#  Heap: alles in EINEM Zeichen-Lambda mit Stack-Puffer und
+#  lv_label_set_text() - keine std::string pro Label/Update (Muster
+#  für die übrigen Seiten, siehe design.md §Heap).
+# =====================================================================
+
+substitutions:
+  roaming_quota_mb: "40000"
+
+sensor:
+  - platform: homeassistant
+    id: s_inet_signal
+    entity_id: sensor.teltonika_signal_starke
+    on_value:
+      - script.execute: draw_internet
+  - platform: homeassistant
+    id: s_inet_roaming
+    entity_id: sensor.fram_mobil_monat_ausland
+    on_value:
+      - script.execute: draw_internet
+
+text_sensor:
+  - platform: homeassistant
+    id: s_inet_conn
+    entity_id: sensor.teltonika_connection
+    on_value:
+      - script.execute: draw_internet
+  - platform: homeassistant
+    id: s_inet_network
+    entity_id: sensor.teltonika_network
+    on_value:
+      - script.execute: draw_internet
+
+binary_sensor:
+  - platform: homeassistant
+    id: s_inet_lvl2
+    entity_id: input_boolean.fram_netlevel_2
+    trigger_on_initial_state: true
+    on_state:
+      - script.execute: draw_internet
+  - platform: homeassistant
+    id: s_inet_in_ch
+    entity_id: binary_sensor.fram_in_ch
+    trigger_on_initial_state: true
+    on_state:
+      - script.execute: draw_internet
+  - platform: homeassistant
+    id: s_inet_router
+    entity_id: binary_sensor.teltonika_verbunden
+    trigger_on_initial_state: true
+    on_state:
+      - script.execute: draw_internet
+
+script:
+  - id: poll_internet
+    then:
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: sensor.teltonika_signal_starke
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: sensor.fram_mobil_monat_ausland
+
+  - id: act_internet_level
+    then:
+      - homeassistant.service:
+          service: input_boolean.toggle
+          data:
+            entity_id: input_boolean.fram_netlevel_2
+
+  - id: draw_internet
+    mode: restart
+    then:
+      - lambda: |-
+          const uint32_t GREY = 0x555555, TXT = 0xBDC1C6, WHITE = 0xFFFFFF,
+                         BLUE = 0x4A9EFF, ORANGE = 0xF39C12, RED = 0xE74C3C,
+                         GREEN = 0x2ECC71;
+          char buf[32];
+          bool api = true;
+          #ifdef USE_API
+          api = api_is_connected();
+          #endif
+          auto col = [](lv_obj_t *o, uint32_t c) {
+            lv_obj_set_style_text_color(o, lv_color_hex(c), 0);
+          };
+          auto arc = [](lv_obj_t *o, int v, uint32_t c) {
+            lv_arc_set_value(o, v);
+            lv_obj_set_style_arc_color(o, lv_color_hex(c), LV_PART_INDICATOR);
+          };
+
+          bool router = api && id(s_inet_router).has_state() && id(s_inet_router).state;
+          const std::string &net = id(s_inet_network).state;
+          bool registered = router && id(s_inet_network).has_state() &&
+                            net.rfind("Registered", 0) == 0;
+
+          // ---- SIGNAL (outer ring, left column) ----
+          bool sig_ok = registered && id(s_inet_signal).has_state() &&
+                        !std::isnan(id(s_inet_signal).state);
+          float sig = sig_ok ? id(s_inet_signal).state : 0.0f;
+          uint32_t sig_c = !sig_ok ? GREY : sig < 20 ? RED : sig < 40 ? ORANGE : BLUE;
+          arc(id(arc_inet_signal), (int) sig, sig_c);
+          col(id(lbl_inet_cap_signal), sig_c);
+          if (sig_ok) snprintf(buf, sizeof(buf), "%.0f%%", sig); else strcpy(buf, "---%");
+          lv_label_set_text(id(lbl_inet_signal), buf);
+          col(id(lbl_inet_signal), sig_ok ? WHITE : GREY);
+          if (registered && id(s_inet_conn).has_state() && !id(s_inet_conn).state.empty())
+            snprintf(buf, sizeof(buf), "%s", id(s_inet_conn).state.c_str());
+          else
+            strcpy(buf, "---");
+          lv_label_set_text(id(lbl_inet_conn), buf);
+          col(id(lbl_inet_conn), registered ? TXT : GREY);
+
+          // ---- ROAMING (inner ring, right column) ----
+          bool roam_ok = api && id(s_inet_roaming).has_state() &&
+                         !std::isnan(id(s_inet_roaming).state);
+          float mb = roam_ok ? id(s_inet_roaming).state : 0.0f;
+          float pct = mb * 100.0f / ${roaming_quota_mb}.0f;
+          uint32_t roam_c = !roam_ok ? GREY : pct >= 90 ? RED : pct >= 75 ? ORANGE : BLUE;
+          arc(id(arc_inet_roaming), (int) std::min(pct, 100.0f), roam_c);
+          col(id(lbl_inet_cap_roaming), roam_c);
+          if (!roam_ok) strcpy(buf, "--- GB");
+          else if (mb < 1000.0f) snprintf(buf, sizeof(buf), "%.0f MB", mb);
+          else snprintf(buf, sizeof(buf), "%.1f GB", mb / 1000.0f);
+          lv_label_set_text(id(lbl_inet_roaming), buf);
+          col(id(lbl_inet_roaming), !roam_ok ? GREY : pct >= 90 ? RED : WHITE);
+          snprintf(buf, sizeof(buf), "von %d GB", ${roaming_quota_mb} / 1000);
+          lv_label_set_text(id(lbl_inet_quota), buf);
+          col(id(lbl_inet_quota), roam_ok ? TXT : GREY);
+
+          // ---- Netz-Level button ----
+          bool lvl_ok = api && id(s_inet_lvl2).has_state();
+          bool lvl2 = lvl_ok && id(s_inet_lvl2).state;
+          lv_label_set_text(id(lbl_inet_level), !lvl_ok ? "LVL ---" : lvl2 ? "LVL 2" : "LVL 1");
+          col(id(lbl_inet_level), !lvl_ok ? GREY : lvl2 ? ORANGE : GREEN);
+          lv_obj_set_style_border_color(id(btn_inet_level),
+              lv_color_hex(!lvl_ok ? 0x3C4043 : lvl2 ? ORANGE : GREEN), 0);
+
+          // ---- Status line (highest priority first) ----
+          const char *st = "";
+          uint32_t st_c = 0x707070;
+          if (!api) { st = "KEINE VERBINDUNG"; st_c = GREY; }
+          else if (!router) { st = "ROUTER OFFLINE"; st_c = RED; }
+          else if (!registered) { st = "KEIN NETZ"; st_c = RED; }
+          else if (roam_ok && pct >= 100) { st = "ROAMING AUFGEBRAUCHT"; st_c = RED; }
+          else if (roam_ok && pct >= 90) { st = "ROAMING FAST LEER"; st_c = ORANGE; }
+          else if (id(s_inet_in_ch).has_state())
+            st = id(s_inet_in_ch).state ? "SCHWEIZ" : "AUSLAND";
+          lv_label_set_text(id(lbl_inet_status), st);
+          col(id(lbl_inet_status), st_c);
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - script.execute: draw_internet
+
+lvgl:
+  pages:
+    - id: page_internet
+      on_load:
+        - script.execute: poll_internet
+      bg_color: 0x000000
+      bg_opa: COVER
+      widgets:
+        - arc:
+            id: arc_inet_signal
+            align: CENTER
+            width: 224
+            height: 224
+            start_angle: 135
+            end_angle: 45
+            min_value: 0
+            max_value: 100
+            adjustable: false
+            arc_width: 10
+            arc_color: 0x1A1C1E
+            indicator:
+              arc_width: 10
+              arc_color: 0x555555
+            knob:
+              bg_opa: TRANSP
+        - arc:
+            id: arc_inet_roaming
+            align: CENTER
+            width: 200
+            height: 200
+            start_angle: 135
+            end_angle: 45
+            min_value: 0
+            max_value: 100
+            adjustable: false
+            arc_width: 10
+            arc_color: 0x1A1C1E
+            indicator:
+              arc_width: 10
+              arc_color: 0x555555
+            knob:
+              bg_opa: TRANSP
+        - label:
+            id: lbl_inet_cap_signal
+            align: CENTER
+            x: -${x_col}
+            y: ${y_cap}
+            text: "SIGNAL"
+            text_font: font_12
+            text_color: 0x555555
+        - label:
+            id: lbl_inet_signal
+            align: CENTER
+            x: -${x_col}
+            y: ${y_main}
+            text: "---%"
+            text_font: font_24
+            text_color: 0x555555
+        - label:
+            id: lbl_inet_conn
+            align: CENTER
+            x: -${x_col}
+            y: ${y_line2}
+            text: "---"
+            text_font: font_16
+            text_color: 0x555555
+        - label:
+            id: lbl_inet_cap_roaming
+            align: CENTER
+            x: ${x_col}
+            y: ${y_cap}
+            text: "ROAMING"
+            text_font: font_12
+            text_color: 0x555555
+        - label:
+            id: lbl_inet_roaming
+            align: CENTER
+            x: ${x_col}
+            y: ${y_main}
+            text: "--- GB"
+            text_font: font_24
+            text_color: 0x555555
+        - label:
+            id: lbl_inet_quota
+            align: CENTER
+            x: ${x_col}
+            y: ${y_line2}
+            text: "von 40 GB"
+            text_font: font_16
+            text_color: 0x555555
+        - button:
+            id: btn_inet_level
+            align: CENTER
+            y: ${y_row}
+            width: 104
+            height: 30
+            radius: 15
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  id: lbl_inet_level
+                  align: CENTER
+                  text: "LVL ---"
+                  text_font: font_16
+                  text_color: 0x555555
+            on_click:
+              - script.execute: act_internet_level
+        - label:
+            id: lbl_inet_status
+            align: BOTTOM_MID
+            y: ${y_footer}
+            text: ""
+            text_font: font_12
+            text_color: 0x555555

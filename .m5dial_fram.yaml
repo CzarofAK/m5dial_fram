@@ -300,6 +300,7 @@ binary_sensor:
                     else if (id(page_power_2)->is_showing()) { id(act_power_2_arm_assist)->execute(); }
                     else if (id(page_power_3)->is_showing()) { id(act_power_3_mode)->execute(); }
                     else if (id(page_water)->is_showing()) { id(act_water_pump)->execute(); }
+                    else if (id(page_internet)->is_showing()) { id(act_internet_level)->execute(); }
                     else if (id(page_fans)->is_showing()) { id(dc_fans_cycle)->execute(); }
                     else if (id(page_climate)->is_showing()) { id(dc_climate_cycle)->execute(); }
                     else if (id(page_boiler)->is_showing()) { id(dc_boiler_cycle)->execute(); }
@@ -354,14 +355,19 @@ text_sensor:
 # =====================================================================
 #  design.md §6: day and night differ ONLY in backlight brightness,
 #  never in the color scheme -- except the clock page, a deliberate,
-#  documented exception (design.md §6). This script is therefore the
-#  one place in the header that reaches into a specific page's widget
-#  (clock_face, from page_clock.yaml). That's only safe because every
-#  cockpit currently includes the same page set (m5dial_fram_cockpit.yaml's
-#  own comment: "otherwise the same packages") -- if a future dial ever
-#  drops the clock page, this call needs to come out too, or the build
-#  breaks on the missing id.
+#  documented exception (design.md §6). The header no longer touches
+#  the clock widget itself: it stores the result in g_night and runs
+#  the script `clock_apply_night`, which every clock page package
+#  defines (page_clock.yaml: flips the SBB face; page_clock_lite.yaml:
+#  dark only, no-op). A dial without any clock page needs an empty
+#  clock_apply_night script instead.
 globals:
+  # Result of apply_daynight (true = night), read by clock_apply_night.
+  - id: g_night
+    type: bool
+    restore_value: false
+    initial_value: "false"
+
   - id: g_daynight
     type: int
     restore_value: true
@@ -508,7 +514,8 @@ script:
             call.perform();
           }
           if ((int) night != last_night) {
-            id(clock_face).set_night_mode(night);
+            id(g_night) = night;
+            id(clock_apply_night)->execute();
             last_night = (int) night;
           }
 
