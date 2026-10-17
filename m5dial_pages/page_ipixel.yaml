@@ -46,16 +46,19 @@ binary_sensor:
   - platform: homeassistant
     id: s_ipixel_power
     entity_id: switch.ipixel_panels
+    trigger_on_initial_state: true
     on_state:
       - script.execute: draw_ipixel
   - platform: homeassistant
     id: s_ipixel_led_left
     entity_id: switch.ipixel_front_left_led_left
+    trigger_on_initial_state: true
     on_state:
       - script.execute: draw_ipixel
   - platform: homeassistant
     id: s_ipixel_led_right
     entity_id: switch.ipixel_front_right_led_right
+    trigger_on_initial_state: true
     on_state:
       - script.execute: draw_ipixel
 

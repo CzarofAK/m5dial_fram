@@ -45,6 +45,7 @@ binary_sensor:
   - platform: homeassistant
     id: s_water_pump
     entity_id: switch.smart_ebl_water_pump
+    trigger_on_initial_state: true
     on_state:
       - script.execute: draw_water
 

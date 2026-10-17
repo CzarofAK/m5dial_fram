@@ -65,6 +65,7 @@ binary_sensor:
   - platform: homeassistant
     id: s_power_1_park
     entity_id: switch.fram_parkmodus
+    trigger_on_initial_state: true
     on_state:
       - script.execute: draw_power_1
 
