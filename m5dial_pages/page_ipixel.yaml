@@ -4,7 +4,7 @@
 #
 #  Real entities, not the placeholders originally guessed:
 #
-#  On/off: switch.ipixel_front -- HA switch group (Helper) with both
+#  On/off: switch.ipixel_panels -- HA switch group (Helper) with both
 #  LED switches as members; state = any member on. Toggled with
 #  switch.toggle, which HA fans out to both panels in one call.
 #
@@ -15,10 +15,10 @@
 #  since there's no single combined status string to read anymore.
 #
 #  Slots (design.md §3):
-#    y_main   AN / AUS          montserrat_40 — switch.ipixel_front
+#    y_main   AN / AUS          montserrat_40 — switch.ipixel_panels
 #    y_line2  L EIN · R AUS     montserrat_16 — the two LED switches,
 #                                split across x: ±${x_col}
-#    y_row    one button        140 x 36 — toggle switch.ipixel_front
+#    y_row    one button        140 x 36 — toggle switch.ipixel_panels
 #
 #  Button grew from 104x30 (readability follow-up: a single small
 #  button under a big AN/AUS value read as too sparse) -- bigger,
@@ -45,7 +45,7 @@
 binary_sensor:
   - platform: homeassistant
     id: s_ipixel_power
-    entity_id: switch.ipixel_front
+    entity_id: switch.ipixel_panels
     on_state:
       - script.execute: draw_ipixel
   - platform: homeassistant
@@ -67,7 +67,7 @@ script:
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: switch.ipixel_front
+            entity_id: switch.ipixel_panels
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
@@ -82,7 +82,7 @@ script:
       - homeassistant.service:
           service: switch.toggle
           data:
-            entity_id: switch.ipixel_front
+            entity_id: switch.ipixel_panels
 
   - id: draw_ipixel
     mode: restart

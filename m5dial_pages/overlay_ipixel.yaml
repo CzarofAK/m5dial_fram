@@ -6,7 +6,7 @@
 #  current, via LVGL's top_layer rather than the pages: list. Same
 #  shape as overlay_litterbox.yaml, no cat/fan-flash equivalent here:
 #
-#    - switch.ipixel_front ON (HA switch group, "any" mode -- on as
+#    - switch.ipixel_panels ON (HA switch group, "any" mode -- on as
 #      soon as either LED is on; same group page_ipixel.yaml toggles)
 #      -> overlay visible, red background.
 #    - Group OFF (= both LEDs off) -> hidden again immediately.
@@ -35,7 +35,7 @@ globals:
 binary_sensor:
   - platform: homeassistant
     id: s_ov_ipixel_power
-    entity_id: switch.ipixel_front
+    entity_id: switch.ipixel_panels
     on_state:
       - script.execute: draw_ov_ipixel
 

@@ -40,12 +40,11 @@ sensor:
       - script.execute: draw_water
 
 binary_sensor:
-  # No real pump switch on the vehicle yet — an input_boolean in HA
-  # until then. Once the switch exists: swap the entity_id and set the
-  # service in the act_ script to switch.toggle.
+  # Real pump relay on the Smart EBL (was input_boolean.waterpump as a
+  # placeholder, which no longer exists in HA).
   - platform: homeassistant
     id: s_water_pump
-    entity_id: input_boolean.waterpump
+    entity_id: switch.smart_ebl_water_pump
     on_state:
       - script.execute: draw_water
 
@@ -65,14 +64,14 @@ script:
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: input_boolean.waterpump
+            entity_id: switch.smart_ebl_water_pump
 
   - id: act_water_pump
     then:
       - homeassistant.service:
-          service: input_boolean.toggle
+          service: switch.toggle
           data:
-            entity_id: input_boolean.waterpump
+            entity_id: switch.smart_ebl_water_pump
 
   - id: draw_water
     mode: restart
