@@ -8,8 +8,10 @@
 #    y_row    button PARK      104 x 30
 #    y_footer status line      montserrat_12
 #
-#  Status line: design.md §6 requires "empty in normal operation". The
-#  starter battery therefore only shows at the bottom when it doesn't
+#  Status line: remaining battery time (SmartShunt, hours) while
+#  discharging - deliberate exception to design.md §6 "empty in normal
+#  operation" (repo-owner request 17.10.2026). The starter battery
+#  warning takes priority; it only shows when it doesn't
 #  report "ok". It delivers a state, not a voltage — the 12.4/12.0 V
 #  thresholds from design.md §6 are therefore moot as long as no real
 #  voltage sensor is wired to the starter battery.
@@ -46,6 +48,13 @@ sensor:
     on_value:
       - script.execute: draw_power_1
 
+  # SmartShunt remaining time to empty, unit HOURS (Victron GX
+  # integration). Shown in the status line while discharging.
+  - platform: homeassistant
+    id: s_power_1_ttg
+    entity_id: sensor.smartshunt_verbleibende_zeit
+    on_value:
+      - script.execute: draw_power_1
 text_sensor:
   # The starter battery delivers NO voltage, but a state (mbapi2020):
   #   0 green            Vehicle ok
@@ -65,6 +74,7 @@ binary_sensor:
   - platform: homeassistant
     id: s_power_1_park
     entity_id: switch.fram_parkmodus
+    trigger_on_initial_state: true
     on_state:
       - script.execute: draw_power_1
 
@@ -85,6 +95,10 @@ script:
           service: homeassistant.update_entity
           data:
             entity_id: sensor.smartshunt_dc_bus_stromstarke
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: sensor.smartshunt_verbleibende_zeit
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
@@ -194,28 +208,44 @@ script:
             return id(s_power_1_park).state ? lv_color_hex(0x2ECC71)
                                     : lv_color_hex(0x3C4043);
 
-      # ---- Status line: starter battery only in a warning state ------
-      # design.md §6: empty in normal operation.
-      - lvgl.label.update:
-          id: lbl_power_1_status
-          text: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return std::string("KEINE VERBINDUNG");
-            #endif
-            if (!id(s_power_1_starter).has_state()) return std::string("");
-            std::string v = id(s_power_1_starter).state;
-            if (v == "1" || v == "yellow") return std::string("START SCHWACH");
-            if (v == "0" || v == "green")  return std::string("");
-            // 2/3/4: vehicle resp. remote query unreachable
-            return std::string("START KEIN WERT");
-          text_color: !lambda |-
-            #ifdef USE_API
-            if (!api_is_connected()) return lv_color_hex(0x555555);
-            #endif
-            if (!id(s_power_1_starter).has_state()) return lv_color_hex(0x555555);
-            std::string v = id(s_power_1_starter).state;
-            if (v == "1" || v == "yellow") return lv_color_hex(0xF39C12);
-            return lv_color_hex(0x555555);
+      # ---- Status line ------------------------------------------------
+      # Priority: no connection > starter battery warning > remaining
+      # time while discharging (repo-owner request 17.10.2026: Restdauer
+      # on this page) > empty. Remaining time comes from the SmartShunt
+      # in hours; only meaningful while discharging (< -0.5 A).
+      - lambda: |-
+          char buf[24];
+          const char *txt = "";
+          uint32_t c = 0x707070;
+          bool api = true;
+          #ifdef USE_API
+          api = api_is_connected();
+          #endif
+          bool starter_weak = false, starter_none = false;
+          if (api && id(s_power_1_starter).has_state()) {
+            const std::string &v = id(s_power_1_starter).state;
+            starter_weak = (v == "1" || v == "yellow");
+            starter_none = !(starter_weak || v == "0" || v == "green");
+          }
+          bool discharging = api && id(s_power_1_dc_a).has_state() &&
+                             id(s_power_1_dc_a).state < -0.5f;
+          bool ttg_ok = discharging && id(s_power_1_ttg).has_state() &&
+                        !std::isnan(id(s_power_1_ttg).state) &&
+                        id(s_power_1_ttg).state > 0.0f;
+          if (!api) { txt = "KEINE VERBINDUNG"; c = 0x555555; }
+          else if (starter_weak) { txt = "START SCHWACH"; c = 0xF39C12; }
+          else if (ttg_ok) {
+            int mins = (int) lroundf(id(s_power_1_ttg).state * 60.0f);
+            if (mins >= 24 * 60)
+              snprintf(buf, sizeof(buf), "NOCH %dd %02dh", mins / 1440, (mins % 1440) / 60);
+            else
+              snprintf(buf, sizeof(buf), "NOCH %dh%02dm", mins / 60, mins % 60);
+            txt = buf;
+            c = 0xBDC1C6;
+          }
+          else if (starter_none) { txt = "START KEIN WERT"; c = 0x555555; }
+          lv_label_set_text(id(lbl_power_1_status), txt);
+          lv_obj_set_style_text_color(id(lbl_power_1_status), lv_color_hex(c), 0);
 
 esphome:
   on_boot:

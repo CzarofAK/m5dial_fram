@@ -1013,26 +1013,26 @@ alphabetical). "Implemented" means a `page_<id>.yaml` exists in
 entity_ids are placeholders (`PLACEHOLDER_*` or otherwise unverified)
 that don't point at anything real yet — it'll compile and show `---`
 everywhere rather than break the build, but check each one's
-entity_ids (and, for `lights_outside`/`ipixel`, the whole design —
+entity_ids (and, for `ipixel`, the whole design —
 there was no spec to build against beyond
 one line each) before relying on it.
 
 | # | id | Content | Status |
 |---|---|---|---|
-| 0 | `clock` | Clock + outdoor temperature and date/weekday | implemented |
-| 1 | `power_1` | Battery: SOC, park mode, starter voltage | implemented |
+| 0 | `clock` | Clock + outdoor temperature and date/weekday. Default `page_clock_lite.yaml` (dark, canvas-free `sbb_clock_lite`, ~115 kB less heap); alternative `page_clock.yaml` (white SBB face, night inversion, 115 kB canvas) | implemented |
+| 1 | `power_1` | Battery: SOC, park mode; status line: starter warning, else remaining time while discharging (SmartShunt, hours) | implemented |
 | 2 | `power_2` | Grid power: input power (single arc + big value, read-only), PowerAssist current limit (value + SET button, encoder-adjustable) | implemented |
 | 3 | `power_3` | Grid power, WR side: inverter load (arc, computed against the installed model's nominal rating), MultiPlus mode | implemented |
 | 4 | `gas` | Two gas bottles (double ring, §4) | implemented |
-| 5 | `water` | Fresh / grey water (double ring, §4) | implemented |
-| 6 | `levelling` | Spirit level (bubble, MPU6050) + per-corner cm-to-add (VL/VR/HL/HR, from four already-computed sensors) | implemented |
-| 7 | `climate` | Truma Combi 4 (gas only) room-heating side, via the Smart EBL's Truma entities (activate switch + climate/number, FR-71; formerly `womolin_controller`); AC not installed yet; fan mode/fault dropped pending a confirmed entity | implemented |
-| 8 | `boiler` | Truma Combi 4 water-heating side, same Smart EBL Truma entities as `climate` | implemented |
-| 9 | `fans` | Fan board (`number.fan_board_fan_speed`) + Sprinter HVAC fan (`number.relay_2ch_hvac_hvac_fan_battery`, real — driven by the separate relay-2ch-hvac ESPHome device; that board only actually moves the motor when parked, this page just sets the desired value) | implemented |
-| 10 | `lights_outside` | Entrance light (two switches, driven together), awning light — both plain switches, not the `light` domain | implemented |
-| 11 | `entrance` | Step, door lock — rows grouped by purpose: REIN+ZU (securing to drive) / RAUS+AUF (arriving), not by device; no double-click shortcut (safety) | implemented |
-| 12 | `ipixel` | On/off (`input_boolean`) + per-side LED status (two switches) | implemented |
-| reserved | `lights_inside` | — | reserved, not designed yet |
+| 5 | `water` | Fresh / grey water (double ring, §4); pump = `switch.smart_ebl_water_pump` | implemented |
+| 6 | `internet` | Signal (outer ring), roaming this month / 40 GB (inner ring), Netz-Level 1/2 button (double-click = button), status line | implemented |
+| 7 | `levelling` | Spirit level (bubble, MPU6050) + per-corner cm-to-add (VL/VR/HL/HR, from four already-computed sensors) | implemented |
+| 8 | `climate` | Truma Combi 4 (gas only) room-heating side, via the Smart EBL's Truma entities (activate switch + climate/number, FR-71; formerly `womolin_controller`); AC not installed yet; fan mode/fault dropped pending a confirmed entity | implemented |
+| 9 | `boiler` | Truma Combi 4 water-heating side, same Smart EBL Truma entities as `climate` | implemented |
+| 10 | `fans` | Fan board (`number.fan_board_fan_speed`) + Sprinter HVAC fan (`number.relay_2ch_hvac_hvac_fan_battery`, real — driven by the separate relay-2ch-hvac ESPHome device; that board only actually moves the motor when parked, this page just sets the desired value) | implemented |
+| 11 | `lights` | One light page (17.10.2026, replaces `lights_outside`, no separate inside page): INNEN Haupt / Küche / Bad (Spiegel + Deko together), AUSSEN Eingang (step + PIR) / Markise (front + rear). Outside lights are relay-cut at D+ → footer "AUSSEN AUS (D+)" with ignition on. Double-click = all off | implemented |
+| 12 | `entrance` | Step in/out, Aufbautür lock/unlock (`esphome.relay_4ch_step_zv_lock/_unlock`); status: door contact `binary_sensor.eingangsture_contact` (TÜR ZU/OFFEN), footer "STUFE DRAUSSEN" from `binary_sensor.relay_4ch_step_step_out_engine_on` until a real position sensor exists (FR-115); no double-click shortcut (safety) | implemented |
+| 13 | `ipixel` | On/off (`switch.ipixel_panels`, HA group) + per-side LED status (two switches) | implemented |
 
 Not pages — shown as an overlay on top of whatever page is current,
 via LVGL's `top_layer` (`m5dial_pages/overlay_<name>.yaml`, §2), per

@@ -1,0 +1,338 @@
+# =====================================================================
+#  m5dial_pages/page_lights.yaml — page: Licht (innen + aussen)
+#  FRAM M5Dial Cockpit · page package
+#
+#  Replaces page_lights_outside.yaml (repo-owner decision 17.10.2026:
+#  ONE light page, no separate inside page).
+#
+#    INNEN   [Haupt] [Küche] [Bad]
+#    AUSSEN  [Eingang] [Markise]
+#    footer  status
+#
+#  Entities (checked against the FRAM HA, 17.10.2026):
+#    Haupt    light.shelly_light_main_switch_light_main
+#    Küche    light.light_kitchen
+#    Bad      light.light_bathroom_light_0 (Spiegel) + light.light_bathroom_light_1 (Deko),
+#             driven together, "on" if either is on
+#    Eingang  switch.light_step + switch.light_pir, driven together (as before)
+#    Markise  light.light_awning_front + light.light_awning_rear, together
+#  Each button toggles its group: any member on -> all off, else all on.
+#
+#  Outside lights are cut mechanically by a relay while D+ is present
+#  (engine running). The Shelly may still REPORT "on" then, so with the
+#  ignition on (s_ignition >= 4, header) the footer says
+#  "AUSSEN AUS (D+)" and the outside buttons are drawn dimmed. The
+#  header's s_ignition on_value also runs draw_lights for this.
+#
+#  Double-click (header): all lights on this page off, if any is on.
+#
+#  Geometry: row 1 three 64x30 buttons at x -70/0/70, y -40 -> outer
+#  corner (102, -55) r=116 < 120. Row 2 two 86x30 at x -48/48, y 30 ->
+#  corner (91, 45) r=102.
+#
+#  Heap: one drawing lambda with lv_* calls, no std::string per update.
+# =====================================================================
+
+binary_sensor:
+  - platform: homeassistant
+    id: s_light_main
+    entity_id: light.shelly_light_main_switch_light_main
+    trigger_on_initial_state: true
+    on_state:
+      - script.execute: draw_lights
+  - platform: homeassistant
+    id: s_light_kitchen
+    entity_id: light.light_kitchen
+    trigger_on_initial_state: true
+    on_state:
+      - script.execute: draw_lights
+  - platform: homeassistant
+    id: s_light_bath_mirror
+    entity_id: light.light_bathroom_light_0
+    trigger_on_initial_state: true
+    on_state:
+      - script.execute: draw_lights
+  - platform: homeassistant
+    id: s_light_bath_deco
+    entity_id: light.light_bathroom_light_1
+    trigger_on_initial_state: true
+    on_state:
+      - script.execute: draw_lights
+  - platform: homeassistant
+    id: s_lights_entrance_pir
+    entity_id: switch.light_pir
+    trigger_on_initial_state: true
+    on_state:
+      - script.execute: draw_lights
+  - platform: homeassistant
+    id: s_lights_entrance_step
+    entity_id: switch.light_step
+    trigger_on_initial_state: true
+    on_state:
+      - script.execute: draw_lights
+  - platform: homeassistant
+    id: s_lights_awning_front
+    entity_id: light.light_awning_front
+    trigger_on_initial_state: true
+    on_state:
+      - script.execute: draw_lights
+  - platform: homeassistant
+    id: s_lights_awning_rear
+    entity_id: light.light_awning_rear
+    trigger_on_initial_state: true
+    on_state:
+      - script.execute: draw_lights
+
+script:
+  - id: poll_lights
+    then:
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: >-
+              light.shelly_light_main_switch_light_main, light.light_kitchen,
+              light.light_bathroom_light_0, light.light_bathroom_light_1,
+              switch.light_pir, switch.light_step,
+              light.light_awning_front, light.light_awning_rear
+
+  # Group toggles: any member on -> all off, else all on.
+  - id: act_light_main
+    then:
+      - homeassistant.service:
+          service: light.toggle
+          data:
+            entity_id: light.shelly_light_main_switch_light_main
+
+  - id: act_light_kitchen
+    then:
+      - homeassistant.service:
+          service: light.toggle
+          data:
+            entity_id: light.light_kitchen
+
+  - id: act_light_bath
+    then:
+      - homeassistant.service:
+          service: !lambda |-
+            bool on = (id(s_light_bath_mirror).has_state() && id(s_light_bath_mirror).state) ||
+                      (id(s_light_bath_deco).has_state() && id(s_light_bath_deco).state);
+            return on ? std::string("light.turn_off") : std::string("light.turn_on");
+          data:
+            entity_id: light.light_bathroom_light_0, light.light_bathroom_light_1
+
+  - id: act_lights_entrance
+    then:
+      - homeassistant.service:
+          service: !lambda |-
+            bool on = (id(s_lights_entrance_pir).has_state() && id(s_lights_entrance_pir).state) ||
+                      (id(s_lights_entrance_step).has_state() && id(s_lights_entrance_step).state);
+            return on ? std::string("switch.turn_off") : std::string("switch.turn_on");
+          data:
+            entity_id: switch.light_pir, switch.light_step
+
+  - id: act_lights_awning
+    then:
+      - homeassistant.service:
+          service: !lambda |-
+            bool on = (id(s_lights_awning_front).has_state() && id(s_lights_awning_front).state) ||
+                      (id(s_lights_awning_rear).has_state() && id(s_lights_awning_rear).state);
+            return on ? std::string("light.turn_off") : std::string("light.turn_on");
+          data:
+            entity_id: light.light_awning_front, light.light_awning_rear
+
+  # Double-click (header): everything on this page off.
+  - id: dc_lights_all_off
+    then:
+      - homeassistant.service:
+          service: light.turn_off
+          data:
+            entity_id: >-
+              light.shelly_light_main_switch_light_main, light.light_kitchen,
+              light.light_bathroom_light_0, light.light_bathroom_light_1,
+              light.light_awning_front, light.light_awning_rear
+      - homeassistant.service:
+          service: switch.turn_off
+          data:
+            entity_id: switch.light_pir, switch.light_step
+
+  - id: draw_lights
+    mode: restart
+    then:
+      - lambda: |-
+          bool api = true;
+          #ifdef USE_API
+          api = api_is_connected();
+          #endif
+          // state of a group: -1 no value, 0 off, 1 on
+          auto st = [&](esphome::binary_sensor::BinarySensor *a,
+                        esphome::binary_sensor::BinarySensor *b) -> int {
+            if (!api) return -1;
+            bool ha = a->has_state(), hb = b == nullptr || b->has_state();
+            if (!ha || !hb) return -1;
+            return (a->state || (b != nullptr && b->state)) ? 1 : 0;
+          };
+          bool dplus = api && id(s_ignition).has_state() && id(s_ignition).state >= 4.0f;
+
+          struct Row { lv_obj_t *btn; lv_obj_t *lbl; int s; bool outside; };
+          Row rows[] = {
+            {id(btn_light_main), id(lbl_light_main), st(id(s_light_main), nullptr), false},
+            {id(btn_light_kitchen), id(lbl_light_kitchen), st(id(s_light_kitchen), nullptr), false},
+            {id(btn_light_bath), id(lbl_light_bath), st(id(s_light_bath_mirror), id(s_light_bath_deco)), false},
+            {id(btn_light_entrance), id(lbl_light_entrance), st(id(s_lights_entrance_pir), id(s_lights_entrance_step)), true},
+            {id(btn_light_awning), id(lbl_light_awning), st(id(s_lights_awning_front), id(s_lights_awning_rear)), true},
+          };
+          int on_count = 0;
+          for (auto &r : rows) {
+            bool on = r.s == 1;
+            bool dim = r.s < 0 || (r.outside && dplus);
+            if (on && !(r.outside && dplus)) on_count++;
+            lv_obj_set_style_bg_color(r.btn, lv_color_hex(on && !dim ? 0x1B5E3A : 0x202124), 0);
+            lv_obj_set_style_border_color(r.btn, lv_color_hex(on && !dim ? 0x2ECC71 : 0x3C4043), 0);
+            lv_obj_set_style_text_color(r.lbl, lv_color_hex(dim ? 0x555555 : on ? 0x2ECC71 : 0xBDC1C6), 0);
+          }
+
+          const char *txt = "";
+          uint32_t c = 0x707070;
+          char buf[24];
+          if (!api) { txt = "KEINE VERBINDUNG"; c = 0x555555; }
+          else if (dplus) { txt = "AUSSEN AUS (D+)"; c = 0x707070; }
+          else if (on_count > 0) {
+            snprintf(buf, sizeof(buf), on_count == 1 ? "1 LICHT AN" : "%d LICHTER AN", on_count);
+            txt = buf;
+          }
+          lv_label_set_text(id(lbl_lights_status), txt);
+          lv_obj_set_style_text_color(id(lbl_lights_status), lv_color_hex(c), 0);
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - script.execute: draw_lights
+
+lvgl:
+  pages:
+    - id: page_lights
+      on_load:
+        - script.execute: poll_lights
+      bg_color: 0x000000
+      bg_opa: COVER
+      widgets:
+        - label:
+            align: CENTER
+            y: -70
+            text: "INNEN"
+            text_font: font_12
+            text_color: 0x707070
+        - button:
+            id: btn_light_main
+            align: CENTER
+            x: -70
+            y: -40
+            width: 64
+            height: 30
+            radius: 15
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  id: lbl_light_main
+                  align: CENTER
+                  text: "Haupt"
+                  text_font: font_16
+                  text_color: 0x555555
+            on_click:
+              - script.execute: act_light_main
+        - button:
+            id: btn_light_kitchen
+            align: CENTER
+            x: 0
+            y: -40
+            width: 64
+            height: 30
+            radius: 15
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  id: lbl_light_kitchen
+                  align: CENTER
+                  text: "Küche"
+                  text_font: font_16
+                  text_color: 0x555555
+            on_click:
+              - script.execute: act_light_kitchen
+        - button:
+            id: btn_light_bath
+            align: CENTER
+            x: 70
+            y: -40
+            width: 64
+            height: 30
+            radius: 15
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  id: lbl_light_bath
+                  align: CENTER
+                  text: "Bad"
+                  text_font: font_16
+                  text_color: 0x555555
+            on_click:
+              - script.execute: act_light_bath
+        - label:
+            align: CENTER
+            y: 2
+            text: "AUSSEN"
+            text_font: font_12
+            text_color: 0x707070
+        - button:
+            id: btn_light_entrance
+            align: CENTER
+            x: -48
+            y: 30
+            width: 86
+            height: 30
+            radius: 15
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  id: lbl_light_entrance
+                  align: CENTER
+                  text: "Eingang"
+                  text_font: font_16
+                  text_color: 0x555555
+            on_click:
+              - script.execute: act_lights_entrance
+        - button:
+            id: btn_light_awning
+            align: CENTER
+            x: 48
+            y: 30
+            width: 86
+            height: 30
+            radius: 15
+            bg_color: 0x202124
+            border_width: 1
+            border_color: 0x3C4043
+            widgets:
+              - label:
+                  id: lbl_light_awning
+                  align: CENTER
+                  text: "Markise"
+                  text_font: font_16
+                  text_color: 0x555555
+            on_click:
+              - script.execute: act_lights_awning
+        - label:
+            id: lbl_lights_status
+            align: BOTTOM_MID
+            y: ${y_footer}
+            text: ""
+            text_font: font_12
+            text_color: 0x555555

@@ -180,6 +180,7 @@ binary_sensor:
   - platform: homeassistant
     id: s_climate_heater_on
     entity_id: switch.smart_ebl_truma_activate_room_heater
+    trigger_on_initial_state: true
     on_state:
       # Real state just arrived -- stop trusting the optimistic guess.
       - globals.set:

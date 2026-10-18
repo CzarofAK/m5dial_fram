@@ -37,22 +37,27 @@ packages:
   basics: !include .basics.yaml
   header: !include .m5dial_fram.yaml
 
-  p0: !include m5dial_pages/page_clock.yaml
+  # p0: page_clock_lite.yaml = dark, canvas-free SBB clock (~115 kB
+  # less heap). page_clock.yaml = white SBB face with night inversion,
+  # needs the 115 kB canvas. Include exactly one of the two.
+  p0: !include m5dial_pages/page_clock_lite.yaml
   p1: !include m5dial_pages/page_power_1.yaml
   p2: !include m5dial_pages/page_power_2.yaml
   p3: !include m5dial_pages/page_power_3.yaml
   p4: !include m5dial_pages/page_gas.yaml
   p5: !include m5dial_pages/page_water.yaml
-  # p6-p12: real entity_ids now (design.md §15's catalog), including
+  # Internet next to the other supply levels (power/gas/water).
+  p6: !include m5dial_pages/page_internet.yaml
+  # p7-p13: real entity_ids now (design.md §15's catalog), including
   # page_fans's HVAC column (number.relay_2ch_hvac_hvac_fan_battery, the separate
   # relay-2ch-hvac ESPHome device's fan entity).
-  p6: !include m5dial_pages/page_levelling.yaml
-  p7: !include m5dial_pages/page_climate.yaml
-  p8: !include m5dial_pages/page_boiler.yaml
-  p9: !include m5dial_pages/page_fans.yaml
-  p10: !include m5dial_pages/page_lights_outside.yaml
-  p11: !include m5dial_pages/page_entrance.yaml
-  p12: !include m5dial_pages/page_ipixel.yaml
+  p7: !include m5dial_pages/page_levelling.yaml
+  p8: !include m5dial_pages/page_climate.yaml
+  p9: !include m5dial_pages/page_boiler.yaml
+  p10: !include m5dial_pages/page_fans.yaml
+  p11: !include m5dial_pages/page_lights.yaml
+  p12: !include m5dial_pages/page_entrance.yaml
+  p13: !include m5dial_pages/page_ipixel.yaml
 
   # Overlays (design.md §15): not pages, no p<n> slot, no page order --
   # they add to LVGL's top_layer instead of pages:, shown over whatever
