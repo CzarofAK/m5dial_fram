@@ -116,9 +116,21 @@ script:
           };
 
           bool router = api && id(s_inet_router).has_state() && id(s_inet_router).state;
+          // sensor.teltonika_network carries the router's SHORT form
+          // ("Roaming", ...), not the raw "Registered, roaming" listed in
+          // teltonika_mqtt.yaml's comment. So test for the failure
+          // states instead of a "Registered" prefix.
           const std::string &net = id(s_inet_network).state;
-          bool registered = router && id(s_inet_network).has_state() &&
-                            net.rfind("Registered", 0) == 0;
+          bool net_bad = !id(s_inet_network).has_state() || net.empty() ||
+                         net == "unknown" || net == "unavailable" ||
+                         net.find("Not registered") != std::string::npos ||
+                         net.find("Searching") != std::string::npos ||
+                         net.find("denied") != std::string::npos ||
+                         net.find("Unknown") != std::string::npos ||
+                         net.find("Kein") != std::string::npos ||
+                         net.find("Sucht") != std::string::npos ||
+                         net.find("verweigert") != std::string::npos;
+          bool registered = router && !net_bad;
 
           // ---- SIGNAL (outer ring, left column) ----
           bool sig_ok = registered && id(s_inet_signal).has_state() &&
