@@ -171,7 +171,10 @@ script:
             if (!ha || !hb) return -1;
             return (a->state || (b != nullptr && b->state)) ? 1 : 0;
           };
-          bool dplus = api && id(s_ignition).has_state() && id(s_ignition).state >= 4.0f;
+          // s_ignition is a text_sensor (bare number as string, see
+          // .m5dial_fram.yaml) -- parse it; unknown/unavailable -> false
+          auto ign = parse_number<float>(id(s_ignition).state);
+          bool dplus = api && id(s_ignition).has_state() && ign.has_value() && *ign >= 4.0f;
 
           struct Row { lv_obj_t *btn; lv_obj_t *lbl; int s; bool outside; };
           Row rows[] = {
