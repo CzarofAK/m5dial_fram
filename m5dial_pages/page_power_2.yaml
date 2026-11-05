@@ -51,6 +51,14 @@
 #  No "must be on" gate here, unlike climate/boiler -- PowerAssist has
 #  nothing to be off.
 #
+#  Shore power (FR-114): footer shows "KEIN LANDSTROM" (grey, info, not
+#  a warning) while binary_sensor.fram_shore_power is off. Read as a
+#  text_sensor, not a binary_sensor, so HA's "unavailable" (MultiPlus
+#  off / inverter only) stays distinguishable from "off" -- in that
+#  case the footer says nothing about shore power, page_power_3 shows
+#  the MP mode. The HA sensor already filters short input drops
+#  (delay_off 2 min), nothing to debounce here.
+#
 #  Encoder feel (readability follow-up, separate from the 0.1A->1A
 #  step change above): every tick used to call number.set_value and
 #  then wait for HA to confirm the new number.multiplus_strombegrenzung
@@ -97,6 +105,14 @@ sensor:
     on_value:
       - script.execute: draw_power_2
 
+text_sensor:
+  # on / off / unavailable -- see header (FR-114).
+  - platform: homeassistant
+    id: s_power_2_shore
+    entity_id: binary_sensor.fram_shore_power
+    on_value:
+      - script.execute: draw_power_2
+
 globals:
   # Page-local (design.md §3's "On/off-only pages" precedent for
   # page-local globals applies here too): the value being dialed while
@@ -123,6 +139,10 @@ script:
           service: homeassistant.update_entity
           data:
             entity_id: number.multiplus_strombegrenzung
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: binary_sensor.fram_shore_power
 
   - id: act_power_2_arm_assist
     then:
@@ -274,7 +294,7 @@ script:
             if (id(g_edit_target) == 6) return lv_color_hex(0x4A9EFF);
             return lv_color_hex(0x3C4043);
 
-      # ---- Footer: high-load hint, or the edit-mode hint ----------------
+      # ---- Footer: edit-mode hint, no shore power, or high-load hint ----
       - lvgl.label.update:
           id: lbl_power_2_status
           text: !lambda |-
@@ -282,6 +302,8 @@ script:
             if (!api_is_connected()) return std::string("KEINE VERBINDUNG");
             #endif
             if (id(g_edit_target) == 6) return std::string("DREHEN ZUM ÄNDERN");
+            if (id(s_power_2_shore).has_state() && id(s_power_2_shore).state == "off")
+              return std::string("KEIN LANDSTROM");
             if (!id(s_power_2_a).has_state() || !id(s_power_2_limit).has_state())
               return std::string("");
             float lim = id(s_power_2_limit).state;
@@ -295,6 +317,8 @@ script:
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
             if (id(g_edit_target) == 6) return lv_color_hex(0x4A9EFF);
+            if (id(s_power_2_shore).has_state() && id(s_power_2_shore).state == "off")
+              return lv_color_hex(0xBDC1C6);
             if (!id(s_power_2_a).has_state() || !id(s_power_2_limit).has_state())
               return lv_color_hex(0x555555);
             float lim = id(s_power_2_limit).state;
