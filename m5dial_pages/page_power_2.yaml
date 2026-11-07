@@ -51,8 +51,12 @@
 #  No "must be on" gate here, unlike climate/boiler -- PowerAssist has
 #  nothing to be off.
 #
-#  Shore power (FR-114): footer shows "KEIN LANDSTROM" (grey, info, not
-#  a warning) while binary_sensor.fram_shore_power is off. Read as a
+#  Shore power (FR-114): the Dial sits at the driver's seat, so here
+#  shore power is the WARNING (don't drive off plugged in) - inverse of
+#  the 10.1" display, where CONNECTED is the good state (green). Footer
+#  shows "CONNECTED" in red while binary_sensor.fram_shore_power is on,
+#  nothing while it is off. The high-load hints (NETZ AM LIMIT / NETZ
+#  HOCH) take precedence, they imply shore power anyway. Read as a
 #  text_sensor, not a binary_sensor, so HA's "unavailable" (MultiPlus
 #  off / inverter only) stays distinguishable from "off" -- in that
 #  case the footer says nothing about shore power, page_power_3 shows
@@ -302,30 +306,28 @@ script:
             if (!api_is_connected()) return std::string("KEINE VERBINDUNG");
             #endif
             if (id(g_edit_target) == 6) return std::string("DREHEN ZUM ÄNDERN");
-            if (id(s_power_2_shore).has_state() && id(s_power_2_shore).state == "off")
-              return std::string("KEIN LANDSTROM");
-            if (!id(s_power_2_a).has_state() || !id(s_power_2_limit).has_state())
-              return std::string("");
-            float lim = id(s_power_2_limit).state;
-            if (lim <= 0.0f) return std::string("");
-            float p = id(s_power_2_a).state / lim * 100.0f;
-            if (p >= 95.0f) return std::string("NETZ AM LIMIT");
-            if (p >= 80.0f) return std::string("NETZ HOCH");
+            bool shore_on = id(s_power_2_shore).has_state() && id(s_power_2_shore).state == "on";
+            if (id(s_power_2_a).has_state() && id(s_power_2_limit).has_state()
+                && id(s_power_2_limit).state > 0.0f) {
+              float p = id(s_power_2_a).state / id(s_power_2_limit).state * 100.0f;
+              if (p >= 95.0f) return std::string("NETZ AM LIMIT");
+              if (p >= 80.0f) return std::string("NETZ HOCH");
+            }
+            if (shore_on) return std::string("CONNECTED");   // warning: plugged in
             return std::string("");
           text_color: !lambda |-
             #ifdef USE_API
             if (!api_is_connected()) return lv_color_hex(0x555555);
             #endif
             if (id(g_edit_target) == 6) return lv_color_hex(0x4A9EFF);
-            if (id(s_power_2_shore).has_state() && id(s_power_2_shore).state == "off")
-              return lv_color_hex(0xBDC1C6);
-            if (!id(s_power_2_a).has_state() || !id(s_power_2_limit).has_state())
-              return lv_color_hex(0x555555);
-            float lim = id(s_power_2_limit).state;
-            if (lim <= 0.0f) return lv_color_hex(0x555555);
-            float p = id(s_power_2_a).state / lim * 100.0f;
-            if (p >= 95.0f) return lv_color_hex(0xE74C3C);
-            return lv_color_hex(0xF39C12);
+            if (id(s_power_2_a).has_state() && id(s_power_2_limit).has_state()
+                && id(s_power_2_limit).state > 0.0f) {
+              float p = id(s_power_2_a).state / id(s_power_2_limit).state * 100.0f;
+              if (p >= 95.0f) return lv_color_hex(0xE74C3C);
+              if (p >= 80.0f) return lv_color_hex(0xF39C12);
+            }
+            // CONNECTED (plugged in) = warning red; empty text otherwise
+            return lv_color_hex(0xE74C3C);
 
 esphome:
   on_boot:
