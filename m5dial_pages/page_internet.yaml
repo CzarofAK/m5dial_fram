@@ -5,7 +5,7 @@
 #  Netz-Level, Empfang und Roaming-Verbrauch des RUT955 auf einen Blick.
 #  Gleiches Doppelring-Raster wie page_gas / page_water (design.md):
 #
-#    outer ring 224  SIGNAL   sensor.teltonika_signal_starke (0..100 %)
+#    outer ring 224  SIGNAL   sensor.fram_router_signal (0..100 %)
 #    inner ring 200  ROAMING  sensor.fram_mobil_monat_ausland (MB) / 40 GB
 #
 #    left  column  SIGNAL   xx %   |  Verbindungstyp (LTE / 3G ...)
@@ -13,8 +13,9 @@
 #    y_row  button  "LVL 1" / "LVL 2"  -> input_boolean.fram_netlevel_2
 #    footer status  ROUTER OFFLINE > KEIN NETZ > ROAMING >90 % > Land
 #
-#  Quellen (fram-homeassistant): teltonika_mqtt.yaml (Signal, Network,
-#  Connection, Verbunden), fram_datenvolumen.yaml (Monatszähler,
+#  Quellen (fram-homeassistant): fram_router.yaml (Signal, Network,
+#  Connection, Router online - SSH every 5 min, replaces teltonika_mqtt.yaml
+#  since 2026-11-08), fram_datenvolumen.yaml (Monatszähler,
 #  1 GB = 1000 MB wie in der Telegram-Meldung), web_traffic_level_2.yaml
 #  (Netz-Level 2, FRAM in CH). Roaming-Volumen 40 GB/Monat (Highspeed-
 #  Anteil der Auslands-Option).
@@ -35,7 +36,7 @@ substitutions:
 sensor:
   - platform: homeassistant
     id: s_inet_signal
-    entity_id: sensor.teltonika_signal_starke
+    entity_id: sensor.fram_router_signal
     on_value:
       - script.execute: draw_internet
   - platform: homeassistant
@@ -47,12 +48,12 @@ sensor:
 text_sensor:
   - platform: homeassistant
     id: s_inet_conn
-    entity_id: sensor.teltonika_connection
+    entity_id: sensor.fram_router_connection
     on_value:
       - script.execute: draw_internet
   - platform: homeassistant
     id: s_inet_network
-    entity_id: sensor.teltonika_network
+    entity_id: sensor.fram_router_network
     on_value:
       - script.execute: draw_internet
 
@@ -71,7 +72,7 @@ binary_sensor:
       - script.execute: draw_internet
   - platform: homeassistant
     id: s_inet_router
-    entity_id: binary_sensor.teltonika_verbunden
+    entity_id: binary_sensor.fram_router_online
     trigger_on_initial_state: true
     on_state:
       - script.execute: draw_internet
@@ -82,7 +83,7 @@ script:
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: sensor.teltonika_signal_starke
+            entity_id: sensor.fram_router_status
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
@@ -116,14 +117,17 @@ script:
           };
 
           bool router = api && id(s_inet_router).has_state() && id(s_inet_router).state;
-          // sensor.teltonika_network carries the router's SHORT form
-          // ("Roaming", ...), not the raw "Registered, roaming" listed in
-          // teltonika_mqtt.yaml's comment. So test for the failure
-          // states instead of a "Registered" prefix.
+          // sensor.fram_router_network is the raw gsmctl -g output (e.g.
+          // "registered (roaming)", "not registered", "searching"); case
+          // varies between RutOS versions. So test for the failure states
+          // (both cases) instead of a "registered" prefix.
           const std::string &net = id(s_inet_network).state;
           bool net_bad = !id(s_inet_network).has_state() || net.empty() ||
                          net == "unknown" || net == "unavailable" ||
                          net.find("Not registered") != std::string::npos ||
+                         net.find("not registered") != std::string::npos ||
+                         net.find("searching") != std::string::npos ||
+                         net.find("unknown") != std::string::npos ||
                          net.find("Searching") != std::string::npos ||
                          net.find("denied") != std::string::npos ||
                          net.find("Unknown") != std::string::npos ||
