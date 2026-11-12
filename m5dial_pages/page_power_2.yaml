@@ -25,7 +25,7 @@
 #  y_line2      "12.3A"     context for the Watt figure, same role as
 #                            page_power_1's "13.4V -12A" line
 #  y_row        one button  "ASSIST 8.0A" -- value in the button
-#                            (number.multiplus_strombegrenzung),
+#                            (number.tech_inverter_current_limit),
 #                            tapping arms/disarms encoder edit mode
 #                            (design.md §14, g_edit_target target 6).
 #                            Double-clicking the physical front button
@@ -40,7 +40,7 @@
 #  fewer turns. Clamped 0-16A -- still this installation's real
 #  ceiling on 2.5mm² wiring, not the entity's own 0-63A range.
 #
-#  CAVEAT: the button shows the setpoint (number.multiplus_strombegrenzung),
+#  CAVEAT: the button shows the setpoint (number.tech_inverter_current_limit),
 #  not a separately confirmed "applied" value -- there's no other
 #  entity for that. The MultiPlus's own shore-current limiter can take
 #  a moment to actually settle on VE.Bus, so the real, currently-active
@@ -54,7 +54,7 @@
 #  Shore power (FR-114): the Dial sits at the driver's seat, so here
 #  shore power is the WARNING (don't drive off plugged in) - inverse of
 #  the 10.1" display, where CONNECTED is the good state (green). Footer
-#  shows "CONNECTED" in red while binary_sensor.fram_shore_power is on,
+#  shows "CONNECTED" in red while binary_sensor.energy_shore_power is on,
 #  nothing while it is off. The high-load hints (NETZ AM LIMIT / NETZ
 #  HOCH) take precedence, they imply shore power anyway. Read as a
 #  text_sensor, not a binary_sensor, so HA's "unavailable" (MultiPlus
@@ -65,7 +65,7 @@
 #
 #  Encoder feel (readability follow-up, separate from the 0.1A->1A
 #  step change above): every tick used to call number.set_value and
-#  then wait for HA to confirm the new number.multiplus_strombegrenzung
+#  then wait for HA to confirm the new number.tech_inverter_current_limit
 #  state before the button's label moved at all -- fast turning felt
 #  laggy because the display was always one HA round trip behind the
 #  knob. Now the encoder adjusts a local g_power_2_assist_pending
@@ -95,17 +95,17 @@
 sensor:
   - platform: homeassistant
     id: s_power_2_w
-    entity_id: sensor.multiplus_eingangsleistung_l1
+    entity_id: sensor.tech_inverter_input_power
     on_value:
       - script.execute: draw_power_2
   - platform: homeassistant
     id: s_power_2_a
-    entity_id: sensor.multiplus_eingangsstromstarke_l1
+    entity_id: sensor.tech_inverter_input_current
     on_value:
       - script.execute: draw_power_2
   - platform: homeassistant
     id: s_power_2_limit
-    entity_id: number.multiplus_strombegrenzung
+    entity_id: number.tech_inverter_current_limit
     on_value:
       - script.execute: draw_power_2
 
@@ -113,7 +113,7 @@ text_sensor:
   # on / off / unavailable -- see header (FR-114).
   - platform: homeassistant
     id: s_power_2_shore
-    entity_id: binary_sensor.fram_shore_power
+    entity_id: binary_sensor.energy_shore_power
     on_value:
       - script.execute: draw_power_2
 
@@ -134,19 +134,19 @@ script:
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: sensor.multiplus_eingangsleistung_l1
+            entity_id: sensor.tech_inverter_input_power
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: sensor.multiplus_eingangsstromstarke_l1
+            entity_id: sensor.tech_inverter_input_current
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: number.multiplus_strombegrenzung
+            entity_id: number.tech_inverter_current_limit
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: binary_sensor.fram_shore_power
+            entity_id: binary_sensor.energy_shore_power
 
   - id: act_power_2_arm_assist
     then:
@@ -193,7 +193,7 @@ script:
       - homeassistant.service:
           service: number.set_value
           data:
-            entity_id: number.multiplus_strombegrenzung
+            entity_id: number.tech_inverter_current_limit
           data_template:
             value: "{{ val }}"
           variables:

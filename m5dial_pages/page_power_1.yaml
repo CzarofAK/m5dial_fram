@@ -34,17 +34,17 @@
 sensor:
   - platform: homeassistant
     id: s_power_1_soc
-    entity_id: sensor.smartshunt_ladestand
+    entity_id: sensor.tech_battery_shunt_soc
     on_value:
       - script.execute: draw_power_1
   - platform: homeassistant
     id: s_power_1_dc_v
-    entity_id: sensor.smartshunt_dc_bus_spannung
+    entity_id: sensor.tech_battery_shunt_voltage
     on_value:
       - script.execute: draw_power_1
   - platform: homeassistant
     id: s_power_1_dc_a
-    entity_id: sensor.smartshunt_dc_bus_stromstarke
+    entity_id: sensor.tech_battery_shunt_current
     on_value:
       - script.execute: draw_power_1
 
@@ -52,7 +52,7 @@ sensor:
   # integration). Shown in the status line while discharging.
   - platform: homeassistant
     id: s_power_1_ttg
-    entity_id: sensor.smartshunt_verbleibende_zeit
+    entity_id: sensor.tech_battery_shunt_time_remaining
     on_value:
       - script.execute: draw_power_1
 text_sensor:
@@ -73,7 +73,7 @@ text_sensor:
 binary_sensor:
   - platform: homeassistant
     id: s_power_1_park
-    entity_id: switch.fram_parkmodus
+    entity_id: switch.energy_park_mode
     trigger_on_initial_state: true
     on_state:
       - script.execute: draw_power_1
@@ -86,19 +86,19 @@ script:
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: sensor.smartshunt_ladestand
+            entity_id: sensor.tech_battery_shunt_soc
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: sensor.smartshunt_dc_bus_spannung
+            entity_id: sensor.tech_battery_shunt_voltage
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: sensor.smartshunt_dc_bus_stromstarke
+            entity_id: sensor.tech_battery_shunt_current
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: sensor.smartshunt_verbleibende_zeit
+            entity_id: sensor.tech_battery_shunt_time_remaining
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
@@ -106,7 +106,7 @@ script:
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: switch.fram_parkmodus
+            entity_id: switch.energy_park_mode
 
   # The button never calls a service directly, always an act_ script.
   # That keeps block D device-independent.
@@ -115,7 +115,7 @@ script:
       - homeassistant.service:
           service: switch.toggle
           data:
-            entity_id: switch.fram_parkmodus
+            entity_id: switch.energy_park_mode
 
   - id: draw_power_1
     mode: restart

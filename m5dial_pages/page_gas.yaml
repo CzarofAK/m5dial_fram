@@ -38,12 +38,12 @@
 sensor:
   - platform: homeassistant
     id: s_gas_a
-    entity_id: sensor.gas_1_stand
+    entity_id: sensor.exterior_gas_bottle_1_level
     on_value:
       - script.execute: draw_gas
   - platform: homeassistant
     id: s_gas_i
-    entity_id: sensor.gas_2_stand
+    entity_id: sensor.exterior_gas_bottle_2_level
     on_value:
       - script.execute: draw_gas
 
@@ -55,11 +55,11 @@ script:
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: sensor.gas_1_stand
+            entity_id: sensor.exterior_gas_bottle_1_level
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: sensor.gas_2_stand
+            entity_id: sensor.exterior_gas_bottle_2_level
 
   - id: draw_gas
     mode: restart

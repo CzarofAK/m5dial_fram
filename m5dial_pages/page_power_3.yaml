@@ -15,7 +15,7 @@
 #
 #  The arc is WR AUSLASTUNG (design.md §8: an arc is always a
 #  percentage). There's no direct utilization-% entity -- HA only has
-#  raw WR power (sensor.multiplus_0_wr_leistung, W). Computed against
+#  raw WR power (sensor.tech_inverter_power, W). Computed against
 #  1600 W, the nominal rating of the installed model (a Multiplus
 #  12/1600) — NOT a precise figure: real max capacity also depends on
 #  temperature (thermal derating) and isn't tracked here. Good enough
@@ -36,24 +36,24 @@
 sensor:
   - platform: homeassistant
     id: s_power_3_wr
-    entity_id: sensor.multiplus_0_wr_leistung
+    entity_id: sensor.tech_inverter_power
     on_value:
       - script.execute: draw_power_3
 
 text_sensor:
   - platform: homeassistant
     id: s_power_3_state
-    entity_id: sensor.multiplus_zustand
+    entity_id: sensor.tech_inverter_state
     on_value:
       - script.execute: draw_power_3
 
   - platform: homeassistant
     id: s_power_3_mode
-    entity_id: select.multiplus
+    entity_id: select.tech_inverter_mode
     # Same filter as before: shorten to 3 characters (design.md §8).
     filters:
       - lambda: |-
-          // Options of select.multiplus:
+          // Options of select.tech_inverter_mode:
           //   charger_only · inverter_only · on · off
           std::string s = x;
           if (s == "on") return std::string("ON");
@@ -71,15 +71,15 @@ script:
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: sensor.multiplus_0_wr_leistung
+            entity_id: sensor.tech_inverter_power
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: sensor.multiplus_zustand
+            entity_id: sensor.tech_inverter_state
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: select.multiplus
+            entity_id: select.tech_inverter_mode
 
   # OPEN ITEM (design.md §14): the jump to OFF takes away shore power,
   # charging, and 230 V, and should require a long press.
@@ -88,7 +88,7 @@ script:
       - homeassistant.service:
           service: select.select_option
           data:
-            entity_id: select.multiplus
+            entity_id: select.tech_inverter_mode
           data_template:
             option: "{{ opt }}"
           variables:
