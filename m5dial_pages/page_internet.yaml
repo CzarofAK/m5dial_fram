@@ -6,10 +6,11 @@
 #  Gleiches Doppelring-Raster wie page_gas / page_water (design.md):
 #
 #    outer ring 224  SIGNAL   sensor.network_router_signal (0..100 %)
-#    inner ring 200  ROAMING  sensor.network_data_month_abroad (MB) / 40 GB
+#    inner ring 200  ROAMING  sensor.network_data_month_abroad (MB) /
+#                             input_number.network_roaming_budget (GB)
 #
 #    left  column  SIGNAL   xx %   |  Verbindungstyp (LTE / 3G ...)
-#    right column  ROAMING  x.x GB |  "von 40 GB"
+#    right column  ROAMING  x.x GB |  "von <budget> GB"
 #    y_row  button  "LVL 1" / "LVL 2"  -> input_boolean.network_level_2
 #    footer status  ROUTER OFFLINE > KEIN NETZ > ROAMING >90 % > Land
 #
@@ -17,8 +18,9 @@
 #  Connection, Router online - SSH every 5 min, replaces teltonika_mqtt.yaml
 #  since 2026-11-08), network_data_volume.yaml (Monatszähler,
 #  1 GB = 1000 MB wie in der Telegram-Meldung), network_level_2.yaml
-#  (Netz-Level 2, FRAM in CH). Roaming-Volumen 40 GB/Monat (Highspeed-
-#  Anteil der Auslands-Option).
+#  (Netz-Level 2, FRAM in CH). Roaming budget comes from the HA helper
+#  input_number.network_roaming_budget (set on fram-home -> Internet);
+#  fallback ${roaming_quota_fallback_gb} GB while HA has no value (FR-132).
 #
 #  Netz-Level: Level 3 «Lockdown» existiert in HA noch nicht - der
 #  Button kennt deshalb nur 1/2. Achtung: die Automation «Lvl 1 nur in
@@ -31,7 +33,8 @@
 # =====================================================================
 
 substitutions:
-  roaming_quota_mb: "40000"
+  # Used only while input_number.network_roaming_budget has no value
+  roaming_quota_fallback_gb: "40"
 
 sensor:
   - platform: homeassistant
@@ -42,6 +45,11 @@ sensor:
   - platform: homeassistant
     id: s_inet_roaming
     entity_id: sensor.network_data_month_abroad
+    on_value:
+      - script.execute: draw_internet
+  - platform: homeassistant
+    id: s_inet_budget
+    entity_id: input_number.network_roaming_budget
     on_value:
       - script.execute: draw_internet
 
@@ -157,7 +165,11 @@ script:
           bool roam_ok = api && id(s_inet_roaming).has_state() &&
                          !std::isnan(id(s_inet_roaming).state);
           float mb = roam_ok ? id(s_inet_roaming).state : 0.0f;
-          float pct = mb * 100.0f / ${roaming_quota_mb}.0f;
+          // Budget in GB from the HA helper; fallback if missing or invalid
+          float budget_gb = id(s_inet_budget).state;
+          if (!id(s_inet_budget).has_state() || std::isnan(budget_gb) || budget_gb <= 0.0f)
+            budget_gb = ${roaming_quota_fallback_gb}.0f;
+          float pct = mb * 100.0f / (budget_gb * 1000.0f);
           uint32_t roam_c = !roam_ok ? GREY : pct >= 90 ? RED : pct >= 75 ? ORANGE : BLUE;
           arc(id(arc_inet_roaming), (int) std::min(pct, 100.0f), roam_c);
           col(id(lbl_inet_cap_roaming), roam_c);
@@ -166,7 +178,7 @@ script:
           else snprintf(buf, sizeof(buf), "%.1f GB", mb / 1000.0f);
           lv_label_set_text(id(lbl_inet_roaming), buf);
           col(id(lbl_inet_roaming), !roam_ok ? GREY : pct >= 90 ? RED : WHITE);
-          snprintf(buf, sizeof(buf), "von %d GB", ${roaming_quota_mb} / 1000);
+          snprintf(buf, sizeof(buf), "von %.0f GB", budget_gb);
           lv_label_set_text(id(lbl_inet_quota), buf);
           col(id(lbl_inet_quota), roam_ok ? TXT : GREY);
 
@@ -284,7 +296,7 @@ lvgl:
             align: CENTER
             x: ${x_col}
             y: ${y_line2}
-            text: "von 40 GB"
+            text: "von -- GB"
             text_font: font_16
             text_color: 0x555555
         - button:
