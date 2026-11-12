@@ -95,14 +95,14 @@
 # Lock/Unlock act on the Aufbautür (esphome.relay_4ch_step_zv_lock /
 # _unlock, same service the "Aufbautüre schliessen bei Ignition on"
 # automation uses). There is no lock-state entity, only the door
-# contact binary_sensor.eingangsture_contact -> shown as TÜR ZU/OFFEN.
+# contact binary_sensor.entrance_door_contact -> shown as TÜR ZU/OFFEN.
 # Step position: no real sensor yet (FR-115); stand-in is
 # binary_sensor.relay_4ch_step_step_out_engine_on, the same one the
 # HA pre-flight check uses -> footer "STUFE DRAUSSEN" when on.
 binary_sensor:
   - platform: homeassistant
     id: s_entrance_door
-    entity_id: binary_sensor.eingangsture_contact
+    entity_id: binary_sensor.entrance_door_contact
     trigger_on_initial_state: true
     on_state:
       - script.execute: draw_entrance
@@ -119,7 +119,7 @@ script:
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: binary_sensor.eingangsture_contact, binary_sensor.relay_4ch_step_step_out_engine_on
+            entity_id: binary_sensor.entrance_door_contact, binary_sensor.relay_4ch_step_step_out_engine_on
 
   - id: draw_entrance
     mode: restart

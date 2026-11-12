@@ -1031,7 +1031,7 @@ one line each) before relying on it.
 | 9 | `boiler` | Truma Combi 4 water-heating side, same Smart EBL Truma entities as `climate` | implemented |
 | 10 | `fans` | Fan board (`number.fan_board_fan_speed`) + Sprinter HVAC fan (`number.relay_2ch_hvac_hvac_fan_battery`, real — driven by the separate relay-2ch-hvac ESPHome device; that board only actually moves the motor when parked, this page just sets the desired value) | implemented |
 | 11 | `lights` | One light page (17.10.2026, replaces `lights_outside`, no separate inside page): INNEN Haupt / Küche / Bad (Spiegel + Deko together), AUSSEN Eingang (step + PIR) / Markise (front + rear). Outside lights are relay-cut at D+ → footer "AUSSEN AUS (D+)" with ignition on. Double-click = all off | implemented |
-| 12 | `entrance` | Step in/out, Aufbautür lock/unlock (`esphome.relay_4ch_step_zv_lock/_unlock`); status: door contact `binary_sensor.eingangsture_contact` (TÜR ZU/OFFEN), footer "STUFE DRAUSSEN" from `binary_sensor.relay_4ch_step_step_out_engine_on` until a real position sensor exists (FR-115); no double-click shortcut (safety) | implemented |
+| 12 | `entrance` | Step in/out, Aufbautür lock/unlock (`esphome.relay_4ch_step_zv_lock/_unlock`); status: door contact `binary_sensor.entrance_door_contact` (TÜR ZU/OFFEN), footer "STUFE DRAUSSEN" from `binary_sensor.relay_4ch_step_step_out_engine_on` until a real position sensor exists (FR-115); no double-click shortcut (safety) | implemented |
 | 13 | `ipixel` | On/off (`switch.ipixel_panels`, HA group) + per-side LED status (two switches) | implemented |
 
 Not pages — shown as an overlay on top of whatever page is current,
