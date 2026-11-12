@@ -30,12 +30,12 @@
 sensor:
   - platform: homeassistant
     id: s_water_f
-    entity_id: sensor.fresh_stand
+    entity_id: sensor.tech_fresh_water_tank_level
     on_value:
       - script.execute: draw_water
   - platform: homeassistant
     id: s_water_g
-    entity_id: sensor.waste_stand
+    entity_id: sensor.tech_waste_water_tank_level
     on_value:
       - script.execute: draw_water
 
@@ -57,11 +57,11 @@ script:
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: sensor.fresh_stand
+            entity_id: sensor.tech_fresh_water_tank_level
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: sensor.waste_stand
+            entity_id: sensor.tech_waste_water_tank_level
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
