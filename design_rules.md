@@ -1025,7 +1025,7 @@ one line each) before relying on it.
 | 3 | `power_3` | Grid power, WR side: inverter load (arc, computed against the installed model's nominal rating), MultiPlus mode | implemented |
 | 4 | `gas` | Two gas bottles (double ring, §4) | implemented |
 | 5 | `water` | Fresh / grey water (double ring, §4); pump = `switch.smart_ebl_water_pump` | implemented |
-| 6 | `internet` | Signal (outer ring), roaming this month / 40 GB (inner ring), Netz-Level 1/2 button (double-click = button), status line | implemented |
+| 6 | `internet` | Signal (outer ring), roaming this month / `input_number.network_roaming_budget` (inner ring), Netz-Level 1/2 button (double-click = button), status line | implemented |
 | 7 | `levelling` | Spirit level (bubble, MPU6050) + per-corner cm-to-add (VL/VR/HL/HR, from four already-computed sensors) | implemented |
 | 8 | `climate` | Truma Combi 4 (gas only) room-heating side, via the Smart EBL's Truma entities (activate switch + climate/number, FR-71; formerly `womolin_controller`); AC not installed yet; fan mode/fault dropped pending a confirmed entity | implemented |
 | 9 | `boiler` | Truma Combi 4 water-heating side, same Smart EBL Truma entities as `climate` | implemented |
