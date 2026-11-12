@@ -934,7 +934,7 @@ reusable by any dial in the project, not just this one.
   `None`, where a genuine `number.` entity reports its own state
   directly.
 * **PowerAssist setpoint vs. applied value (`page_power_2`).** The
-  ASSIST button shows `number.multiplus_strombegrenzung`, the
+  ASSIST button shows `number.tech_inverter_current_limit`, the
   setpoint — there's no separate entity confirming the MultiPlus has
   actually settled on that limit over VE.Bus, so the display can lag
   the real applied value briefly after a change. Nothing to fix
@@ -1021,7 +1021,7 @@ one line each) before relying on it.
 |---|---|---|---|
 | 0 | `clock` | Clock + outdoor temperature and date/weekday. Default `page_clock_lite.yaml` (dark, canvas-free `sbb_clock_lite`, ~115 kB less heap); alternative `page_clock.yaml` (white SBB face, night inversion, 115 kB canvas) | implemented |
 | 1 | `power_1` | Battery: SOC, park mode; status line: starter warning, else remaining time while discharging (SmartShunt, hours) | implemented |
-| 2 | `power_2` | Grid power: input power (single arc + big value, read-only), PowerAssist current limit (value + SET button, encoder-adjustable); footer "KEIN LANDSTROM" from `binary_sensor.fram_shore_power` (FR-114) | implemented |
+| 2 | `power_2` | Grid power: input power (single arc + big value, read-only), PowerAssist current limit (value + SET button, encoder-adjustable); footer "KEIN LANDSTROM" from `binary_sensor.energy_shore_power` (FR-114) | implemented |
 | 3 | `power_3` | Grid power, WR side: inverter load (arc, computed against the installed model's nominal rating), MultiPlus mode | implemented |
 | 4 | `gas` | Two gas bottles (double ring, §4) | implemented |
 | 5 | `water` | Fresh / grey water (double ring, §4); pump = `switch.smart_ebl_water_pump` | implemented |
