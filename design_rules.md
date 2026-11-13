@@ -604,7 +604,7 @@ real entity to poll — `page_clock`, `page_power_1`, `page_power_2`,
 which integrations are already fast enough to skip: the call is cheap,
 consistency won that tradeoff. Every page's entities are polled now,
 including `page_fans`'s HVAC column
-(`number.relay_2ch_hvac_hvac_fan_battery`, the real entity from the
+(`number.cab_hvac_relay_fan_battery`, the real entity from the
 separate relay-2ch-hvac ESPHome device, user-confirmed — see §14 for
 this entity's own correction history). `page_entrance` dropped off
 this list — it lost its one polled entity (the STUFE status readout)
@@ -704,9 +704,9 @@ reusable by any dial in the project, not just this one.
 
 * **`page_entrance` REIN/RAUS entities, reverted back to the switches
   (3rd round), STUFE readout removed.** REIN/RAUS were reported not
-  working on `switch.relay_4ch_step_relay_step_in`/`_out`, so a 2nd
+  working on `switch.entrance_step_in`/`_out`, so a 2nd
   round switched them to two `input_button` helpers instead
-  (`input_button.zv_lock_button`/`zv_unlock_button`, pressed via
+  (`input_button.alarm_central_locking_lock`/`_unlock`, pressed via
   `input_button.press`) — which then did nothing at all (no motor
   reaction). Checked against the relay-4ch-step device's own ESPHome
   source directly (not re-guessed): it has no `input_button` anywhere
@@ -714,7 +714,7 @@ reusable by any dial in the project, not just this one.
   `relay_step_in`/`relay_step_out` as self-resetting momentary GPIO
   switches (`on_turn_on: delay 4s -> turn_off`), i.e. the entities from
   round 1 were correct all along. Reverted to
-  `switch.turn_on: switch.relay_4ch_step_relay_step_in`/`_out` (no
+  `switch.turn_on: switch.entrance_step_in`/`_out` (no
   matching turn_off needed, the relay board resets itself); called via
   `homeassistant.service` now too, matching every other page (the
   input_button round had drifted to `homeassistant.action`, unrelated
@@ -722,7 +722,7 @@ reusable by any dial in the project, not just this one.
   actual lock, confirmed already working, untouched) stay on the
   esphome custom services. Separately, the central AKTIV/RUHE STUFE
   readout
-  (`binary_sensor.relay_4ch_step_step_out_engine_on`) was removed
+  (`binary_sensor.entrance_step_engine_on`) was removed
   entirely, per user decision: its one useful case (step still out
   while the ignition is on) is already covered by
   `overlay_preflight.yaml`, and the readout couldn't tell that case
@@ -731,15 +731,15 @@ reusable by any dial in the project, not just this one.
   uniform 2x2 button grid — see the "wider spacing" entry below.
 * **`page_lights_outside` MARKISE entity corrected (2nd round).**
   `switch.shelly1g4_7c2c6772123c` didn't work — user-confirmed real
-  entities are TWO `light` domain entities, `light.light_awning_front`
-  / `light.light_awning_rear`, same any-on/toggle-both shape as
+  entities are TWO `light` domain entities, `light.exterior_awning_front`
+  / `light.exterior_awning_rear`, same any-on/toggle-both shape as
   EINGANG's two switches (which the user confirmed DO already work,
   untouched here). Note the domain split: EINGANG stays `switch.*`,
   MARKISE is `light.*` — not a shared convention across the two
   columns, don't assume one from the other.
 * **`page_fans` entity_ids corrected (2nd round).** Both were wrong
-  before: `number.fan_speed_control` → `number.fan_board_fan_speed`,
-  `number.hvac_fan_battery` → `number.relay_2ch_hvac_hvac_fan_battery`
+  before: `number.fan_speed_control` → `number.bedroom_fan_board_fan_speed`,
+  `number.hvac_fan_battery` → `number.cab_hvac_relay_fan_battery`
   — user-confirmed against the real HA registry, not guessed. The
   first of the two had already gone through one "verified" round that
   turned out not to be — no scheme here is guess-proof, re-check
@@ -805,7 +805,7 @@ reusable by any dial in the project, not just this one.
   a small red dot that lights up when any one channel deviates from
   that average. Unit corrected (user report): these four are
   tachometer RPM readbacks, not the same 0-100% quantity as
-  `number.fan_board_fan_speed`'s duty-cycle SETPOINT they sit behind —
+  `number.bedroom_fan_board_fan_speed`'s duty-cycle SETPOINT they sit behind —
   a genuinely different measurement, not the same one mislabeled twice.
   The deviation dot's threshold is therefore relative now (> 15% of
   the average), not a fixed point spread — an absolute RPM spread
@@ -950,7 +950,7 @@ reusable by any dial in the project, not just this one.
   here to relate a minus sign to).
 * **`page_levelling`'s four corner sensors now read real values** — the
   HA-side degrees-to-cm conversion mentioned below has since been
-  built; `sensor.mpu6050_womo_vl_cm`/`_vr_cm`/`_hl_cm`/`_hr_cm` are no
+  built; `sensor.vehicle_level_wheel_front_left_cm`/`_front_right_cm`/`_rear_left_cm`/`_rear_right_cm` are no
   longer all 0.
 * **`page_levelling` diagonal corner mismatch (user report, resolved
   at the source).** With the WoMo actually sitting down at the rear
@@ -1029,9 +1029,9 @@ one line each) before relying on it.
 | 7 | `levelling` | Spirit level (bubble, MPU6050) + per-corner cm-to-add (VL/VR/HL/HR, from four already-computed sensors) | implemented |
 | 8 | `climate` | Truma Combi 4 (gas only) room-heating side, via the Smart EBL's Truma entities (activate switch + climate/number, FR-71; formerly `womolin_controller`); AC not installed yet; fan mode/fault dropped pending a confirmed entity | implemented |
 | 9 | `boiler` | Truma Combi 4 water-heating side, same Smart EBL Truma entities as `climate` | implemented |
-| 10 | `fans` | Fan board (`number.fan_board_fan_speed`) + Sprinter HVAC fan (`number.relay_2ch_hvac_hvac_fan_battery`, real — driven by the separate relay-2ch-hvac ESPHome device; that board only actually moves the motor when parked, this page just sets the desired value) | implemented |
+| 10 | `fans` | Fan board (`number.bedroom_fan_board_fan_speed`) + Sprinter HVAC fan (`number.cab_hvac_relay_fan_battery`, real — driven by the separate relay-2ch-hvac ESPHome device; that board only actually moves the motor when parked, this page just sets the desired value) | implemented |
 | 11 | `lights` | One light page (17.10.2026, replaces `lights_outside`, no separate inside page): INNEN Haupt / Küche / Bad (Spiegel + Deko together), AUSSEN Eingang (step + PIR) / Markise (front + rear). Outside lights are relay-cut at D+ → footer "AUSSEN AUS (D+)" with ignition on. Double-click = all off | implemented |
-| 12 | `entrance` | Step in/out, Aufbautür lock/unlock (`esphome.relay_4ch_step_zv_lock/_unlock`); status: door contact `binary_sensor.entrance_door_contact` (TÜR ZU/OFFEN), footer "STUFE DRAUSSEN" from `binary_sensor.relay_4ch_step_step_out_engine_on` until a real position sensor exists (FR-115); no double-click shortcut (safety) | implemented |
+| 12 | `entrance` | Step in/out, Aufbautür lock/unlock (`esphome.relay_4ch_step_zv_lock/_unlock`); status: door contact `binary_sensor.entrance_door_contact` (TÜR ZU/OFFEN), footer "STUFE DRAUSSEN" from `binary_sensor.entrance_step_engine_on` until a real position sensor exists (FR-115); no double-click shortcut (safety) | implemented |
 | 13 | `ipixel` | On/off (`switch.ipixel_panels`, HA group) + per-side LED status (two switches) | implemented |
 
 Not pages — shown as an overlay on top of whatever page is current,
@@ -1040,7 +1040,7 @@ the `s_ignition` comment in `.m5dial_fram.yaml`:
 
 | id | Content | Status |
 |---|---|---|
-| `OV1` | Pre-flight check overlay: red while `binary_sensor.pre_flight_check` is off (failed) AND ignition is on/starting | implemented (`overlay_preflight.yaml`) — blocky pixel-art warning triangle (pulses amber/white, `gen_warning.py`), generic message text (not the actual failed-items list, see that file's header open item), dismissible early |
+| `OV1` | Pre-flight check overlay: red while `binary_sensor.vehicle_pre_flight_check` is off (failed) AND ignition is on/starting | implemented (`overlay_preflight.yaml`) — blocky pixel-art warning triangle (pulses amber/white, `gen_warning.py`), generic message text (not the actual failed-items list, see that file's header open item), dismissible early |
 | `OV2` | Cat litter box overlay: red while the light is on, green for 5s when the fan starts, then off | implemented (`overlay_litterbox.yaml`) — blocky pixel-art cat (`m5dial_pages/assets/`, animimg 2-frame blink), dismissible early |
 | `OV3` | iPixel-on overlay: red while either front LED switch is on | implemented (`overlay_ipixel.yaml`) — text only, dismissible early |
 

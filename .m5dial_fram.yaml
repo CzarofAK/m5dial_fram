@@ -219,7 +219,7 @@ sensor:
   # sensor exists: swap the entity_id and drop `attribute:`.
   - platform: homeassistant
     id: s_aussentemp
-    entity_id: weather.forecast_home
+    entity_id: weather.home
     attribute: temperature
 
 binary_sensor:
@@ -339,7 +339,7 @@ text_sensor:
   # overlay_litterbox -- that one has no ignition gate at all yet.
   - platform: homeassistant
     id: s_ignition
-    entity_id: sensor.nw19939_ignition_state
+    entity_id: sensor.vehicle_mercedes_ignition_state
     on_value:
       - script.execute: draw_ov_preflight
       # page_lights: outside lights are relay-cut at D+ (footer hint)

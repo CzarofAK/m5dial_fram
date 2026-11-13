@@ -10,7 +10,7 @@
 #  relay switches originally guessed, switch.relay_4ch_step_relay_step_
 #  in/_out, were reported as not working, so this page was switched to
 #  press two `input_button` helpers instead -- input_button.zv_lock_
-#  button (REIN) / input_button.zv_unlock_button (RAUS) -- which then
+#  button (REIN) / input_button.alarm_central_locking_unlock (RAUS) -- which then
 #  turned out to do nothing at all (no motor sound, no reaction).
 #
 #  3rd correction, from the relay-4ch-step device's own ESPHome source
@@ -19,7 +19,7 @@
 #  (GPIO16) -- each wired `on_turn_on: delay 4s -> turn_off`, i.e.
 #  already self-resetting momentary relays; turn_on is the whole
 #  interaction, nothing here needs to turn them off again. Those are
-#  the switch.relay_4ch_step_relay_step_in/_out entities from the 2nd
+#  the switch.entrance_step_in/_out entities from the 2nd
 #  correction above -- the ORIGINAL guess was right. The device source
 #  has no `input_button` anywhere: those two helpers are ordinary HA
 #  helper entities with no automation behind them, so pressing one
@@ -50,7 +50,7 @@
 #
 #  STUFE status readout REMOVED (user decision): this page used to
 #  show a central AKTIV/RUHE readout off
-#  binary_sensor.relay_4ch_step_step_out_engine_on, but that entity
+#  binary_sensor.entrance_step_engine_on, but that entity
 #  reads OFF both when the step is retracted AND when the ignition is
 #  off (can't tell those two apart, a hardware limit) -- and the
 #  actually load-bearing case (step still out while the ignition is on)
@@ -97,7 +97,7 @@
 # automation uses). There is no lock-state entity, only the door
 # contact binary_sensor.entrance_door_contact -> shown as TÜR ZU/OFFEN.
 # Step position: no real sensor yet (FR-115); stand-in is
-# binary_sensor.relay_4ch_step_step_out_engine_on, the same one the
+# binary_sensor.entrance_step_engine_on, the same one the
 # HA pre-flight check uses -> footer "STUFE DRAUSSEN" when on.
 binary_sensor:
   - platform: homeassistant
@@ -108,7 +108,7 @@ binary_sensor:
       - script.execute: draw_entrance
   - platform: homeassistant
     id: s_entrance_step_out
-    entity_id: binary_sensor.relay_4ch_step_step_out_engine_on
+    entity_id: binary_sensor.entrance_step_engine_on
     trigger_on_initial_state: true
     on_state:
       - script.execute: draw_entrance
@@ -119,7 +119,7 @@ script:
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: binary_sensor.entrance_door_contact, binary_sensor.relay_4ch_step_step_out_engine_on
+            entity_id: binary_sensor.entrance_door_contact, binary_sensor.entrance_step_engine_on
 
   - id: draw_entrance
     mode: restart
@@ -154,14 +154,14 @@ script:
       - homeassistant.service:
           service: switch.turn_on
           data:
-            entity_id: switch.relay_4ch_step_relay_step_in
+            entity_id: switch.entrance_step_in
 
   - id: act_entrance_step_out
     then:
       - homeassistant.service:
           service: switch.turn_on
           data:
-            entity_id: switch.relay_4ch_step_relay_step_out
+            entity_id: switch.entrance_step_out
 
   - id: act_entrance_lock
     then:

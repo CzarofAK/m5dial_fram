@@ -10,9 +10,9 @@
 #    Degrees only drive the bubble's on-screen position now -- see
 #    below for why they're no longer shown as numbers.
 #  - Corner readout: four sensors that already report how many
-#    centimeters need adding at each corner (sensor.mpu6050_womo_vl_cm
-#    / _vr_cm / _hl_cm / _hr_cm -- VL/VR/HL/HR = vorne links/rechts,
-#    hinten links/rechts). These come pre-computed from elsewhere (the
+#    centimeters need adding at each corner (sensor.vehicle_level_wheel_front_left_cm
+#    / _front_right_cm / _rear_left_cm / _rear_right_cm),
+#    These come pre-computed from elsewhere (the
 #    mpu6050 device or a Node-RED flow) -- this page doesn't do its own
 #    degrees-to-cm conversion, and doesn't know or need the vehicle's
 #    track width/wheelbase to get there.
@@ -65,7 +65,7 @@
 #  toward the bubble's severity color -- nothing to do there isn't a
 #  problem.
 #
-#  sensor.mpu6050_womo_vl_cm/_vr_cm/_hl_cm/_hr_cm now read real values
+#  sensor.vehicle_level_wheel_front_left_cm/_front_right_cm/_rear_left_cm/_rear_right_cm now read real values
 #  -- the degrees-to-cm math got built in HA per the original plan (a
 #  template sensor per corner, using the vehicle's actual track
 #  width/wheelbase), and this page still just reads the four finished
@@ -91,34 +91,34 @@
 sensor:
   - platform: homeassistant
     id: s_levelling_lon
-    entity_id: sensor.mpu6050_pitch
+    entity_id: sensor.vehicle_level_pitch
     on_value:
       - script.execute: draw_levelling
   - platform: homeassistant
     id: s_levelling_lat
-    entity_id: sensor.mpu6050_roll
+    entity_id: sensor.vehicle_level_roll
     on_value:
       - script.execute: draw_levelling
 
   # ---- Per-corner cm-to-add, already computed upstream ---------------
   - platform: homeassistant
     id: s_levelling_vl
-    entity_id: sensor.mpu6050_womo_vl_cm
+    entity_id: sensor.vehicle_level_wheel_front_left_cm
     on_value:
       - script.execute: draw_levelling
   - platform: homeassistant
     id: s_levelling_vr
-    entity_id: sensor.mpu6050_womo_vr_cm
+    entity_id: sensor.vehicle_level_wheel_front_right_cm
     on_value:
       - script.execute: draw_levelling
   - platform: homeassistant
     id: s_levelling_hl
-    entity_id: sensor.mpu6050_womo_hl_cm
+    entity_id: sensor.vehicle_level_wheel_rear_left_cm
     on_value:
       - script.execute: draw_levelling
   - platform: homeassistant
     id: s_levelling_hr
-    entity_id: sensor.mpu6050_womo_hr_cm
+    entity_id: sensor.vehicle_level_wheel_rear_right_cm
     on_value:
       - script.execute: draw_levelling
 
@@ -132,27 +132,27 @@ script:
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: sensor.mpu6050_pitch
+            entity_id: sensor.vehicle_level_pitch
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: sensor.mpu6050_roll
+            entity_id: sensor.vehicle_level_roll
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: sensor.mpu6050_womo_vl_cm
+            entity_id: sensor.vehicle_level_wheel_front_left_cm
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: sensor.mpu6050_womo_vr_cm
+            entity_id: sensor.vehicle_level_wheel_front_right_cm
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: sensor.mpu6050_womo_hl_cm
+            entity_id: sensor.vehicle_level_wheel_rear_left_cm
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: sensor.mpu6050_womo_hr_cm
+            entity_id: sensor.vehicle_level_wheel_rear_right_cm
 
   - id: draw_levelling
     mode: restart

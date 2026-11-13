@@ -25,7 +25,7 @@
 #  object, no extra widget needed for it.
 #
 #  on_load poll (design.md §9): poll_clock forces a fresh push from HA
-#  for weather.forecast_home (s_aussentemp, declared in
+#  for weather.home (s_aussentemp, declared in
 #  .m5dial_fram.yaml's shared header, not here -- the only entity this
 #  page reads) on page_clock's own on_load trigger. Applied to every
 #  page now, including ones that already tend to update promptly --
@@ -45,7 +45,7 @@ script:
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: weather.forecast_home
+            entity_id: weather.home
 
 external_components:
   - source:

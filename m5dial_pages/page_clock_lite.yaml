@@ -32,7 +32,7 @@ script:
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: weather.forecast_home
+            entity_id: weather.home
 
 external_components:
   - source:
