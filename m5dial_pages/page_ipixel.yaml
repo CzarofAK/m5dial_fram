@@ -9,8 +9,8 @@
 #  switch.toggle, which HA fans out to both panels in one call.
 #
 #  Status: two real per-side switches, not one text status sensor --
-#  switch.ipixel_front_left_led_left and
-#  switch.ipixel_front_right_led_right. Shown as a compact L/R split
+#  switch.ipixel_front_left_power and
+#  switch.ipixel_front_right_power. Shown as a compact L/R split
 #  on y_line2 (design.md §3's "context for the main value" slot),
 #  since there's no single combined status string to read anymore.
 #
@@ -51,13 +51,13 @@ binary_sensor:
       - script.execute: draw_ipixel
   - platform: homeassistant
     id: s_ipixel_led_left
-    entity_id: switch.ipixel_front_left_led_left
+    entity_id: switch.ipixel_front_left_power
     trigger_on_initial_state: true
     on_state:
       - script.execute: draw_ipixel
   - platform: homeassistant
     id: s_ipixel_led_right
-    entity_id: switch.ipixel_front_right_led_right
+    entity_id: switch.ipixel_front_right_power
     trigger_on_initial_state: true
     on_state:
       - script.execute: draw_ipixel
@@ -74,11 +74,11 @@ script:
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: switch.ipixel_front_left_led_left
+            entity_id: switch.ipixel_front_left_power
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: switch.ipixel_front_right_led_right
+            entity_id: switch.ipixel_front_right_power
 
   - id: act_ipixel_power
     then:

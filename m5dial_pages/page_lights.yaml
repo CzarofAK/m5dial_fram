@@ -10,12 +10,12 @@
 #    footer  status
 #
 #  Entities (checked against the FRAM HA, 17.10.2026):
-#    Haupt    light.shelly_light_main_switch_light_main
-#    Küche    light.light_kitchen
-#    Bad      light.light_bathroom_light_0 (Spiegel) + light.light_bathroom_light_1 (Deko),
+#    Haupt    light.living_main_light
+#    Küche    light.kitchen_light
+#    Bad      light.bathroom_light_mirror (Spiegel) + light.bathroom_light_deco (Deko),
 #             driven together, "on" if either is on
-#    Eingang  switch.light_step + switch.light_pir, driven together (as before)
-#    Markise  light.light_awning_front + light.light_awning_rear, together
+#    Eingang  switch.entrance_step_light + switch.entrance_pir_light, driven together (as before)
+#    Markise  light.exterior_awning_front + light.exterior_awning_rear, together
 #  Each button toggles its group: any member on -> all off, else all on.
 #
 #  Outside lights are cut mechanically by a relay while D+ is present
@@ -36,49 +36,49 @@
 binary_sensor:
   - platform: homeassistant
     id: s_light_main
-    entity_id: light.shelly_light_main_switch_light_main
+    entity_id: light.living_main_light
     trigger_on_initial_state: true
     on_state:
       - script.execute: draw_lights
   - platform: homeassistant
     id: s_light_kitchen
-    entity_id: light.light_kitchen
+    entity_id: light.kitchen_light
     trigger_on_initial_state: true
     on_state:
       - script.execute: draw_lights
   - platform: homeassistant
     id: s_light_bath_mirror
-    entity_id: light.light_bathroom_light_0
+    entity_id: light.bathroom_light_mirror
     trigger_on_initial_state: true
     on_state:
       - script.execute: draw_lights
   - platform: homeassistant
     id: s_light_bath_deco
-    entity_id: light.light_bathroom_light_1
+    entity_id: light.bathroom_light_deco
     trigger_on_initial_state: true
     on_state:
       - script.execute: draw_lights
   - platform: homeassistant
     id: s_lights_entrance_pir
-    entity_id: switch.light_pir
+    entity_id: switch.entrance_pir_light
     trigger_on_initial_state: true
     on_state:
       - script.execute: draw_lights
   - platform: homeassistant
     id: s_lights_entrance_step
-    entity_id: switch.light_step
+    entity_id: switch.entrance_step_light
     trigger_on_initial_state: true
     on_state:
       - script.execute: draw_lights
   - platform: homeassistant
     id: s_lights_awning_front
-    entity_id: light.light_awning_front
+    entity_id: light.exterior_awning_front
     trigger_on_initial_state: true
     on_state:
       - script.execute: draw_lights
   - platform: homeassistant
     id: s_lights_awning_rear
-    entity_id: light.light_awning_rear
+    entity_id: light.exterior_awning_rear
     trigger_on_initial_state: true
     on_state:
       - script.execute: draw_lights
@@ -90,10 +90,10 @@ script:
           service: homeassistant.update_entity
           data:
             entity_id: >-
-              light.shelly_light_main_switch_light_main, light.light_kitchen,
-              light.light_bathroom_light_0, light.light_bathroom_light_1,
-              switch.light_pir, switch.light_step,
-              light.light_awning_front, light.light_awning_rear
+              light.living_main_light, light.kitchen_light,
+              light.bathroom_light_mirror, light.bathroom_light_deco,
+              switch.entrance_pir_light, switch.entrance_step_light,
+              light.exterior_awning_front, light.exterior_awning_rear
 
   # Group toggles: any member on -> all off, else all on.
   - id: act_light_main
@@ -101,14 +101,14 @@ script:
       - homeassistant.service:
           service: light.toggle
           data:
-            entity_id: light.shelly_light_main_switch_light_main
+            entity_id: light.living_main_light
 
   - id: act_light_kitchen
     then:
       - homeassistant.service:
           service: light.toggle
           data:
-            entity_id: light.light_kitchen
+            entity_id: light.kitchen_light
 
   - id: act_light_bath
     then:
@@ -118,7 +118,7 @@ script:
                       (id(s_light_bath_deco).has_state() && id(s_light_bath_deco).state);
             return on ? std::string("light.turn_off") : std::string("light.turn_on");
           data:
-            entity_id: light.light_bathroom_light_0, light.light_bathroom_light_1
+            entity_id: light.bathroom_light_mirror, light.bathroom_light_deco
 
   - id: act_lights_entrance
     then:
@@ -128,7 +128,7 @@ script:
                       (id(s_lights_entrance_step).has_state() && id(s_lights_entrance_step).state);
             return on ? std::string("switch.turn_off") : std::string("switch.turn_on");
           data:
-            entity_id: switch.light_pir, switch.light_step
+            entity_id: switch.entrance_pir_light, switch.entrance_step_light
 
   - id: act_lights_awning
     then:
@@ -138,7 +138,7 @@ script:
                       (id(s_lights_awning_rear).has_state() && id(s_lights_awning_rear).state);
             return on ? std::string("light.turn_off") : std::string("light.turn_on");
           data:
-            entity_id: light.light_awning_front, light.light_awning_rear
+            entity_id: light.exterior_awning_front, light.exterior_awning_rear
 
   # Double-click (header): everything on this page off.
   - id: dc_lights_all_off
@@ -147,13 +147,13 @@ script:
           service: light.turn_off
           data:
             entity_id: >-
-              light.shelly_light_main_switch_light_main, light.light_kitchen,
-              light.light_bathroom_light_0, light.light_bathroom_light_1,
-              light.light_awning_front, light.light_awning_rear
+              light.living_main_light, light.kitchen_light,
+              light.bathroom_light_mirror, light.bathroom_light_deco,
+              light.exterior_awning_front, light.exterior_awning_rear
       - homeassistant.service:
           service: switch.turn_off
           data:
-            entity_id: switch.light_pir, switch.light_step
+            entity_id: switch.entrance_pir_light, switch.entrance_step_light
 
   - id: draw_lights
     mode: restart

@@ -3,9 +3,9 @@
 #  FRAM M5Dial Cockpit · page package
 #
 #  Double ring (design.md §4), same geometry as page_gas.yaml:
-#    outer 224 x 224   FANBOARD -- real, number.fan_board_fan_speed
+#    outer 224 x 224   FANBOARD -- real, number.bedroom_fan_board_fan_speed
 #    inner 200 x 200   HVAC     -- real,
-#                                  number.relay_2ch_hvac_hvac_fan_battery.
+#                                  number.cab_hvac_relay_fan_battery.
 #                                  This is the Sprinter's OEM blower
 #                                  motor, driven by the separate
 #                                  relay-2ch-hvac ESPHome device (2
@@ -30,11 +30,11 @@
 #                                  FANBOARD's 5%.
 #
 #  FANBOARD also exposes four individual channel-speed readbacks
-#  (sensor.fan_board_fan_speed_1.._4, user-confirmed) behind the one
+#  (sensor.bedroom_fan_board_fan_speed_1.._4, user-confirmed) behind the one
 #  combined setpoint above -- in RPM, not %, user-corrected: these are
 #  tachometer readbacks off the fan board's own hardware, a physically
 #  different measurement from the 0-100% duty-cycle setpoint
-#  (number.fan_board_fan_speed) they sit behind, not the same
+#  (number.bedroom_fan_board_fan_speed) they sit behind, not the same
 #  quantity in two different units. Per user decision, not shown
 #  individually (four more numbers don't fit the two-arc shape) --
 #  instead draw_fans shows their Ø (average, in RPM) on y_line2,
@@ -77,7 +77,7 @@
 #  encoder's quiet for 400ms (or immediately on disarm).
 #
 #  on_load poll (design.md §9): poll_fans forces a fresh push from HA
-#  for number.fan_board_fan_speed and number.relay_2ch_hvac_hvac_fan_battery on
+#  for number.bedroom_fan_board_fan_speed and number.cab_hvac_relay_fan_battery on
 #  page_fans's own on_load trigger. Applied to every page now,
 #  including ones that already tend to update promptly -- the call is
 #  cheap, and consistency beats guessing per page which integrations
@@ -90,13 +90,13 @@
 sensor:
   - platform: homeassistant
     id: s_fans_board_speed
-    entity_id: number.fan_board_fan_speed
+    entity_id: number.bedroom_fan_board_fan_speed
     on_value:
       - script.execute: draw_fans
 
   - platform: homeassistant
     id: s_fans_hvac_speed
-    entity_id: number.relay_2ch_hvac_hvac_fan_battery
+    entity_id: number.cab_hvac_relay_fan_battery
     on_value:
       - script.execute: draw_fans
 
@@ -105,22 +105,22 @@ sensor:
   # individually (see header).
   - platform: homeassistant
     id: s_fans_board_ch1
-    entity_id: sensor.fan_board_fan_speed_1
+    entity_id: sensor.bedroom_fan_board_fan_speed_1
     on_value:
       - script.execute: draw_fans
   - platform: homeassistant
     id: s_fans_board_ch2
-    entity_id: sensor.fan_board_fan_speed_2
+    entity_id: sensor.bedroom_fan_board_fan_speed_2
     on_value:
       - script.execute: draw_fans
   - platform: homeassistant
     id: s_fans_board_ch3
-    entity_id: sensor.fan_board_fan_speed_3
+    entity_id: sensor.bedroom_fan_board_fan_speed_3
     on_value:
       - script.execute: draw_fans
   - platform: homeassistant
     id: s_fans_board_ch4
-    entity_id: sensor.fan_board_fan_speed_4
+    entity_id: sensor.bedroom_fan_board_fan_speed_4
     on_value:
       - script.execute: draw_fans
 
@@ -147,27 +147,27 @@ script:
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: number.fan_board_fan_speed
+            entity_id: number.bedroom_fan_board_fan_speed
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: number.relay_2ch_hvac_hvac_fan_battery
+            entity_id: number.cab_hvac_relay_fan_battery
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: sensor.fan_board_fan_speed_1
+            entity_id: sensor.bedroom_fan_board_fan_speed_1
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: sensor.fan_board_fan_speed_2
+            entity_id: sensor.bedroom_fan_board_fan_speed_2
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: sensor.fan_board_fan_speed_3
+            entity_id: sensor.bedroom_fan_board_fan_speed_3
       - homeassistant.service:
           service: homeassistant.update_entity
           data:
-            entity_id: sensor.fan_board_fan_speed_4
+            entity_id: sensor.bedroom_fan_board_fan_speed_4
 
   - id: act_fans_arm_board
     then:
@@ -246,7 +246,7 @@ script:
       - homeassistant.service:
           service: number.set_value
           data:
-            entity_id: number.fan_board_fan_speed
+            entity_id: number.bedroom_fan_board_fan_speed
           data_template:
             value: "{{ val }}"
           variables:
@@ -258,7 +258,7 @@ script:
       - delay: 400ms
       - script.execute: fans_board_write_now
 
-  # 10%-step (matches number.relay_2ch_hvac_hvac_fan_battery's own `step: 10`),
+  # 10%-step (matches number.cab_hvac_relay_fan_battery's own `step: 10`),
   # clamped 0-100. Same local-pending + debounced-write shape as
   # FANBOARD above (see header re: lag).
   - id: act_fans_hvac_up
@@ -286,7 +286,7 @@ script:
       - homeassistant.service:
           service: number.set_value
           data:
-            entity_id: number.relay_2ch_hvac_hvac_fan_battery
+            entity_id: number.cab_hvac_relay_fan_battery
           data_template:
             value: "{{ val }}"
           variables:
@@ -363,7 +363,7 @@ script:
       # shouldn't blank the whole readout). RPM, not %, per user
       # correction: these four are tachometer readbacks off the fan
       # board's own hardware (a physically different measurement from
-      # number.fan_board_fan_speed's 0-100% duty-cycle SETPOINT above --
+      # number.bedroom_fan_board_fan_speed's 0-100% duty-cycle SETPOINT above --
       # set a percentage in, read RPM back out is the normal shape for
       # a fan controller, so the setpoint stays a percentage here; only
       # this readout was mislabeled). No unit suffix beyond "RPM" fits

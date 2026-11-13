@@ -80,13 +80,13 @@ globals:
 binary_sensor:
   - platform: homeassistant
     id: s_ov_litterbox_light
-    entity_id: switch.litterbox_light
+    entity_id: switch.underfloor_litter_box_light
     on_state:
       - script.execute: draw_ov_litterbox
 
   - platform: homeassistant
     id: s_ov_litterbox_fan
-    entity_id: switch.litterbox_fan
+    entity_id: switch.underfloor_litter_box_fan
     on_press:
       - script.execute: ov_litterbox_fan_flash
 
