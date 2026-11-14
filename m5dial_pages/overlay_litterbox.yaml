@@ -55,12 +55,12 @@
 image:
   - platform: file
     id: img_cat_1
-    file: m5dial_pages/assets/cat_1.png
+    file: assets/cat_1.png
     type: RGB565
     transparency: alpha_channel
   - platform: file
     id: img_cat_2
-    file: m5dial_pages/assets/cat_2.png
+    file: assets/cat_2.png
     type: RGB565
     transparency: alpha_channel
 

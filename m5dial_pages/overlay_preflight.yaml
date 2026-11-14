@@ -69,12 +69,12 @@
 image:
   - platform: file
     id: img_warning_1
-    file: m5dial_pages/assets/warning_1.png
+    file: assets/warning_1.png
     type: RGB565
     transparency: alpha_channel
   - platform: file
     id: img_warning_2
-    file: m5dial_pages/assets/warning_2.png
+    file: assets/warning_2.png
     type: RGB565
     transparency: alpha_channel
 
